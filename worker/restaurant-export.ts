@@ -119,7 +119,7 @@ export async function handleRestaurantDataExport(request:Request,env:Env,actor:A
      const row:Record<string,unknown>={...sourceRow}
      if(table.name==='restaurant_tables'){
       const bytes=new Uint8Array(32);crypto.getRandomValues(bytes)
-      const token=btoa(Array.from(bytes,x=>String.fromCharCode(x)).join('')).replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_')
+      const token=btoa(Array.from(bytes,x=>String.fromCharCode(x)).join('')).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
       const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))
       row.public_token_hash=[...digest].map(x=>x.toString(16).padStart(2,'0')).join('')
       regenerated.push({table_id:String(row.id),qr_token:token})
