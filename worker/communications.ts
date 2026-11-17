@@ -239,7 +239,7 @@ export async function handleCommunications(request: Request, env: Env, path: str
     const userIds = Array.isArray(body.user_ids)
       ? [...new Set(body.user_ids.filter((id): id is string => typeof id === 'string' && UUID.test(id)))]
       : []
-    if (!['group','announcement'].includes(String(kind)) || !subject || subject.length > 180 || !message || message.length > 5000 || userIds.length < 1 || userIds.length > 200) {
+    if (!['group','announcement'].includes(String(kind)) || !subject || subject.length > 180 || !message || message.length > 5000 || userIds.length < 1 || userIds.length > 90) {
       return json(400, { error: 'invalid_group_or_announcement' })
     }
     const placeholders = userIds.map(() => '?').join(',')
