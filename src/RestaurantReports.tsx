@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useState } from 'react'
 import { AlertCircle, BarChart3, Download, FileCheck2, RefreshCw } from 'lucide-react'
 
@@ -27,7 +28,7 @@ export default function RestaurantReports(){
   if(!slug.trim()||from!==to){setError('Select one date and load its report before archiving.');return}
   setArchiving(true);setError('')
   try{
-   const res=await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}/daily-summary?date=${encodeURIComponent(from)}`,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
+   const res=await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}/daily-summary?date=${encodeURIComponent(from)}`,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Could not archive daily summary')
    setDailySummary(data.summary)
@@ -40,7 +41,7 @@ export default function RestaurantReports(){
   setBusy(true);setError('')
   try{
    const query=new URLSearchParams({from,to})
-   const res=await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}/reports?${query}`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
+   const res=await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}/reports?${query}`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Could not load reports')
    setReport(data);setDailySummary(null)

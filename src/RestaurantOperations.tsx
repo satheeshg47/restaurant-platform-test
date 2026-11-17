@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Check, ChefHat, RefreshCw, Utensils, Users, Bell, X } from 'lucide-react'
 
@@ -54,7 +55,7 @@ export default function RestaurantOperations() {
   const [notice, setNotice] = useState('')
 
   const request = useCallback(async (path: string, init?: RequestInit) => {
-    const response = await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}${path}`, {
+    const response = await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}${path}`, {
       ...init, credentials: 'same-origin', cache: 'no-store',
       headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
     })
