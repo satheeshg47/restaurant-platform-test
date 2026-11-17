@@ -8,6 +8,7 @@ export default function Owners(){
  const [rows,setRows]=useState<OwnerRow[]>([]),[state,setState]=useState('loading'),[error,setError]=useState(''),[busy,setBusy]=useState(false)
  const [invitations,setInvitations]=useState<Invitation[]>([]),[invitationState,setInvitationState]=useState('loading'),[invitationError,setInvitationError]=useState(''),[revoking,setRevoking]=useState('')
  const [target,setTarget]=useState<OwnerRow|null>(null),[email,setEmail]=useState(''),[inviteBusy,setInviteBusy]=useState(false),[inviteError,setInviteError]=useState(''),[created,setCreated]=useState<{invitation:Invitation;token:string}|null>(null),[copied,setCopied]=useState(false)
+ const [tenantName,setTenantName]=useState(''),[tenantSlug,setTenantSlug]=useState(''),[tenantBusy,setTenantBusy]=useState(false),[tenantError,setTenantError]=useState('')
  const refresh=useCallback(async()=>{setBusy(true);setError('');try{
   const session=await apiFetch(`${API_BASE}/admin/session`,{cache:'no-store'})
   if(!session.ok){setState(session.status===503?'auth_not_configured':session.status===403?'forbidden':'sign_in_required');setRows([]);return}
@@ -22,6 +23,17 @@ export default function Owners(){
  }catch(e){setError(e instanceof Error?e.message:'Unexpected error');setState('unavailable');setRows([]);setInvitationState('unavailable');setInvitationError(e instanceof Error?e.message:'Unexpected error')}finally{setBusy(false)}},[])
  useEffect(()=>{void refresh()},[refresh])
  const revokeInvite=async(invitation:Invitation)=>{if(!window.confirm(`Revoke the invitation for ${invitation.email}? The one-time token will stop working.`))return;setRevoking(invitation.id);setInvitationError('');try{const response=await apiFetch(`${API_BASE}/admin/owner-invitations/${invitation.id}/revoke`,{method:'POST',headers:{Accept:'application/json'},cache:'no-store'});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error==='invitation_not_pending'?'This invitation is no longer pending. Refresh the list.':payload.error||'Invitation could not be revoked.');setInvitations(current=>current.map(item=>item.id===invitation.id?{...item,status:'revoked'}:item))}catch(e){setInvitationError(e instanceof Error?e.message:'Invitation could not be revoked.')}finally{setRevoking('')}}
+ const createTenant=async()=>{
+  if(!tenantName.trim()||!tenantSlug.trim())return
+  setTenantBusy(true);setTenantError('')
+  try{
+   const response=await apiFetch(`${API_BASE}/admin/tenants`,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},cache:'no-store',body:JSON.stringify({name:tenantName.trim(),slug:tenantSlug.trim().toLowerCase()})})
+   const payload=await response.json().catch(()=>({}))
+   if(!response.ok)throw new Error(payload.error==='tenant_slug_exists'?'That restaurant slug is already in use.':payload.error||'Restaurant could not be created.')
+   setTenantName('');setTenantSlug('')
+   await refresh()
+  }catch(e){setTenantError(e instanceof Error?e.message:'Restaurant could not be created.')}finally{setTenantBusy(false)}
+ }
  const openInvite=(row:OwnerRow)=>{setTarget(row);setEmail('');setInviteError('');setCreated(null);setCopied(false)}
  const closeInvite=()=>{setTarget(null);setEmail('');setInviteError('');setCreated(null);setCopied(false)}
  const createInvite=async()=>{
@@ -39,6 +51,13 @@ export default function Owners(){
  const copyInviteLink=async()=>{if(!invitationLink)return;try{await navigator.clipboard.writeText(invitationLink);setCopied(true)}catch{setInviteError('Clipboard access was blocked. Select and copy the invitation link manually.')}}
  return <section className="panel live-applications" aria-live="polite">
   <div className="panel-heading"><div><h2>Owner directory</h2><p>Tenant ownership and membership status from the protected platform API.</p></div><button className="button secondary small" onClick={()=>void refresh()} disabled={busy}><RefreshCw size={14}/>{busy?'Checking…':'Refresh'}</button></div>
+  {state==='ready'&&<form className="tenant-create-form" onSubmit={e=>{e.preventDefault();void createTenant()}}>
+   <div><b>Create a restaurant</b><p>Create an active tenant, enable Restaurant Suite and prepare default settings. You can invite its owner next.</p></div>
+   <label>Restaurant name<input maxLength={160} value={tenantName} onChange={e=>setTenantName(e.target.value)} placeholder="e.g. Green Leaf Kitchen" required/></label>
+   <label>Restaurant slug<input maxLength={63} autoCapitalize="none" value={tenantSlug} onChange={e=>setTenantSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-').replace(/--+/g,'-'))} placeholder="green-leaf-kitchen" required/></label>
+   <button className="button primary" type="submit" disabled={tenantBusy||!tenantName.trim()||!tenantSlug.trim()}>{tenantBusy?'Creating…':'Create restaurant'}</button>
+   {tenantError&&<p className="registry-error" role="alert">{tenantError}</p>}
+  </form>}
   {state!=='ready'&&<div className="registry-state registry-blocked"><ShieldAlert size={20}/><div><b>{state==='loading'?'Loading owner directory':state==='auth_not_configured'?'Administrator sign-in is not configured':state==='forbidden'?'Owner access denied':state==='sign_in_required'?'Owner sign-in required':'Owner directory unavailable'}</b><p>{error||'Only the configured platform owner can view this directory. No sample records are displayed.'}</p></div></div>}
   {state==='ready'&&(rows.length===0?<div className="registry-empty"><Users size={22}/><b>No tenants found</b><p>Tenants will appear here after they are created.</p></div>:<div className="app-list">{rows.map(row=><div className="app-row" key={row.tenant_id}><div className="app-icon violet">{row.tenant_name.slice(0,2).toUpperCase()}</div><div className="app-info"><b>{row.tenant_name}</b><small>{row.tenant_slug} · {row.owner_present?row.email||'Owner account':'No owner assigned'}</small><small>Tenant: {row.tenant_status} · Membership: {row.membership_status||'—'}</small></div><span className={`status ${row.owner_present?'active':'draft'}`}>{row.owner_present?'Owner listed':'Unassigned'}</span>{!row.owner_present&&row.tenant_status==='active'&&<button className="button secondary small" onClick={()=>openInvite(row)}><MailPlus size={14}/> Invite</button>}</div>)}</div>)}
   <div className="registry-footnote">Owner invitations are available for active tenants without an owner. Suspension and ownership transfer are not implemented.</div>
