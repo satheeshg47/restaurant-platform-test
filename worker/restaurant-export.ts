@@ -4,10 +4,11 @@ const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{stat
 const PRIVATE_COLUMNS=new Set(['password_hash','public_token_hash','photo_object_key','idempotency_key','secret','secret_hash','api_key','access_token','refresh_token'])
 const MAX_BACKUP_BYTES=5*1024*1024
 const MAX_BACKUP_ROWS=50000
+const MAX_RESTORE_ROWS=500
 function fail(status:number,code:string):never{throw Object.assign(new Error(code),{status})}
 function quoteIdentifier(value:string){return '"'+value.replace(/"/g,'""')+'"'}
 async function schema(env:Env){
- const found=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'restaurant_%' AND name NOT LIKE 'sqlite_%' ORDER BY name").all<{name:string}>()
+ const found=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'restaurant_%' AND name NOT LIKE 'sqlite_%' AND name<>'restaurant_tenant_controls' ORDER BY name").all<{name:string}>()
  const result:{name:string;columns:string[];privateColumns:string[]}[]=[]
  for(const row of found.results){
   if(!/^restaurant_[a-z0-9_]+$/.test(row.name)) continue
@@ -74,7 +75,9 @@ async function preflight(env:Env,tenantId:string,backup:unknown){
   const row=await env.DB.prepare(`SELECT count(*) AS count FROM ${quoteIdentifier(table.name)} WHERE tenant_id=?`).bind(tenantId).first<{count:number}>()
   if(Number(row?.count||0)>0)occupied.push(table.name)
  }
- return {valid:true,restore_allowed:occupied.length===0,blocked_tables:occupied,row_count:valid.rowCount,backup_bytes:valid.bytes,private_fields_to_regenerate:['QR table tokens','order idempotency keys'],private_fields_not_restored:['staff password hashes','menu photo object keys']}
+ const lock=await env.DB.prepare('SELECT maintenance_mode,restore_mode FROM restaurant_tenant_controls WHERE tenant_id=?').bind(tenantId).first<{maintenance_mode:number;restore_mode:number}>()
+ if(lock)occupied.push('restaurant_tenant_controls')
+ return {valid:true,restore_allowed:occupied.length===0&&valid.rowCount<=MAX_RESTORE_ROWS,blocked_tables:occupied,row_count:valid.rowCount,backup_bytes:valid.bytes,restore_row_limit:MAX_RESTORE_ROWS,private_fields_to_regenerate:['QR table tokens','order idempotency keys'],private_fields_not_restored:['staff password hashes','menu photo object keys']}
 }
 export async function handleRestaurantDataExport(request:Request,env:Env,actor:Actor,parts:string[]):Promise<Response|null>{
  try{
@@ -101,7 +104,41 @@ export async function handleRestaurantDataExport(request:Request,env:Env,actor:A
    return json(200,await preflight(env,actor.tenantId,value))
   }
   if(parts.length===4&&parts[3]==='restore'&&request.method==='POST'){
-   return json(409,{error:'restore_requires_exclusive_maintenance_mode',message:'Restore is intentionally disabled until all guest and staff write paths enforce a tenant-wide maintenance lock. No data was changed.'})
+   if(actor.role!=='owner')fail(403,'restaurant_role_forbidden')
+   const raw=await request.text()
+   if(new TextEncoder().encode(raw).byteLength>MAX_BACKUP_BYTES)fail(413,'backup_size_limit_exceeded')
+   let value:unknown;try{value=JSON.parse(raw)}catch{fail(400,'invalid_backup_json')}
+   const check=await preflight(env,actor.tenantId,value)
+   if(!check.restore_allowed)fail(409,check.row_count>MAX_RESTORE_ROWS?'restore_row_limit_exceeded':'restore_target_not_empty')
+   const backup=value as {tables:Record<string,Record<string,unknown>[]>}
+   const statements: D1PreparedStatement[]=[env.DB.prepare('PRAGMA defer_foreign_keys=ON'),env.DB.prepare('INSERT INTO restaurant_tenant_controls(tenant_id,maintenance_mode,restore_mode) VALUES(?,1,1)').bind(actor.tenantId)]
+   const regenerated:{table_id:string;qr_token:string}[]=[]
+   for(const table of check.tables){
+    for(const sourceRow of backup.tables[table.name]){
+     const row:Record<string,unknown>={...sourceRow}
+     if(table.name==='restaurant_tables'){
+      const bytes=new Uint8Array(32);crypto.getRandomValues(bytes)
+      const token=btoa(Array.from(bytes,x=>String.fromCharCode(x)).join('')).replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_')
+      const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))
+      row.public_token_hash=[...digest].map(x=>x.toString(16).padStart(2,'0')).join('')
+      regenerated.push({table_id:String(row.id),qr_token:token})
+     }
+     if(table.name==='restaurant_orders')row.idempotency_key='restore-'+crypto.randomUUID()
+     const columns=[...table.columns,...table.privateColumns.filter(name=>name==='public_token_hash'&&table.name==='restaurant_tables'||name==='idempotency_key'&&table.name==='restaurant_orders')]
+     const values=columns.map(name=>row[name]??null)
+     const sql=`INSERT INTO ${quoteIdentifier(table.name)}(${columns.map(quoteIdentifier).join(',')}) VALUES(${columns.map(()=>'?').join(',')})`
+     statements.push(env.DB.prepare(sql).bind(...values))
+    }
+   }
+   statements.push(env.DB.prepare('DELETE FROM restaurant_tenant_controls WHERE tenant_id=? AND maintenance_mode=1 AND restore_mode=1').bind(actor.tenantId))
+   try{
+    await env.DB.batch(statements)
+    return json(200,{restored:true,row_count:check.row_count,regenerated_qr_tokens:regenerated,private_fields_not_restored:['staff password hashes','menu photo object keys']})
+   }catch(error){
+    const message=error instanceof Error?error.message:''
+    if(/restore_target_not_empty|UNIQUE constraint failed: restaurant_tenant_controls/i.test(message))fail(409,'restore_target_not_empty')
+    throw error
+   }
   }
   if(parts.length===4&&/^restaurant_[a-z0-9_]+$/.test(parts[3])&&request.method==='GET'){
    const tables=await schema(env),table=tables.find(t=>t.name===parts[3])
