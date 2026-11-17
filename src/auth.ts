@@ -98,7 +98,16 @@ export async function completeOidcLogin() {
     const raw = sessionStorage.getItem(KEY)
     if (raw) transaction = JSON.parse(raw) as Transaction
     const code = callback.searchParams.get('code')
-    if (callback.searchParams.has('error')) throw new Error('Sign-in was cancelled or rejected.')
+    const providerError = callback.searchParams.get('error')
+    if (providerError) {
+      const safeCode = /^[a-z0-9_.-]{1,80}$/i.test(providerError) ? providerError : 'provider_error'
+      const description = (callback.searchParams.get('error_description') || '')
+        .replace(/[\\u0000-\\u001f\\u007f]/g, ' ')
+        .slice(0, 240)
+      throw new Error(description
+        ? 'Identity provider error (' + safeCode + '): ' + description
+        : 'Identity provider error (' + safeCode + ').')
+    }
     if (!transaction || !code || callback.searchParams.get('state') !== transaction.state) throw new Error('Sign-in state validation failed.')
     if (transaction.redirectUri !== settings.redirectUri) throw new Error('Sign-in redirect configuration changed.')
     const metadata = await discovery(settings)
