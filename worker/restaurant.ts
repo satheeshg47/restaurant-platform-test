@@ -3,6 +3,7 @@ import { handleRestaurantMenuRoutes } from './menu.ts'
 import { handleOrderOperations } from './order-operations.ts'
 import { handleRestaurantFinance } from './restaurant-finance.ts'
 import { handleGuestReviewRoutes, handleRestaurantReviewRoutes } from './restaurant-reviews.ts'
+import { handleRestaurantDataExport } from './restaurant-export.ts'
 import { handleGuestOrder } from './guest-orders.ts'
 import type { Env, Identity } from './types.ts'
 
@@ -347,11 +348,15 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
       const reviews = await handleRestaurantReviewRoutes(request, env, actor, parts)
       if (reviews) return reviews
     }
+    if (parts[2] === 'data-export') {
+      const exported = await handleRestaurantDataExport(request, env, actor, parts)
+      if (exported) return exported
+    }
     if (parts[2] === 'kitchen' || parts[2] === 'waiter') {
       const operation = await handleOrderOperations(request, env, actor, parts)
       if (operation) return operation
     }
-    if (['data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
+    if (false && ['data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
     return json(404, { error: 'restaurant_route_not_found' })
   } catch (error) {
     return errorResponse(error, 'restaurant_request_failed')
