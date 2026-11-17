@@ -49,7 +49,7 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
         variantId=String(variant.id); variantName=String(parse(variant.name)?.en || Object.values(parse(variant.name) || {})[0] || '')
         unit=Number(variant.price_minor)
       }
-      const addonIds = [...new Set((input.addon_ids || []).map(String))]
+      const addonIds: string[] = [...new Set((input.addon_ids || []).map((id: unknown) => typeof id === 'string' ? id : ''))]
       if (addonIds.some(id => !UUID.test(id))) bad(400, 'invalid_order_item')
       const groups = await env.DB.prepare("SELECT g.id,g.required,g.min_pick,g.max_pick FROM restaurant_item_addon_groups ig JOIN restaurant_addon_groups g ON g.tenant_id=ig.tenant_id AND g.id=ig.group_id AND g.active=1 WHERE ig.tenant_id=? AND ig.item_id=?").bind(tenantId,item.id).all<Record<string, unknown>>()
       const allowedGroups = groups.results
