@@ -417,7 +417,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(guestData.items.length, 1)
 
   const selectedVariant = db.prepare('SELECT id FROM restaurant_menu_variants WHERE tenant_id=? AND item_id=?').get(tenant.id, item.id)
-  const orderPayload = { session_id: session.id, idempotency_key: 'guest-order-test-0001', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
+  const orderPayload = { session_id: session.id, idempotency_key: 'guest-order-test-0001', note: '  No   onions  ', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
   const guestOrderPath = `/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders`
   const placed = await call(guestOrderPath, { method: 'POST', body: orderPayload })
   assert.equal(placed.status, 201)
@@ -425,6 +425,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(placedBody.order.subtotal_minor, 30000)
   assert.equal(placedBody.order.tax_minor, 1500)
   assert.equal(placedBody.order.total_minor, 31500)
+  assert.equal(db.prepare('SELECT special_instructions FROM restaurant_orders WHERE tenant_id=? AND id=?').get(tenant.id, placedBody.order.id).special_instructions, 'No onions')
   assert.equal(db.prepare('SELECT stock_quantity FROM restaurant_menu_items WHERE tenant_id=? AND id=?').get(tenant.id, item.id).stock_quantity, 10)
   assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_kitchen_batches WHERE tenant_id=?').get(tenant.id).count, 1)
   assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_batch_allocations WHERE tenant_id=?').get(tenant.id).count, 1)
