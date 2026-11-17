@@ -518,6 +518,27 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   const savedSummary = await call(`/restaurant/green-leaf-kitchen/daily-summary?date=${reportDay}`, { accessToken: ownerAccess })
   assert.equal(savedSummary.status, 200)
   assert.ok((await savedSummary.json()).summary.order_count >= 1)
+  const reviewEligibility = await call(`/restaurant/green-leaf-kitchen/guest/${invoiceTable.qr_token}/reviews`)
+  assert.equal(reviewEligibility.status, 200)
+  assert.equal((await reviewEligibility.json()).review_session.id, invoiceSession.id)
+  const guestReview = await call(`/restaurant/green-leaf-kitchen/guest/${invoiceTable.qr_token}/reviews`, {
+    method: 'POST', body: { session_id: invoiceSession.id, rating: 5, comment: 'Excellent service' },
+  })
+  assert.equal(guestReview.status, 201)
+  const reviewBody = await guestReview.json()
+  assert.equal(reviewBody.review.rating, 5)
+  const duplicateReview = await call(`/restaurant/green-leaf-kitchen/guest/${invoiceTable.qr_token}/reviews`, {
+    method: 'POST', body: { session_id: invoiceSession.id, rating: 4 },
+  })
+  assert.equal(duplicateReview.status, 409)
+  const reviewList = await call('/restaurant/green-leaf-kitchen/reviews', { accessToken: ownerAccess })
+  assert.equal(reviewList.status, 200)
+  assert.equal((await reviewList.json()).reviews.length, 1)
+  const reviewUpdate = await call(`/restaurant/green-leaf-kitchen/reviews/${reviewBody.review.id}`, {
+    method: 'PATCH', accessToken: ownerAccess, body: { visibility: 'hidden', owner_response: 'Thank you for your feedback' },
+  })
+  assert.equal(reviewUpdate.status, 200)
+  assert.equal((await reviewUpdate.json()).review.visibility, 'hidden')
 
   const otherTenant = await call('/admin/tenants', { method: 'POST', accessToken: adminToken, body: { name: 'Other Tenant', slug: 'other-tenant' } })
   assert.equal(otherTenant.status, 201)
