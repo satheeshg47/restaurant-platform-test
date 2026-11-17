@@ -142,7 +142,7 @@ export default function RestaurantDataExport(){
   </div>
   <div className="restaurant-report-panel restaurant-report-wide">
    <h3><ShieldCheck size={17}/> Export protection</h3>
-   <ul><li>Only the restaurant owner can export.</li><li>Every row is filtered to the selected restaurant tenant.</li><li>Password hashes, QR-token hashes, storage object keys and idempotency keys are excluded.</li><li>Exports are read-only and do not change live records.</li></ul>
+   <ul><li>Restaurant owners and managers can export; restore is owner-only.</li><li>Every row is filtered to the selected restaurant tenant.</li><li>Password hashes, QR-token hashes, storage object keys and idempotency keys are excluded.</li><li>Exports are read-only and do not change live records.</li></ul>
    <p className="restaurant-settings-note">Full backup downloads a versioned JSON snapshot of tenant-owned restaurant tables. Credentials, token/secret fields and private storage keys are excluded. Restore is owner-only, limited to 500 rows, requires an empty same-tenant target and typed confirmation, and runs as one atomic D1 batch. Automatic backup scheduling remains unimplemented; store backup files securely.</p>
   </div>
  </section>
