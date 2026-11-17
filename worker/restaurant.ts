@@ -143,7 +143,16 @@ async function handleGuestMenu(env: Env, tenantId: string, token: string): Promi
         "SELECT id,status FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND status='open' LIMIT 1",
       ).bind(tenantId, table.id).first(),
     ])
-    return json(200, { table, session: session ?? null, ...menu })
+    const categories = menu.categories.filter(row => Boolean(row.active))
+    const categoryIds = new Set(categories.map(row => String(row.id)))
+    const items = menu.items.filter(row => Boolean(row.active) && categoryIds.has(String(row.category_id)))
+    const itemIds = new Set(items.map(row => String(row.id)))
+    const addon_groups = menu.addon_groups.filter(row => Boolean(row.active))
+    const groupIds = new Set(addon_groups.map(row => String(row.id)))
+    const variants = menu.variants.filter(row => Boolean(row.active) && itemIds.has(String(row.item_id)))
+    const addons = menu.addons.filter(row => Boolean(row.active) && groupIds.has(String(row.group_id)))
+    const item_addon_groups = menu.item_addon_groups.filter(row => itemIds.has(String(row.item_id)) && groupIds.has(String(row.group_id)))
+    return json(200, { table, session: session ?? null, ...menu, categories, items, variants, addon_groups, addons, item_addon_groups })
   } catch { return json(500, { error: 'restaurant_menu_unavailable' }) }
 }
 
