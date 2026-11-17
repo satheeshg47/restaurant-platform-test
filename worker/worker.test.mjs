@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { generateKeyPair, exportJWK, SignJWT } from 'jose'
 import worker from './index.ts'
+import { handleRestaurantDataExport } from './restaurant-export.ts'
 
 class Statement {
   constructor(db, sql) { this.db = db; this.sql = sql; this.values = [] }
@@ -77,6 +78,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0004_restaurant_order_item_timing.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0005_seed_restaurant_application.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0006_stock_adjustment_marker.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0007_tenant_restore_guard.sql', 'utf8'))
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
   env = {
@@ -250,7 +252,8 @@ test('admin announcements reach only selected active owners', async () => {
 
 test('D1 restaurant schema includes tenant-scoped operations, GST invoices and item timing', () => {
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'restaurant_%' ORDER BY name").all().map(row => row.name)
-  assert.equal(tables.length, 25)
+  assert.equal(tables.length, 26)
+  assert.ok(tables.includes('restaurant_tenant_controls'))
   for (const table of ['restaurant_profiles','restaurant_staff','restaurant_tables','restaurant_table_sessions','restaurant_menu_categories','restaurant_menu_items','restaurant_orders','restaurant_order_items','restaurant_kitchen_batches','restaurant_payments','restaurant_refunds','restaurant_service_requests','restaurant_reviews','restaurant_invoice_counters','restaurant_invoices']) {
     assert.ok(tables.includes(table), `missing ${table}`)
   }
@@ -261,6 +264,36 @@ test('D1 restaurant schema includes tenant-scoped operations, GST invoices and i
     assert.ok(itemColumns.includes(column), `missing order-item timing column ${column}`)
   }
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
+})
+
+test('D1 restore atomically restores rows and regenerates private QR tokens', async () => {
+  const restoreTenantId = crypto.randomUUID()
+  db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(restoreTenantId,'Restore Target','restore-target','active')
+  const tableId = crypto.randomUUID()
+  db.prepare('INSERT INTO restaurant_tables(id,tenant_id,label,table_type) VALUES(?,?,?,?)').run(tableId,restoreTenantId,'Restored Table','dine_in')
+  db.prepare("INSERT INTO restaurant_settings(tenant_id,setting_key,setting_value) VALUES(?,?,?)").run(restoreTenantId,'restore_test','{"ok":true}')
+  const actor = { tenantId: restoreTenantId, userId: 'restore-test-user', staffId: null, role: 'owner' }
+  const parts = ['restaurant','restore-target','data-export','backup']
+  const backupResponse = await handleRestaurantDataExport(new Request('https://example.test/backup'),env,actor,parts)
+  assert.equal(backupResponse.status,200)
+  const backup = await backupResponse.json()
+  assert.equal(backup.row_count,2)
+  assert.equal(backup.tables.restaurant_tables[0].public_token_hash,undefined)
+  db.prepare('DELETE FROM restaurant_tables WHERE tenant_id=?').run(restoreTenantId)
+  db.prepare('DELETE FROM restaurant_settings WHERE tenant_id=?').run(restoreTenantId)
+  const restored = await handleRestaurantDataExport(new Request('https://example.test/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(backup)}),env,actor,['restaurant','restore-target','data-export','restore'])
+  assert.equal(restored.status,200)
+  const result = await restored.json()
+  assert.equal(result.restored,true)
+  assert.equal(result.row_count,2)
+  assert.equal(result.regenerated_qr_tokens.length,1)
+  const token = result.regenerated_qr_tokens[0].qr_token
+  assert.equal(token.length,43)
+  const stored = db.prepare('SELECT public_token_hash FROM restaurant_tables WHERE tenant_id=? AND id=?').get(restoreTenantId,tableId)
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))
+  assert.equal(stored.public_token_hash,[...digest].map(x=>x.toString(16).padStart(2,'0')).join(''))
+  assert.equal(db.prepare('SELECT setting_value FROM restaurant_settings WHERE tenant_id=? AND setting_key=?').get(restoreTenantId,'restore_test').setting_value,'{"ok":true}')
+  assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_tenant_controls WHERE tenant_id=?').get(restoreTenantId).count,0)
 })
 
 test('Super Admin can create a tenant, invite its owner and manage restaurant settings and tables', async () => {
@@ -565,7 +598,11 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
     method: 'POST', accessToken: ownerAccess, body: backup,
   })
   assert.equal(blockedRestore.status, 409)
-  assert.equal((await blockedRestore.json()).error, 'restore_requires_exclusive_maintenance_mode')
+  assert.equal((await blockedRestore.json()).error, 'restore_target_not_empty')
+  assert.throws(() => db.prepare('INSERT INTO restaurant_tenant_controls(tenant_id,maintenance_mode,restore_mode) VALUES(?,1,1)').run(tenant.id), /restore_target_not_empty/)
+  db.prepare('INSERT INTO restaurant_tenant_controls(tenant_id,maintenance_mode,restore_mode) VALUES(?,1,0)').run(tenant.id)
+  assert.throws(() => db.prepare('UPDATE restaurant_profiles SET display_name=display_name WHERE tenant_id=?').run(tenant.id), /tenant_maintenance_locked/)
+  db.prepare('DELETE FROM restaurant_tenant_controls WHERE tenant_id=?').run(tenant.id)
   const csvExport = await call('/restaurant/green-leaf-kitchen/data-export/restaurant_orders', { accessToken: ownerAccess })
   assert.equal(csvExport.status, 200)
   assert.match(csvExport.headers.get('content-type'), /text\/csv/)
