@@ -139,7 +139,8 @@ async function reportData(env: Env, tenantId: string, from: string, to: string) 
 export async function handleRestaurantFinance(request: Request, env: Env, actor: Actor, parts: string[], url: URL): Promise<Response|null> {
   if (parts[2]==='waiter' && parts[3]==='sessions' && parts.length===6 && parts[5]==='invoice' && request.method==='POST') {
     if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
-    return json(201,await invoiceForSession(env,actor,parts[4]))
+    const result=await invoiceForSession(env,actor,parts[4])
+    return json(result.existing?200:201,result)
   }
   if (parts[2]==='reports' && parts.length===3 && request.method==='GET') {
     if (!['owner','manager'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
@@ -151,7 +152,7 @@ export async function handleRestaurantFinance(request: Request, env: Env, actor:
   if (parts[2]==='daily-summary' && parts.length===3 && (request.method==='GET'||request.method==='POST')) {
     if (!['owner','manager'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
     const day=url.searchParams.get('date')
-    if (!validDay(day)) fail(400,'invalid_business_date')
+    if (!validDay(day) || day>localParts(new Date(),'Asia/Kolkata').year+'-'+localParts(new Date(),'Asia/Kolkata').month+'-'+localParts(new Date(),'Asia/Kolkata').day) fail(400,'invalid_business_date')
     if (request.method==='GET') {
       const saved=await env.DB.prepare('SELECT business_date,order_count,revenue_minor,tax_minor,cancelled_count,refunds_minor,average_order_minor,metrics,updated_at FROM restaurant_daily_summaries WHERE tenant_id=? AND business_date=?').bind(actor.tenantId,day).first<Record<string,unknown>>()
       return saved?json(200,{summary:{...saved,metrics:parseJson(saved.metrics)}}):json(404,{error:'daily_summary_not_found'})
