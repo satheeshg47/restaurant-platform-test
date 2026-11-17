@@ -75,6 +75,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0002_owner_communication_centre.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0003_restaurant_domain.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0004_restaurant_order_item_timing.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0005_seed_restaurant_application.sql', 'utf8'))
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
   env = {
@@ -257,4 +258,83 @@ test('D1 restaurant schema includes tenant-scoped operations, GST invoices and i
     assert.ok(itemColumns.includes(column), `missing order-item timing column ${column}`)
   }
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
+})
+
+test('Super Admin can create a tenant, invite its owner and manage restaurant settings and tables', async () => {
+  const adminToken = await token(adminSubject, audience)
+  const created = await call('/admin/tenants', {
+    method: 'POST', accessToken: adminToken,
+    body: { name: 'Green Leaf Kitchen', slug: 'green-leaf-kitchen' },
+  })
+  assert.equal(created.status, 201)
+  const tenant = (await created.json()).tenant
+  assert.equal(tenant.slug, 'green-leaf-kitchen')
+  assert.equal(db.prepare("SELECT count(*) AS count FROM tenant_applications WHERE tenant_id=? AND status='active'").get(tenant.id).count, 1)
+  assert.equal(db.prepare('SELECT display_name FROM restaurant_profiles WHERE tenant_id=?').get(tenant.id).display_name, 'Green Leaf Kitchen')
+
+  const inviteResponse = await call('/admin/owner-invitations', {
+    method: 'POST', accessToken: adminToken,
+    body: { tenant_id: tenant.id, email: 'tenant-owner@example.com' },
+  })
+  assert.equal(inviteResponse.status, 201)
+  const invite = await inviteResponse.json()
+  const ownerSubject = 'auth0|tenant-owner'
+  const ownerAccess = await token(ownerSubject, audience)
+  const ownerId = await token(ownerSubject, clientId, { email: 'tenant-owner@example.com', email_verified: true })
+  const accepted = await call('/owner/invitations/accept', {
+    method: 'POST', accessToken: ownerAccess, idToken: ownerId, body: { token: invite.token },
+  })
+  assert.equal(accepted.status, 200)
+
+  const settings = await call('/restaurant/green-leaf-kitchen/settings', { accessToken: ownerAccess })
+  assert.equal(settings.status, 200)
+  assert.equal((await settings.json()).settings.display_name, 'Green Leaf Kitchen')
+
+  const saved = await call('/restaurant/green-leaf-kitchen/settings', {
+    method: 'PATCH', accessToken: ownerAccess,
+    body: {
+      display_name: 'Green Leaf Foods', currency_code: 'INR', timezone: 'Asia/Kolkata',
+      default_language: 'kn', tax_mode: 'gst', tax_rate: 0, gst_rate: 5,
+      tax_inclusive: false, accepting_orders: true, legal_name: 'Green Leaf Foods Pvt Ltd',
+      gstin: '29ABCDE1234F1Z5', address_line1: '123 Main Street', address_line2: '',
+      city: 'Bengaluru', state_name: 'Karnataka', state_code: '29', postal_code: '560001',
+      invoice_prefix: 'GLF',
+    },
+  })
+  assert.equal(saved.status, 200)
+  assert.equal((await saved.json()).settings.gstin, '29ABCDE1234F1Z5')
+
+  const tableResponse = await call('/restaurant/green-leaf-kitchen/tables', {
+    method: 'POST', accessToken: ownerAccess,
+    body: { label: 'Table 1', table_type: 'dine_in', table_number: 1 },
+  })
+  assert.equal(tableResponse.status, 201)
+  const table = await tableResponse.json()
+  assert.match(table.qr_token, /^[A-Za-z0-9_-]{43}$/)
+
+  const opened = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions`, {
+    method: 'POST', accessToken: ownerAccess, body: { guest_count: 4 },
+  })
+  assert.equal(opened.status, 201)
+  const session = (await opened.json()).session
+
+  const qrMenu = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/menu`)
+  assert.equal(qrMenu.status, 200)
+  const guestData = await qrMenu.json()
+  assert.equal(guestData.table.id, table.table.id)
+  assert.equal(guestData.session.id, session.id)
+  assert.equal(guestData.restaurant.display_name, 'Green Leaf Foods')
+
+  const closed = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/close`, {
+    method: 'POST', accessToken: ownerAccess,
+  })
+  assert.equal(closed.status, 200)
+  assert.equal((await closed.json()).session.status, 'closed')
+
+  const tableList = await call('/restaurant/green-leaf-kitchen/tables', { accessToken: ownerAccess })
+  assert.equal(tableList.status, 200)
+  assert.equal((await tableList.json()).tables[0].session_id, null)
+
+  const forbidden = await call('/restaurant/other-tenant/settings', { accessToken: ownerAccess })
+  assert.equal(forbidden.status, 404)
 })
