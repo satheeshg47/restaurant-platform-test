@@ -164,7 +164,7 @@ export async function handleRestaurantFinance(request: Request, env: Env, actor:
     const metrics={payments:data.payments,refunds:data.refunds,top_items:data.top_items,timezone:data.timezone}
     const saved=await env.DB.prepare(`INSERT INTO restaurant_daily_summaries(tenant_id,business_date,order_count,revenue_minor,tax_minor,cancelled_count,refunds_minor,average_order_minor,metrics)
       VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,business_date) DO UPDATE SET order_count=excluded.order_count,revenue_minor=excluded.revenue_minor,tax_minor=excluded.tax_minor,cancelled_count=excluded.cancelled_count,refunds_minor=excluded.refunds_minor,average_order_minor=excluded.average_order_minor,metrics=excluded.metrics
-      RETURNING business_date,order_count,revenue_minor,tax_minor,cancelled_count,refunds_minor,average_order_minor,metrics,updated_at`).bind(actor.tenantId,day,count,String(revenue),String(tax),data.daily.reduce((s,d)=>s+d.cancelled_count,0),String(data.refunds?.refunded_minor||0),average,JSON.stringify(metrics)).first<Record<string,unknown>>()
+      RETURNING business_date,order_count,revenue_minor,tax_minor,cancelled_count,refunds_minor,average_order_minor,metrics`).bind(actor.tenantId,day,count,String(revenue),String(tax),data.daily.reduce((s,d)=>s+d.cancelled_count,0),String(data.refunds?.refunded_minor||0),average,JSON.stringify(metrics)).first<Record<string,unknown>>()
     return json(200,{summary:saved?{...saved,metrics:parseJson(saved.metrics)}:null,archived:true})
   }
   return null
