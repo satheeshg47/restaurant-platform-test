@@ -76,6 +76,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0003_restaurant_domain.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0004_restaurant_order_item_timing.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0005_seed_restaurant_application.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0006_stock_adjustment_marker.sql', 'utf8'))
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
   env = {
@@ -303,6 +304,75 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   })
   assert.equal(saved.status, 200)
   assert.equal((await saved.json()).settings.gstin, '29ABCDE1234F1Z5')
+
+  const categoryResponse = await call('/restaurant/green-leaf-kitchen/menu/categories', {
+    method: 'POST', accessToken: ownerAccess,
+    body: { name: { en: 'Starters', kn: 'ಪ್ರಾರಂಭಿಕ' }, sort_order: 1, station: 'Kitchen', schedule: {} },
+  })
+  assert.equal(categoryResponse.status, 201)
+  const category = (await categoryResponse.json()).category
+  assert.equal(category.name.en, 'Starters')
+
+  const itemResponse = await call('/restaurant/green-leaf-kitchen/menu/items', {
+    method: 'POST', accessToken: ownerAccess,
+    body: {
+      category_id: category.id, name: { en: 'Paneer Tikka' }, description: { en: 'Grilled paneer' },
+      base_price_minor: 25000, food_type: 'veg', prep_minutes: 15, priority: 1,
+      available: true, stock_tracking: true, stock_quantity: 10, low_stock_at: 2,
+      schedule: {}, sort_order: 1, active: true, hsn_sac_code: '210690',
+    },
+  })
+  assert.equal(itemResponse.status, 201)
+  const item = (await itemResponse.json()).item
+  assert.equal(item.stock_quantity, 10)
+
+  const variantResponse = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/variants`, {
+    method: 'POST', accessToken: ownerAccess, body: { name: { en: 'Half' }, price_minor: 15000 },
+  })
+  assert.equal(variantResponse.status, 201)
+
+  const groupResponse = await call('/restaurant/green-leaf-kitchen/menu/addon-groups', {
+    method: 'POST', accessToken: ownerAccess,
+    body: { name: { en: 'Extras' }, required: false, min_pick: 0, max_pick: 2 },
+  })
+  assert.equal(groupResponse.status, 201)
+  const group = (await groupResponse.json()).addon_group
+  const addonResponse = await call(`/restaurant/green-leaf-kitchen/menu/addon-groups/${group.id}/addons`, {
+    method: 'POST', accessToken: ownerAccess, body: { name: { en: 'Cheese' }, price_minor: 5000 },
+  })
+  assert.equal(addonResponse.status, 201)
+  const linkResponse = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/addon-groups`, {
+    method: 'POST', accessToken: ownerAccess, body: { group_id: group.id },
+  })
+  assert.equal(linkResponse.status, 201)
+
+  const menuResponse = await call('/restaurant/green-leaf-kitchen/menu', { accessToken: ownerAccess })
+  assert.equal(menuResponse.status, 200)
+  const menu = await menuResponse.json()
+  assert.equal(menu.categories.length, 1)
+  assert.equal(menu.items.length, 1)
+  assert.equal(menu.variants.length, 1)
+  assert.equal(menu.addon_groups.length, 1)
+  assert.equal(menu.addons.length, 1)
+  assert.equal(menu.item_addon_groups.length, 1)
+
+  const adjustment = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/stock-adjustments`, {
+    method: 'POST', accessToken: ownerAccess, body: { quantity_delta: 2, reason: 'New stock received' },
+  })
+  assert.equal(adjustment.status, 201)
+  assert.equal((await adjustment.json()).stock.new_quantity, 12)
+  const insufficient = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/stock-adjustments`, {
+    method: 'POST', accessToken: ownerAccess, body: { quantity_delta: -20, reason: 'Test overdraw' },
+  })
+  assert.equal(insufficient.status, 409)
+  const events = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/stock-adjustments`, { accessToken: ownerAccess })
+  assert.equal(events.status, 200)
+  assert.equal((await events.json()).stock_adjustments.length, 1)
+
+  const unlink = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/addon-groups/${group.id}`, {
+    method: 'DELETE', accessToken: ownerAccess,
+  })
+  assert.equal(unlink.status, 200)
 
   const tableResponse = await call('/restaurant/green-leaf-kitchen/tables', {
     method: 'POST', accessToken: ownerAccess,
