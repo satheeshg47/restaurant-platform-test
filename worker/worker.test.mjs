@@ -448,6 +448,13 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(served.status, 200)
   assert.equal((await served.json()).order_status, 'served')
   db.prepare("INSERT INTO restaurant_payments(tenant_id,session_id,table_id,amount_minor,method) VALUES(?,?,?,31500,'cash')").run(tenant.id, session.id, table.table.id)
+  const bill = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${session.id}/bill`, { accessToken: ownerAccess })
+  assert.equal(bill.status, 200)
+  assert.equal((await bill.json()).payments.length, 2)
+  const serviceRequest = db.prepare("INSERT INTO restaurant_service_requests(tenant_id,session_id,table_id,request_type,note) VALUES(?,?,?,'other','Please bring water') RETURNING id").get(tenant.id, session.id, table.table.id)
+  const handledRequest = await call(`/restaurant/green-leaf-kitchen/waiter/requests/${serviceRequest.id}`, { method: 'PATCH', accessToken: ownerAccess, body: { status: 'handled' } })
+  assert.equal(handledRequest.status, 200)
+  assert.equal((await handledRequest.json()).request.status, 'handled')
 
   const closed = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/close`, {
     method: 'POST', accessToken: ownerAccess,
