@@ -251,7 +251,8 @@ test('admin announcements reach only selected active owners', async () => {
 
 test('D1 restaurant schema includes tenant-scoped operations, GST invoices and item timing', () => {
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'restaurant_%' ORDER BY name").all().map(row => row.name)
-  assert.equal(tables.length, 25)
+  assert.equal(tables.length, 26)
+  assert.ok(tables.includes('restaurant_tenant_controls'))
   for (const table of ['restaurant_profiles','restaurant_staff','restaurant_tables','restaurant_table_sessions','restaurant_menu_categories','restaurant_menu_items','restaurant_orders','restaurant_order_items','restaurant_kitchen_batches','restaurant_payments','restaurant_refunds','restaurant_service_requests','restaurant_reviews','restaurant_invoice_counters','restaurant_invoices']) {
     assert.ok(tables.includes(table), `missing ${table}`)
   }
