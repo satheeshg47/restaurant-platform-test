@@ -281,6 +281,8 @@ test('D1 restore atomically restores rows and regenerates private QR tokens', as
   assert.equal(backup.tables.restaurant_tables[0].public_token_hash,undefined)
   db.prepare('DELETE FROM restaurant_tables WHERE tenant_id=?').run(restoreTenantId)
   db.prepare('DELETE FROM restaurant_settings WHERE tenant_id=?').run(restoreTenantId)
+  const missingConfirmation = await handleRestaurantDataExport(new Request('https://example.test/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(backup)}),env,actor,['restaurant','restore-target','data-export','restore'])
+  assert.equal(missingConfirmation.status,400)
   const restored = await handleRestaurantDataExport(new Request('https://example.test/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...backup,confirmation:'RESTORE restore-target'})}),env,actor,['restaurant','restore-target','data-export','restore'])
   assert.equal(restored.status,200)
   const result = await restored.json()
