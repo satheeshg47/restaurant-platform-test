@@ -465,6 +465,19 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   const duplicate = await call(guestOrderPath, { method: 'POST', body: orderPayload })
   assert.equal(duplicate.status, 200)
   assert.equal((await duplicate.json()).order.id, placedBody.order.id)
+  const guestOrderStatus = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders/${placedBody.order.id}`)
+  assert.equal(guestOrderStatus.status, 200)
+  assert.equal((await guestOrderStatus.json()).items.length, 1)
+  const cancellationRequest = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders/${placedBody.order.id}/cancel`, {
+    method: 'POST', body: { session_id: session.id },
+  })
+  assert.equal(cancellationRequest.status, 201)
+  assert.equal((await cancellationRequest.json()).request.status, 'open')
+  const guestServiceRequest = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/requests`, {
+    method: 'POST', body: { session_id: session.id, request_type: 'need_water', note: 'Please bring water' },
+  })
+  assert.equal(guestServiceRequest.status, 201)
+  assert.equal((await guestServiceRequest.json()).request.status, 'open')
   assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_orders WHERE tenant_id=? AND session_id=?').get(tenant.id, session.id).count, 2)
   const orderItemId = db.prepare('SELECT id FROM restaurant_order_items WHERE tenant_id=? AND order_id=?').get(tenant.id, placedBody.order.id).id
   const queue = await call('/restaurant/green-leaf-kitchen/kitchen/queue', { accessToken: ownerAccess })
