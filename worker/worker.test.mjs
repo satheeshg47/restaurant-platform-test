@@ -504,6 +504,9 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(invoiceBody.invoice.cgst_minor, 25)
   assert.equal(invoiceBody.invoice.sgst_minor, 25)
   assert.equal(invoiceBody.invoice.seller_snapshot.gstin, '29ABCDE1234F1Z5')
+  const duplicateInvoice = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${invoiceSession.id}/invoice`, { method: 'POST', accessToken: ownerAccess })
+  assert.equal(duplicateInvoice.status, 200)
+  assert.equal((await duplicateInvoice.json()).invoice.id, invoiceBody.invoice.id)
   assert.equal(db.prepare('SELECT status FROM restaurant_table_sessions WHERE tenant_id=? AND id=?').get(tenant.id,invoiceSession.id).status,'closed')
   const reportDay = db.prepare("SELECT date('now','+5 hours','+30 minutes') AS day").get().day
   const report = await call(`/restaurant/green-leaf-kitchen/reports?from=${reportDay}&to=${reportDay}`, { accessToken: ownerAccess })
