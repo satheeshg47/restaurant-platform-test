@@ -343,15 +343,12 @@ export async function handleRestaurantMenuRoutes(request: Request, env: Env, act
   try {
     if(parts.length===3&&parts[2]==='menu'&&request.method==='GET') return json(200,await loadRestaurantMenu(env,actor.tenantId))
     if(parts[2]==='menu'&&parts[3]==='categories') return await handleCategories(request,env,actor,parts)
-    if(parts[2]==='menu'&&parts[3]==='items') {
-      if(parts.length===5&&parts[4]&&parts[5]==='addon-groups') return await handleItemAddonGroup(request,env,actor,parts)
-      return await handleItems(request,env,actor,parts)
-    }
+    if(parts[2]==='menu'&&parts[3]==='items'&&(parts[5]==='photo-upload'||parts[5]==='photo-complete')) return json(503,{error:'object_storage_not_configured'})
+    if(parts[2]==='menu'&&parts[3]==='items'&&parts[5]==='addon-groups') return await handleItemAddonGroup(request,env,actor,parts)
+    if(parts[2]==='menu'&&parts[3]==='items') return await handleItems(request,env,actor,parts)
     if(parts[2]==='menu'&&parts[3]==='variants'&&parts.length===5) return await handleVariant(request,env,actor,parts[4])
     if(parts[2]==='menu'&&parts[3]==='addon-groups') return await handleAddonGroups(request,env,actor,parts)
     if(parts[2]==='menu'&&parts[3]==='addons'&&parts.length===5) return await handleAddon(request,env,actor,parts[4])
-    if(parts[2]==='menu'&&parts[3]==='items'&&parts[5]==='photo-upload') return json(503,{error:'object_storage_not_configured'})
-    if(parts[2]==='menu'&&parts[3]==='items'&&parts[5]==='photo-complete') return json(503,{error:'object_storage_not_configured'})
     return json(404,{error:'menu_route_not_found'})
   } catch(error) { return errorResponse(error) }
 }
