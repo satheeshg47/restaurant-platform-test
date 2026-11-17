@@ -104,3 +104,8 @@ This is an inspection primitive only. It does not accept uploads, persist packag
 ## Browser authentication
 
 See [OIDC PKCE browser sign-in setup](docs/authentication-setup.md) for frontend and API environment configuration.
+
+
+## Cloudflare Workers + D1 migration (in progress)
+
+The new Worker entry point and D1 platform foundation are being introduced in stages. See [the D1 migration plan](docs/cloudflare-d1-migration.md) for the isolated preview/production databases, SQLite schema, tenant authorization requirements, free-tier limits and cutover gates. PostgreSQL route modules remain in the repository until their D1 replacements pass parity, authorization and recovery tests. The Worker currently exposes only the platform endpoints implemented in `worker/index.ts`; restaurant and owner routes are deliberately marked unavailable until ported. Do not use this stage for live customer or restaurant operations.
