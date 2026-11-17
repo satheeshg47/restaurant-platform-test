@@ -309,6 +309,7 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
   if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'menu' && request.method === 'GET') {
     return handleGuestMenu(env, tenantId, parts[3])
   }
+  if (parts[2] === 'guest') return json(501, { error: 'guest_ordering_not_migrated_to_d1' })
 
   let identity: Identity
   try { identity = await authenticateIdentity(request, env) }
@@ -323,7 +324,7 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
   try {
     if (parts[2] === 'settings' && parts.length === 3) return await handleSettings(request, env, actor)
     if (parts[2] === 'tables') return await handleTables(request, env, actor, parts)
-    if (parts[2] === 'menu') return json(501, { error: 'restaurant_menu_not_migrated_to_d1' })
+    if (['menu','kitchen','waiter','reports','daily-summary','data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
     return json(404, { error: 'restaurant_route_not_found' })
   } catch (error) {
     return errorResponse(error, 'restaurant_request_failed')
