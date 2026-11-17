@@ -45,7 +45,7 @@ export async function handleGuestReviewRoutes(request:Request,env:Env,tenantId:s
    }
   }
   return json(405,{error:'method_not_allowed'})
- }catch(error){return json(error&&typeof error==='object'&&'status'in error?Number(error.status):500,{error:error instanceof Error&&'status'in error?error.message:'guest_review_failed'})}
+ }catch(error){console.error('D1_GUEST_REVIEW_ERROR',error);return json(error&&typeof error==='object'&&'status'in error?Number(error.status):500,{error:error instanceof Error&&'status'in error?error.message:'guest_review_failed'})}
 }
 export async function handleRestaurantReviewRoutes(request:Request,env:Env,actor:Actor,parts:string[]):Promise<Response|null>{
  try{
