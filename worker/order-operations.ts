@@ -116,6 +116,27 @@ async function serveItem(env: Env, actor: Actor, itemId: string) {
   const [bStatus,oStatus] = await Promise.all([refreshBatch(env,actor.tenantId,found.batch_id,actor.staffId),refreshOrder(env,actor.tenantId,found.order_id)])
   return { item:{id:itemId,status:'served',order_id:found.order_id},batch_status:bStatus,order_status:oStatus }
 }
+async function waiterBill(env: Env, actor: Actor, sessionId: string) {
+  if (!UUID.test(sessionId)) fail(404,'table_session_not_found')
+  const session = await env.DB.prepare(`SELECT s.id,s.opened_at,s.closed_at,s.guest_count,t.label AS table_label,p.display_name AS restaurant_name,p.currency_code FROM restaurant_table_sessions s JOIN restaurant_tables t ON t.tenant_id=s.tenant_id AND t.id=s.table_id LEFT JOIN restaurant_profiles p ON p.tenant_id=s.tenant_id WHERE s.tenant_id=? AND s.id=?`).bind(actor.tenantId,sessionId).first()
+  if (!session) throw Object.assign(new Error('table_session_not_found'), { status: 404 })
+  const [orders,items,payments,refunds,invoice] = await Promise.all([
+    env.DB.prepare("SELECT id,order_number,status,subtotal_minor,tax_minor,total_minor,created_at FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND status<>'cancelled' ORDER BY created_at,id").bind(actor.tenantId,sessionId).all(),
+    env.DB.prepare("SELECT oi.order_id,oi.item_name_snapshot,oi.variant_name_snapshot,oi.addons_snapshot,oi.quantity,oi.unit_price_minor,oi.addons_price_minor,oi.line_total_minor,oi.status FROM restaurant_order_items oi JOIN restaurant_orders o ON o.tenant_id=oi.tenant_id AND o.id=oi.order_id WHERE oi.tenant_id=? AND o.session_id=? AND o.status<>'cancelled' ORDER BY oi.created_at,oi.id").bind(actor.tenantId,sessionId).all(),
+    env.DB.prepare("SELECT amount_minor,method,reference,paid_at FROM restaurant_payments WHERE tenant_id=? AND session_id=? ORDER BY paid_at,id").bind(actor.tenantId,sessionId).all(),
+    env.DB.prepare("SELECT amount_minor,reason,was_paid,created_at FROM restaurant_refunds WHERE tenant_id=? AND session_id=? ORDER BY created_at,id").bind(actor.tenantId,sessionId).all(),
+    env.DB.prepare("SELECT invoice_number,financial_year,issued_at,seller_snapshot,items_snapshot,subtotal_minor,tax_minor,cgst_minor,sgst_minor,igst_minor,other_tax_minor,total_minor,tax_rate,tax_inclusive FROM restaurant_invoices WHERE tenant_id=? AND session_id=?").bind(actor.tenantId,sessionId).first(),
+  ])
+  return {session,orders:orders.results,items:items.results,payments:payments.results,refunds:refunds.results,invoice:invoice??null}
+}
+async function updateServiceRequest(request: Request, env: Env, actor: Actor, requestId: string) {
+  if (!UUID.test(requestId)) fail(404,'service_request_not_found')
+  const input = await body(request)
+  if (!['handled','dismissed'].includes(String(input.status))) fail(400,'invalid_request_status')
+  const result = await env.DB.prepare(`UPDATE restaurant_service_requests SET status=?,handled_by=?,handled_at=${now} WHERE tenant_id=? AND id=? AND status='open' RETURNING id,status,handled_at`).bind(input.status,actor.staffId,actor.tenantId,requestId).all()
+  if (!result.results[0]) fail(404,'service_request_not_found')
+  return result.results[0]
+}
 export async function handleOrderOperations(request: Request, env: Env, actor: Actor, parts: string[]) {
   if (parts[2] === 'kitchen' && parts[3] === 'queue' && parts.length === 4 && request.method === 'GET') {
     if (!['owner','manager','cook'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
@@ -124,6 +145,14 @@ export async function handleOrderOperations(request: Request, env: Env, actor: A
   if (parts[2] === 'kitchen' && parts[3] === 'items' && parts.length === 6 && parts[5] === 'status' && request.method === 'PATCH') {
     if (!['owner','manager','cook'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
     return json(200,await kitchenStatus(request,env,actor,parts[4]))
+  }
+  if (parts[2] === 'waiter' && parts[3] === 'sessions' && parts.length === 6 && parts[5] === 'bill' && request.method === 'GET') {
+    if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
+    return json(200,await waiterBill(env,actor,parts[4]))
+  }
+  if (parts[2] === 'waiter' && parts[3] === 'requests' && parts.length === 5 && request.method === 'PATCH') {
+    if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
+    return json(200,{request:await updateServiceRequest(request,env,actor,parts[4])})
   }
   if (parts[2] === 'waiter' && parts[3] === 'board' && parts.length === 4 && request.method === 'GET') {
     if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
