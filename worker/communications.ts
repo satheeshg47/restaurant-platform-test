@@ -94,7 +94,7 @@ export async function handleCommunications(request: Request, env: Env, path: str
   if (isAdmin && path === '/admin/communications/owners' && request.method === 'GET') {
     try {
       const result = await env.DB.prepare(
-        `SELECT pu.id AS user_id,pu.email,group_concat(DISTINCT t.name) AS tenant_names
+        `SELECT pu.id AS user_id,pu.email,json_group_array(DISTINCT t.name) AS tenant_names
          FROM platform_users pu
          JOIN tenant_memberships tm ON tm.user_id=pu.id
          JOIN tenants t ON t.id=tm.tenant_id
@@ -103,7 +103,7 @@ export async function handleCommunications(request: Request, env: Env, path: str
       ).all<Record<string, unknown>>()
       return json(200, { owners: result.results.map(row => ({
         ...row,
-        tenant_names: typeof row.tenant_names === 'string' ? row.tenant_names.split(',') : [],
+        tenant_names: typeof row.tenant_names === 'string' ? JSON.parse(row.tenant_names) as string[] : [],
       })) })
     } catch { return json(500, { error: 'owner_list_failed' }) }
   }
@@ -262,7 +262,7 @@ export async function handleCommunications(request: Request, env: Env, path: str
         ).bind(id, kind, subject, identity.subject, ...userIds),
         env.DB.prepare(
           `INSERT INTO communication_participants(conversation_id,user_id,tenant_id)
-           SELECT ?,pu.id,NULL FROM platform_users pu JOIN tenant_memberships tm ON tm.user_id=pu.id
+           SELECT DISTINCT ?,pu.id,NULL FROM platform_users pu JOIN tenant_memberships tm ON tm.user_id=pu.id
            WHERE pu.id IN (${placeholders}) AND tm.role='owner' AND tm.status='active'`,
         ).bind(id, ...userIds),
         env.DB.prepare(
