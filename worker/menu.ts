@@ -243,7 +243,7 @@ async function handleItems(request: Request, env: Env, actor: Actor, parts: stri
   if(parts.length===6 && parts[5]==='variants' && request.method==='POST'){
     const itemId=parts[4]
     if(!uuid(itemId)) fail(404,'menu_item_not_found')
-    const item=await env.DB.prepare('SELECT id FROM restaurant_menu_items WHERE tenant_id=? AND id=?').bind(actor.tenantId,itemId).first()
+    const item=await env.DB.prepare('SELECT id FROM restaurant_menu_items WHERE tenant_id=? AND id=? AND active=1').bind(actor.tenantId,itemId).first()
     if(!item) fail(404,'menu_item_not_found')
     const input=await body(request)
     const name=localized(input.name), price=int(input.price_minor,0,1000000000), sortOrder=int(input.sort_order,0,100000,0), available=bool(input.available,true), active=bool(input.active,true)
@@ -297,7 +297,7 @@ async function handleAddonGroups(request: Request, env: Env, actor: Actor, parts
   if(parts.length===6&&parts[5]==='addons'&&request.method==='POST'){
     const groupId=parts[4]
     if(!uuid(groupId)) fail(404,'addon_group_not_found')
-    const group=await env.DB.prepare('SELECT id FROM restaurant_addon_groups WHERE tenant_id=? AND id=?').bind(actor.tenantId,groupId).first()
+    const group=await env.DB.prepare('SELECT id FROM restaurant_addon_groups WHERE tenant_id=? AND id=? AND active=1').bind(actor.tenantId,groupId).first()
     if(!group) fail(404,'addon_group_not_found')
     const input=await body(request)
     const name=localized(input.name), price=int(input.price_minor,0,1000000000,0), available=bool(input.available,true), active=bool(input.active,true), sortOrder=int(input.sort_order,0,100000,0)
@@ -330,8 +330,8 @@ async function handleItemAddonGroup(request: Request, env: Env, actor: Actor, pa
     const input=await body(request)
     if(!uuid(input.group_id)) fail(400,'invalid_addon_group')
     const [item,group]=await Promise.all([
-      env.DB.prepare('SELECT id FROM restaurant_menu_items WHERE tenant_id=? AND id=?').bind(actor.tenantId,itemId).first(),
-      env.DB.prepare('SELECT id FROM restaurant_addon_groups WHERE tenant_id=? AND id=?').bind(actor.tenantId,input.group_id).first(),
+      env.DB.prepare('SELECT id FROM restaurant_menu_items WHERE tenant_id=? AND id=? AND active=1').bind(actor.tenantId,itemId).first(),
+      env.DB.prepare('SELECT id FROM restaurant_addon_groups WHERE tenant_id=? AND id=? AND active=1').bind(actor.tenantId,input.group_id).first(),
     ])
     if(!item||!group) fail(404,'menu_item_or_addon_group_not_found')
     await env.DB.prepare('INSERT INTO restaurant_item_addon_groups(tenant_id,item_id,group_id) VALUES(?,?,?) ON CONFLICT(tenant_id,item_id,group_id) DO NOTHING').bind(actor.tenantId,itemId,input.group_id).run()
