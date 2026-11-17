@@ -96,7 +96,7 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
       statements.push(env.DB.prepare(`INSERT INTO restaurant_batch_allocations(id,tenant_id,batch_id,order_item_id,quantity,status) VALUES(?,?,?,?,?,'new')`).bind(crypto.randomUUID(),tenantId,batchId,line.id,line.qty))
     }
     for (const [itemId,quantity] of demand) {
-      statements.push(env.DB.prepare(`UPDATE restaurant_menu_items SET stock_quantity=stock_quantity-?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE tenant_id=? AND id=? AND stock_tracking=1 AND stock_quantity>=?`).bind(quantity,tenantId,itemId,quantity))
+      statements.push(env.DB.prepare(`UPDATE restaurant_menu_items SET stock_quantity=CASE WHEN stock_quantity IS NOT NULL AND stock_quantity>=? THEN stock_quantity-? ELSE -1 END,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE tenant_id=? AND id=? AND stock_tracking=1`).bind(quantity,quantity,tenantId,itemId))
       statements.push(env.DB.prepare(`INSERT INTO restaurant_stock_events(tenant_id,item_id,quantity_delta,old_quantity,new_quantity,reason) SELECT ?,id,? ,stock_quantity+?,stock_quantity, 'order' FROM restaurant_menu_items WHERE tenant_id=? AND id=?`).bind(tenantId,-quantity,quantity,tenantId,itemId))
     }
     const result=await env.DB.batch(statements)
