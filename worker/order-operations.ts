@@ -137,7 +137,7 @@ async function recordPayment(request: Request, env: Env, actor: Actor, sessionId
   if (amount <= 0n) fail(400,'invalid_payment')
   const reference = typeof input.reference === 'string' ? input.reference.trim().slice(0,120) : null
   const session = await env.DB.prepare("SELECT id,table_id FROM restaurant_table_sessions WHERE tenant_id=? AND id=? AND status='open'").bind(actor.tenantId,sessionId).first<{id:string;table_id:string}>()
-  if (!session) fail(404,'table_session_not_found')
+  if (!session) throw Object.assign(new Error('table_session_not_found'), { status: 404 })
   const totals = await env.DB.prepare(`SELECT COALESCE((SELECT sum(total_minor) FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND status<>'cancelled'),0) AS due,COALESCE((SELECT sum(amount_minor) FROM restaurant_payments WHERE tenant_id=? AND session_id=?),0) AS paid,COALESCE((SELECT sum(amount_minor) FROM restaurant_refunds WHERE tenant_id=? AND session_id=? AND was_paid=1),0) AS refunded,COALESCE((SELECT sum(amount_minor) FROM restaurant_refunds WHERE tenant_id=? AND session_id=? AND was_paid=0),0) AS waived`).bind(actor.tenantId,sessionId,actor.tenantId,sessionId,actor.tenantId,sessionId,actor.tenantId,sessionId).first<Record<string,number>>()
   const balance = BigInt(totals?.due||0)-BigInt(totals?.paid||0)+BigInt(totals?.refunded||0)-BigInt(totals?.waived||0)
   if (amount > balance) fail(409,'payment_exceeds_balance')
