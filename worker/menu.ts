@@ -111,7 +111,7 @@ function validateItem(source: Row) {
   const foodType = source.food_type ?? 'veg'
   if (!['veg','non_veg','egg'].includes(String(foodType))) fail(400, 'invalid_food_type')
   const prepMinutes = int(source.prep_minutes,0,1440,0)
-  const priority = int(source.priority,0,10000,0)
+  const priority = int(source.priority,0,100,0)
   const available = bool(source.available,true)
   const stockTracking = bool(source.stock_tracking,false)
   let stockQuantity: number | null = null
@@ -119,7 +119,6 @@ function validateItem(source: Row) {
     if (typeof source.stock_quantity !== 'number' || !Number.isFinite(source.stock_quantity) || source.stock_quantity < 0 || Math.round(source.stock_quantity*1000)!==source.stock_quantity*1000) fail(400, 'invalid_stock_quantity')
     stockQuantity = source.stock_quantity
   }
-  if (stockTracking && stockQuantity === null) fail(400, 'stock_quantity_required')
   let lowStockAt: number | null = null
   if (source.low_stock_at !== undefined && source.low_stock_at !== null && source.low_stock_at !== '') {
     if (typeof source.low_stock_at !== 'number' || !Number.isFinite(source.low_stock_at) || source.low_stock_at < 0 || Math.round(source.low_stock_at*1000)!==source.low_stock_at*1000) fail(400, 'invalid_low_stock_threshold')
@@ -133,8 +132,8 @@ function validateItem(source: Row) {
   return { categoryId, name, description, basePrice, foodType, prepMinutes, priority, available, stockTracking, stockQuantity, lowStockAt, schedule, sortOrder, active, hsn }
 }
 
-async function categoryExists(env: Env, tenantId: string, categoryId: string) {
-  const row = await env.DB.prepare('SELECT id FROM restaurant_menu_categories WHERE tenant_id=? AND id=?').bind(tenantId,categoryId).first()
+async function categoryExists(env: Env, tenantId: string, categoryId: string, activeOnly = true) {
+  const row = await env.DB.prepare(activeOnly ? 'SELECT id FROM restaurant_menu_categories WHERE tenant_id=? AND id=? AND active=1' : 'SELECT id FROM restaurant_menu_categories WHERE tenant_id=? AND id=?').bind(tenantId,categoryId).first()
   if (!row) fail(400, 'category_not_found')
 }
 
@@ -153,6 +152,8 @@ async function handleCategories(request: Request, env: Env, actor: Actor, parts:
     const current=await env.DB.prepare('SELECT * FROM restaurant_menu_categories WHERE tenant_id=? AND id=?').bind(actor.tenantId,id).first<Row>()
     if(!current) fail(404,'category_not_found')
     const patch=await body(request)
+    const allowed=new Set(['name','sort_order','station','schedule','active'])
+    if(!Object.keys(patch).length||Object.keys(patch).some(key=>!allowed.has(key))) fail(400,'empty_update')
     const merged:Row={name:patch.name??JSON.parse(String(current.name)),sort_order:patch.sort_order??current.sort_order,station:patch.station??current.station,schedule:patch.schedule??JSON.parse(String(current.schedule)),active:patch.active??Boolean(current.active)}
     const input=validateCategory(merged)
     const result=await env.DB.prepare(
@@ -166,7 +167,7 @@ async function handleCategories(request: Request, env: Env, actor: Actor, parts:
 async function handleItems(request: Request, env: Env, actor: Actor, parts: string[]) {
   if(parts.length===4 && request.method==='POST'){
     const input=validateItem(await body(request))
-    await categoryExists(env,actor.tenantId,input.categoryId)
+    await categoryExists(env,actor.tenantId,input.categoryId,true)
     const result=await env.DB.prepare(
       `INSERT INTO restaurant_menu_items
        (tenant_id,category_id,name,description,base_price_minor,food_type,prep_minutes,priority,available,stock_tracking,stock_quantity,low_stock_at,schedule,sort_order,active,hsn_sac_code)
@@ -181,7 +182,9 @@ async function handleItems(request: Request, env: Env, actor: Actor, parts: stri
     const current=await env.DB.prepare('SELECT * FROM restaurant_menu_items WHERE tenant_id=? AND id=?').bind(actor.tenantId,id).first<Row>()
     if(!current) fail(404,'menu_item_not_found')
     const patch=await body(request)
-    if('stock_quantity' in patch) fail(400,'use_stock_adjustment_endpoint')
+    if('stock_quantity' in patch) fail(400,'stock_adjustment_required')
+    const allowed=new Set(['category_id','name','description','base_price_minor','food_type','prep_minutes','priority','available','stock_tracking','sort_order','active','hsn_sac_code'])
+    if(!Object.keys(patch).length||Object.keys(patch).some(key=>!allowed.has(key))) fail(400,'empty_update')
     const merged:Row={
       category_id:patch.category_id??current.category_id,
       name:patch.name??JSON.parse(String(current.name)),
@@ -200,7 +203,7 @@ async function handleItems(request: Request, env: Env, actor: Actor, parts: stri
       hsn_sac_code:patch.hsn_sac_code??current.hsn_sac_code,
     }
     const input=validateItem(merged)
-    await categoryExists(env,actor.tenantId,input.categoryId)
+    if(patch.category_id!==undefined) await categoryExists(env,actor.tenantId,input.categoryId,true)
     const result=await env.DB.prepare(
       `UPDATE restaurant_menu_items SET category_id=?,name=?,description=?,base_price_minor=?,food_type=?,prep_minutes=?,priority=?,available=?,stock_tracking=?,low_stock_at=?,schedule=?,sort_order=?,active=?,hsn_sac_code=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
        WHERE tenant_id=? AND id=? RETURNING *`,
@@ -213,8 +216,8 @@ async function handleItems(request: Request, env: Env, actor: Actor, parts: stri
     const item=await env.DB.prepare('SELECT id,stock_tracking,stock_quantity FROM restaurant_menu_items WHERE tenant_id=? AND id=?').bind(actor.tenantId,id).first<Row>()
     if(!item) fail(404,'menu_item_not_found')
     if(request.method==='GET'){
-      const events=await env.DB.prepare('SELECT id,quantity_delta,old_quantity,new_quantity,reason,created_at FROM restaurant_stock_events WHERE tenant_id=? AND item_id=? ORDER BY created_at DESC LIMIT 30').bind(actor.tenantId,id).all<Row>()
-      return json(200,{stock_adjustments:events.results})
+      const events=await env.DB.prepare('SELECT id,quantity_delta,old_quantity,new_quantity,reason,created_at FROM restaurant_stock_events WHERE tenant_id=? AND item_id=? ORDER BY created_at DESC,id DESC LIMIT 30').bind(actor.tenantId,id).all<Row>()
+      return json(200,{events:events.results})
     }
     if(request.method==='POST'){
       const input=await body(request)
@@ -234,7 +237,7 @@ async function handleItems(request: Request, env: Env, actor: Actor, parts: stri
       ])
       if(Number(results[0]?.meta?.changes)!==1) fail(409,'stock_changed_retry')
       if(Number(results[1]?.meta?.changes)!==1) fail(500,'stock_adjustment_log_failed')
-      return json(201,{stock:{old_quantity:oldQuantity,new_quantity:newQuantity},adjustment_id:eventId})
+      return json(200,{stock:{old_quantity:oldQuantity,new_quantity:newQuantity},adjustment_id:eventId})
     }
   }
   if(parts.length===6 && parts[5]==='variants' && request.method==='POST'){
@@ -255,6 +258,8 @@ async function handleVariant(request: Request, env: Env, actor: Actor, id: strin
   const current=await env.DB.prepare('SELECT * FROM restaurant_menu_variants WHERE tenant_id=? AND id=?').bind(actor.tenantId,id).first<Row>()
   if(!current) fail(404,'menu_variant_not_found')
   const patch=await body(request)
+  const allowed=new Set(['name','price_minor','available','active','sort_order'])
+  if(!Object.keys(patch).length||Object.keys(patch).some(key=>!allowed.has(key))) fail(400,'empty_update')
   const name=patch.name===undefined?String(current.name):localized(patch.name)
   const price=patch.price_minor===undefined?Number(current.price_minor):int(patch.price_minor,0,1000000000)
   const available=patch.available===undefined?Number(current.available):bool(patch.available,true)
@@ -277,6 +282,8 @@ async function handleAddonGroups(request: Request, env: Env, actor: Actor, parts
     const current=await env.DB.prepare('SELECT * FROM restaurant_addon_groups WHERE tenant_id=? AND id=?').bind(actor.tenantId,id).first<Row>()
     if(!current) fail(404,'addon_group_not_found')
     const patch=await body(request)
+    const allowed=new Set(['name','required','min_pick','max_pick','active','sort_order'])
+    if(!Object.keys(patch).length||Object.keys(patch).some(key=>!allowed.has(key))) fail(400,'empty_update')
     const name=patch.name===undefined?String(current.name):localized(patch.name)
     const required=patch.required===undefined?Number(current.required):bool(patch.required,false)
     const minPick=patch.min_pick===undefined?Number(current.min_pick):int(patch.min_pick,0,20)
@@ -305,6 +312,8 @@ async function handleAddon(request: Request, env: Env, actor: Actor, id: string)
   const current=await env.DB.prepare('SELECT * FROM restaurant_addons WHERE tenant_id=? AND id=?').bind(actor.tenantId,id).first<Row>()
   if(!current) fail(404,'menu_addon_not_found')
   const patch=await body(request)
+  const allowed=new Set(['name','price_minor','available','active','sort_order'])
+  if(!Object.keys(patch).length||Object.keys(patch).some(key=>!allowed.has(key))) fail(400,'empty_update')
   const name=patch.name===undefined?String(current.name):localized(patch.name)
   const price=patch.price_minor===undefined?Number(current.price_minor):int(patch.price_minor,0,1000000000)
   const available=patch.available===undefined?Number(current.available):bool(patch.available,true)
