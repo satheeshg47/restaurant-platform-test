@@ -6,7 +6,7 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 const fail = (status: number, code: string): never => { throw Object.assign(new Error(code), { status }) }
 const now = "strftime('%Y-%m-%dT%H:%M:%fZ','now')"
 
-async function body(request: Request) {
+async function body(request: Request): Promise<Record<string, unknown>> {
   const raw = await request.text()
   if (new TextEncoder().encode(raw).byteLength > 8192) fail(413, 'payload_too_large')
   try {
@@ -66,7 +66,7 @@ async function kitchenStatus(request: Request, env: Env, actor: Actor, itemId: s
   const reason = typeof input.reason === 'string' ? input.reason.trim().slice(0,250) : ''
   if (target === 'unavailable' && !reason) fail(400,'unavailable_reason_required')
   const found = await env.DB.prepare(`SELECT oi.id,oi.order_id,oi.category_id,oi.status,oi.accepted_by,a.batch_id,o.session_id,o.table_id FROM restaurant_order_items oi JOIN restaurant_batch_allocations a ON a.tenant_id=oi.tenant_id AND a.order_item_id=oi.id JOIN restaurant_orders o ON o.tenant_id=oi.tenant_id AND o.id=oi.order_id WHERE oi.tenant_id=? AND oi.id=?`).bind(actor.tenantId,itemId).first<Record<string,unknown>>()
-  if (!found) fail(404,'order_item_not_found')
+  if (!found) throw Object.assign(new Error('order_item_not_found'), { status: 404 })
   if (actor.role === 'cook') {
     const scope = await cookScope(env,actor)
     if (scope?.length && !scope.includes(String(found.category_id))) fail(403,'cook_station_forbidden')
@@ -108,7 +108,7 @@ async function waiterBoard(env: Env, actor: Actor) {
 async function serveItem(env: Env, actor: Actor, itemId: string) {
   if (!UUID.test(itemId)) fail(404,'order_item_not_found')
   const found = await env.DB.prepare("SELECT oi.id,oi.order_id,a.batch_id FROM restaurant_order_items oi JOIN restaurant_batch_allocations a ON a.tenant_id=oi.tenant_id AND a.order_item_id=oi.id WHERE oi.tenant_id=? AND oi.id=? AND oi.status='ready'").bind(actor.tenantId,itemId).first<Record<string,string>>()
-  if (!found) fail(409,'item_not_ready_or_not_found')
+  if (!found) throw Object.assign(new Error('item_not_ready_or_not_found'), { status: 409 })
   await env.DB.batch([
     env.DB.prepare(`UPDATE restaurant_order_items SET status='served',served_at=${now} WHERE tenant_id=? AND id=? AND status='ready'`).bind(actor.tenantId,itemId),
     env.DB.prepare(`UPDATE restaurant_batch_allocations SET status='served',served_at=${now} WHERE tenant_id=? AND order_item_id=? AND status='ready'`).bind(actor.tenantId,itemId),
