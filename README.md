@@ -72,7 +72,7 @@ See [SECURITY.md](SECURITY.md) for identity and tenant-boundary requirements. Th
 
 During local development, Vite proxies `/api/*` to the API on `127.0.0.1:8787`. For another environment, set `VITE_API_BASE_URL` to the same-origin API prefix (default `/api`) and configure the hosting reverse proxy accordingly. Do not expose the API directly to browsers across origins without an explicit CORS and authentication design.
 
-A generic owner-only OIDC access-token verifier and protected `GET /admin/session` endpoint are implemented, but no login UI or identity-provider account is configured yet. The protected `GET /admin/applications` and `POST /admin/applications` endpoints provide the first database-backed Super Admin registry operations once OIDC and PostgreSQL are configured. Other management modules remain prototypes.
+A generic OIDC JWT access-token verifier, protected `GET /admin/session` endpoint, and browser sign-in UI using Authorization Code + PKCE are implemented. No identity-provider account or environment configuration has been provisioned. The frontend requires a public client ID and API resource audience; the API independently verifies signed access tokens against its configured issuer, API audience and JWKS. The protected `GET /admin/applications` and `POST /admin/applications` endpoints provide the first database-backed Super Admin registry operations once OIDC and PostgreSQL are configured. Other management modules remain prototypes.
 
 
 ## Administrator authentication foundation
@@ -83,10 +83,11 @@ Configure all of these server environment variables together before enabling the
 
 - `OIDC_ISSUER` — exact HTTPS issuer URL from your identity provider.
 - `OIDC_AUDIENCE` — API audience configured for the access token.
+- `OIDC_CLIENT_ID` — public browser client ID, used by the API to verify ID tokens during invitation acceptance.
 - `OIDC_JWKS_URL` — HTTPS JSON Web Key Set URL.
 - `PLATFORM_ADMIN_SUBJECT` — stable `sub` claim for the one platform owner.
 
-`GET /admin/session` requires an `Authorization: Bearer <access-token>` header. Until all settings are present, it returns `503 admin_auth_not_configured`. No login UI, token issuance, refresh-token storage or identity-provider account has been provisioned. Select and configure an OIDC provider before enabling administrator sign-in. Never use an ID token as an API access token.
+`GET /admin/session` requires an `Authorization: Bearer <access-token>` header. Until all settings are present, it returns `503 admin_auth_not_configured`. The browser sign-in UI and PKCE flow are implemented, but no identity-provider account or environment configuration has been provisioned. Invitation acceptance also requires `OIDC_CLIENT_ID` so the API can independently verify the ID token's verified-email claim. Never use an ID token as an API access token.
 
 
 ## Platform audit trail
@@ -98,3 +99,8 @@ Migration `0003_platform_audit_events.sql` adds a global control-plane audit tab
 Release manifests are validated independently from ZIP archives. `server/releases/archive.mjs` inspects a bounded ZIP buffer against a validated manifest without extracting files to disk or executing package contents. It rejects malformed archives, path traversal and protected paths, duplicate entries, symlinks and non-regular files, encrypted entries, unsupported compression, unlisted or missing files, size mismatches, excessive compression ratios, and SHA-256 mismatches. Defaults cap the compressed archive at 100 MiB, entries at 5,000, each uncompressed file at 100 MiB, total uncompressed content at 500 MiB, and compression ratio at 100:1.
 
 This is an inspection primitive only. It does not accept uploads, persist packages, stage releases, back up customer data, apply migrations, approve releases, or deploy/rollback applications. A later release workflow must preserve those separate safety gates.
+
+
+## Browser authentication
+
+See [OIDC PKCE browser sign-in setup](docs/authentication-setup.md) for frontend and API environment configuration.

@@ -6,7 +6,7 @@ import { handleOwnerInvitations } from './admin/owner-invitations.mjs'
 import { handleCommunications } from './communications/routes.mjs'
 import { handleRestaurantRoutes } from './restaurant/routes.mjs'
 
-export function createApiServer(config, { database = null, logger = console, authenticateAdmin = null, authenticateIdentity = null } = {}) {
+export function createApiServer(config, { database = null, logger = console, authenticateAdmin = null, authenticateIdentity = null, authenticateVerifiedEmail = null } = {}) {
   return createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff')
     response.setHeader('X-Frame-Options', 'DENY')
@@ -20,7 +20,7 @@ export function createApiServer(config, { database = null, logger = console, aut
     }
 
     if (pathname === '/admin/owner-invitations' || (pathname.startsWith('/admin/owner-invitations/') && pathname.endsWith('/revoke')) || pathname === '/owner/invitations/accept') {
-      await handleOwnerInvitations(request, response, { database, authenticateAdmin, authenticateIdentity })
+      await handleOwnerInvitations(request, response, { database, authenticateAdmin, authenticateIdentity, authenticateVerifiedEmail })
       return
     }
 

@@ -8,7 +8,10 @@ const config = loadConfig()
 const database = process.env.DATABASE_URL ? createDatabasePool() : null
 const authenticateAdmin = config.adminAuthConfigured ? createAdminTokenVerifier(config) : null
 const authenticateIdentity = config.adminAuthConfigured ? createOidcIdentityVerifier(config) : null
-const server = createApiServer(config, { database, authenticateAdmin, authenticateIdentity })
+const authenticateVerifiedEmail = config.adminAuthConfigured && config.oidcClientId
+  ? createOidcIdentityVerifier(config, { audience: config.oidcClientId })
+  : null
+const server = createApiServer(config, { database, authenticateAdmin, authenticateIdentity, authenticateVerifiedEmail })
 
 server.listen(config.port, config.host, () => {
   console.log(`Platform Core API listening on http://${config.host}:${config.port}`)
