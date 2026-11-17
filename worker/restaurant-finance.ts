@@ -53,7 +53,7 @@ async function invoiceForSession(env: Env, actor: Actor, sessionId: string) {
   const session = await env.DB.prepare(`SELECT s.id,s.status,t.label AS table_label,p.display_name,p.legal_name,p.gstin,p.address_line1,p.address_line2,p.city,p.state_name,p.state_code,p.postal_code,p.invoice_prefix,p.tax_mode,p.gst_rate,p.tax_inclusive,p.timezone
     FROM restaurant_table_sessions s JOIN restaurant_tables t ON t.tenant_id=s.tenant_id AND t.id=s.table_id
     JOIN restaurant_profiles p ON p.tenant_id=s.tenant_id WHERE s.tenant_id=? AND s.id=?`).bind(actor.tenantId,sessionId).first<Record<string,unknown>>()
-  if (!session) fail(404,'table_session_not_found')
+  if (!session) throw Object.assign(new Error('table_session_not_found'), { status: 404 })
   if (session.status !== 'open') fail(409,'table_session_not_open')
   if (session.tax_mode !== 'gst') fail(409,'gst_tax_mode_required')
   const gstin = String(session.gstin||'')
@@ -91,7 +91,7 @@ async function invoiceForSession(env: Env, actor: Actor, sessionId: string) {
   const fy = financialYear()
   const counter = await env.DB.prepare(`INSERT INTO restaurant_invoice_counters(tenant_id,financial_year,next_number) VALUES(?,?,2)
     ON CONFLICT(tenant_id,financial_year) DO UPDATE SET next_number=next_number+1 RETURNING next_number-1 AS allocated_number`).bind(actor.tenantId,fy).first<{allocated_number:number}>()
-  if (!counter) fail(500,'invoice_number_allocation_failed')
+  if (!counter) throw Object.assign(new Error('invoice_number_allocation_failed'), { status: 500 })
   const prefix = String(session.invoice_prefix||'INV')
   const invoiceNumber = prefix+'/'+fy+'/'+String(counter.allocated_number).padStart(6,'0')
   const seller = {display_name:session.display_name,legal_name:session.legal_name,gstin,address_line1:session.address_line1,address_line2:session.address_line2,city:session.city,state_name:session.state_name,state_code:stateCode,postal_code:session.postal_code,place_of_supply:stateCode+'-'+session.state_name}
@@ -100,9 +100,9 @@ async function invoiceForSession(env: Env, actor: Actor, sessionId: string) {
   try {
     const invoice = await env.DB.prepare(`INSERT INTO restaurant_invoices(tenant_id,session_id,invoice_number,financial_year,seller_snapshot,items_snapshot,subtotal_minor,tax_minor,cgst_minor,sgst_minor,igst_minor,other_tax_minor,total_minor,tax_rate,tax_inclusive,created_by)
       VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,?) RETURNING *`).bind(actor.tenantId,sessionId,invoiceNumber,fy,JSON.stringify(seller),JSON.stringify(itemsSnapshot),String(subtotal),String(tax),String(cgst),String(sgst),String(total),taxRate,Number(Boolean([...inclusive][0])),actor.staffId).first<Record<string,unknown>>()
-    if (!invoice) fail(500,'invoice_create_failed')
+    if (!invoice) throw Object.assign(new Error('invoice_create_failed'), { status: 500 })
     const closed = await env.DB.prepare(`UPDATE restaurant_table_sessions SET status='closed',closed_at=${now},closed_by=?,close_reason='invoice' WHERE tenant_id=? AND id=? AND status='open'`).bind(actor.staffId,actor.tenantId,sessionId).run()
-    if (!closed.meta.changes) fail(409,'table_session_not_open')
+    if (!closed.meta?.changes) throw Object.assign(new Error('table_session_not_open'), { status: 409 })
     return {invoice:normalizeInvoice(invoice),existing:false}
   } catch (error) {
     const retry = await env.DB.prepare('SELECT * FROM restaurant_invoices WHERE tenant_id=? AND session_id=?').bind(actor.tenantId,sessionId).first<Record<string,unknown>>()
@@ -116,7 +116,7 @@ function normalizeInvoice(row: Record<string,unknown>) {
 async function reportData(env: Env, tenantId: string, from: string, to: string) {
   const profile = await env.DB.prepare('SELECT timezone FROM restaurant_profiles WHERE tenant_id=?').bind(tenantId).first<{timezone:string}>()
   const timezone = profile?.timezone || 'Asia/Kolkata'
-  let start: string, end: string
+  let start = '', end = ''
   try { start=zonedMidnightUtc(from,timezone); end=zonedMidnightUtc(addDays(to,1),timezone) } catch { fail(400,'invalid_restaurant_timezone') }
   const [summary,payments,refunds,dailyRows,topItems] = await Promise.all([
     env.DB.prepare(`SELECT count(*) AS order_count,COALESCE(sum(subtotal_minor),0) AS subtotal_minor,COALESCE(sum(tax_minor),0) AS tax_minor,COALESCE(sum(total_minor),0) AS sales_minor FROM restaurant_orders WHERE tenant_id=? AND status<>'cancelled' AND created_at>=? AND created_at<?`).bind(tenantId,start,end).first<Record<string,number>>(),
@@ -146,14 +146,14 @@ export async function handleRestaurantFinance(request: Request, env: Env, actor:
   if (parts[2]==='reports' && parts.length===3 && request.method==='GET') {
     if (!['owner','manager'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
     const from=url.searchParams.get('from'),to=url.searchParams.get('to')
-    if (!validDay(from)||!validDay(to)||from>to) fail(400,'invalid_report_date_range')
-    if ((Date.parse(to)-Date.parse(from))/86400000+1>366) fail(400,'report_range_too_large')
+    if (!validDay(from)||!validDay(to)||from>to) throw Object.assign(new Error('invalid_report_date_range'), { status: 400 })
+    if ((Date.parse(to)-Date.parse(from))/86400000+1>366) throw Object.assign(new Error('report_range_too_large'), { status: 400 })
     return json(200,{from,to,...await reportData(env,actor.tenantId,from,to)})
   }
   if (parts[2]==='daily-summary' && parts.length===3 && (request.method==='GET'||request.method==='POST')) {
     if (!['owner','manager'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
     const day=url.searchParams.get('date')
-    if (!validDay(day) || day>localParts(new Date(),'Asia/Kolkata').year+'-'+localParts(new Date(),'Asia/Kolkata').month+'-'+localParts(new Date(),'Asia/Kolkata').day) fail(400,'invalid_business_date')
+    if (!validDay(day) || day>localParts(new Date(),'Asia/Kolkata').year+'-'+localParts(new Date(),'Asia/Kolkata').month+'-'+localParts(new Date(),'Asia/Kolkata').day) throw Object.assign(new Error('invalid_business_date'), { status: 400 })
     if (request.method==='GET') {
       const saved=await env.DB.prepare('SELECT business_date,order_count,revenue_minor,tax_minor,cancelled_count,refunds_minor,average_order_minor,metrics FROM restaurant_daily_summaries WHERE tenant_id=? AND business_date=?').bind(actor.tenantId,day).first<Record<string,unknown>>()
       return saved?json(200,{summary:{...saved,metrics:parseJson(saved.metrics)}}):json(404,{error:'daily_summary_not_found'})
