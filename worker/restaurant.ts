@@ -1,4 +1,5 @@
 import { authenticateIdentity } from './auth.ts'
+import { handleRestaurantMenuRoutes } from './menu.ts'
 import type { Env, Identity } from './types.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -324,7 +325,8 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
   try {
     if (parts[2] === 'settings' && parts.length === 3) return await handleSettings(request, env, actor)
     if (parts[2] === 'tables') return await handleTables(request, env, actor, parts)
-    if (['menu','kitchen','waiter','reports','daily-summary','data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
+    if (parts[2] === 'menu') return await handleRestaurantMenuRoutes(request, env, actor, parts)
+    if (['kitchen','waiter','reports','daily-summary','data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
     return json(404, { error: 'restaurant_route_not_found' })
   } catch (error) {
     return errorResponse(error, 'restaurant_request_failed')
