@@ -118,6 +118,7 @@ async function reportData(env: Env, tenantId: string, from: string, to: string) 
   const timezone = profile?.timezone || 'Asia/Kolkata'
   let start: string, end: string
   try { start=zonedMidnightUtc(from,timezone); end=zonedMidnightUtc(addDays(to,1),timezone) } catch { fail(400,'invalid_restaurant_timezone') }
+  console.log('D1_REPORT_WINDOW', {timezone,start,end})
   const [summary,payments,refunds,dailyRows,topItems] = await Promise.all([
     env.DB.prepare(`SELECT count(*) AS order_count,COALESCE(sum(subtotal_minor),0) AS subtotal_minor,COALESCE(sum(tax_minor),0) AS tax_minor,COALESCE(sum(total_minor),0) AS sales_minor FROM restaurant_orders WHERE tenant_id=? AND status<>'cancelled' AND created_at>=? AND created_at<?`).bind(tenantId,start,end).first<Record<string,number>>(),
     env.DB.prepare(`SELECT method,COALESCE(sum(amount_minor),0) AS amount_minor,count(*) AS payment_count FROM restaurant_payments WHERE tenant_id=? AND paid_at>=? AND paid_at<? GROUP BY method ORDER BY method`).bind(tenantId,start,end).all(),
