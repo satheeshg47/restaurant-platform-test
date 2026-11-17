@@ -540,6 +540,36 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(reviewUpdate.status, 200)
   assert.equal((await reviewUpdate.json()).review.visibility, 'hidden')
 
+  const exportCatalog = await call('/restaurant/green-leaf-kitchen/data-export', { accessToken: ownerAccess })
+  assert.equal(exportCatalog.status, 200)
+  assert.ok((await exportCatalog.json()).tables.some(t => t.name === 'restaurant_orders'))
+  const backupResponse = await call('/restaurant/green-leaf-kitchen/data-export/backup', { accessToken: ownerAccess })
+  assert.equal(backupResponse.status, 200)
+  assert.match(backupResponse.headers.get('content-type'), /application\/json/)
+  const backup = await backupResponse.json()
+  assert.equal(backup.format, 'restaurant-platform-d1-backup')
+  assert.ok(backup.row_count > 0)
+  assert.equal(backup.tables.restaurant_tables[0].public_token_hash, undefined)
+  assert.equal(backup.tables.restaurant_orders[0].idempotency_key, undefined)
+  const backupValidation = await call('/restaurant/green-leaf-kitchen/data-export/validate-backup', {
+    method: 'POST', accessToken: ownerAccess, body: backup,
+  })
+  assert.equal(backupValidation.status, 200)
+  assert.equal((await backupValidation.json()).valid, true)
+  const restorePreflight = await call('/restaurant/green-leaf-kitchen/data-export/restore-preflight', {
+    method: 'POST', accessToken: ownerAccess, body: backup,
+  })
+  assert.equal(restorePreflight.status, 200)
+  assert.equal((await restorePreflight.json()).restore_allowed, false)
+  const blockedRestore = await call('/restaurant/green-leaf-kitchen/data-export/restore', {
+    method: 'POST', accessToken: ownerAccess, body: backup,
+  })
+  assert.equal(blockedRestore.status, 409)
+  assert.equal((await blockedRestore.json()).error, 'restore_requires_exclusive_maintenance_mode')
+  const csvExport = await call('/restaurant/green-leaf-kitchen/data-export/restaurant_orders', { accessToken: ownerAccess })
+  assert.equal(csvExport.status, 200)
+  assert.match(csvExport.headers.get('content-type'), /text\/csv/)
+
   const otherTenant = await call('/admin/tenants', { method: 'POST', accessToken: adminToken, body: { name: 'Other Tenant', slug: 'other-tenant' } })
   assert.equal(otherTenant.status, 201)
   const forbidden = await call('/restaurant/other-tenant/settings', { accessToken: ownerAccess })
