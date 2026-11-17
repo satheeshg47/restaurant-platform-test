@@ -77,7 +77,7 @@ async function preflight(env:Env,tenantId:string,backup:unknown){
  }
  const lock=await env.DB.prepare('SELECT maintenance_mode,restore_mode FROM restaurant_tenant_controls WHERE tenant_id=?').bind(tenantId).first<{maintenance_mode:number;restore_mode:number}>()
  if(lock)occupied.push('restaurant_tenant_controls')
- return {valid:true,restore_allowed:occupied.length===0&&valid.rowCount<=MAX_RESTORE_ROWS,blocked_tables:occupied,row_count:valid.rowCount,backup_bytes:valid.bytes,restore_row_limit:MAX_RESTORE_ROWS,private_fields_to_regenerate:['QR table tokens','order idempotency keys'],private_fields_not_restored:['staff password hashes','menu photo object keys']}
+ return {valid:true,restore_allowed:occupied.length===0&&valid.rowCount<=MAX_RESTORE_ROWS,blocked_tables:occupied,row_count:valid.rowCount,backup_bytes:valid.bytes,restore_row_limit:MAX_RESTORE_ROWS,tables:valid.tables,private_fields_to_regenerate:['QR table tokens','order idempotency keys'],private_fields_not_restored:['staff password hashes','menu photo object keys']}
 }
 export async function handleRestaurantDataExport(request:Request,env:Env,actor:Actor,parts:string[]):Promise<Response|null>{
  try{
@@ -101,7 +101,9 @@ export async function handleRestaurantDataExport(request:Request,env:Env,actor:A
    const raw=await request.text()
    if(new TextEncoder().encode(raw).byteLength>MAX_BACKUP_BYTES)fail(413,'backup_size_limit_exceeded')
    let value:unknown;try{value=JSON.parse(raw)}catch{fail(400,'invalid_backup_json')}
-   return json(200,await preflight(env,actor.tenantId,value))
+   const result=await preflight(env,actor.tenantId,value)
+   const {tables:ignored,...publicResult}=result
+   return json(200,publicResult)
   }
   if(parts.length===4&&parts[3]==='restore'&&request.method==='POST'){
    if(actor.role!=='owner')fail(403,'restaurant_role_forbidden')
