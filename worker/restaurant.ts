@@ -110,7 +110,7 @@ async function loadMenu(env: Env, tenantId: string) {
     env.DB.prepare('SELECT * FROM restaurant_menu_variants WHERE tenant_id=? ORDER BY item_id,sort_order,name').bind(tenantId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM restaurant_addon_groups WHERE tenant_id=? ORDER BY sort_order,name').bind(tenantId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM restaurant_addons WHERE tenant_id=? ORDER BY group_id,sort_order,name').bind(tenantId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM restaurant_item_addon_groups WHERE tenant_id=? ORDER BY item_id,sort_order').bind(tenantId).all<Record<string, unknown>>(),
+    env.DB.prepare('SELECT * FROM restaurant_item_addon_groups WHERE tenant_id=? ORDER BY item_id,group_id').bind(tenantId).all<Record<string, unknown>>(),
   ])
   const parseRows = (rows: Record<string, unknown>[], columns: string[]) => rows.map(row => {
     const output = { ...row }
