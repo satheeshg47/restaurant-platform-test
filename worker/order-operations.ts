@@ -8,14 +8,14 @@ const now = "strftime('%Y-%m-%dT%H:%M:%fZ','now')"
 
 async function body(request: Request): Promise<Record<string, unknown>> {
   const raw = await request.text()
-  if (new TextEncoder().encode(raw).byteLength > 8192) fail(413, 'payload_too_large')
+  if (new TextEncoder().encode(raw).byteLength > 8192) throw Object.assign(new Error('payload_too_large'), { status: 413 })
   try {
     const value: unknown = JSON.parse(raw)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) fail(400, 'invalid_request')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw Object.assign(new Error('invalid_request'), { status: 400 })
     return value as Record<string, unknown>
   } catch (error) {
     if (error && typeof error === 'object' && 'status' in error) throw error
-    fail(400, 'invalid_request')
+    throw Object.assign(new Error('invalid_request'), { status: 400 })
   }
 }
 
