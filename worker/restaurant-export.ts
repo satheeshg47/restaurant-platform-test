@@ -114,7 +114,7 @@ export async function handleRestaurantDataExport(request:Request,env:Env,actor:A
    if(check.row_count>MAX_RESTORE_ROWS)fail(413,'restore_row_limit_exceeded')
    if(!check.restore_allowed)fail(409,'restore_target_not_empty')
    const backup=value as {tables:Record<string,Record<string,unknown>[]>}
-   const statements: D1PreparedStatement[]=[env.DB.prepare('PRAGMA defer_foreign_keys=ON'),env.DB.prepare('INSERT INTO restaurant_tenant_controls(tenant_id,maintenance_mode,restore_mode) VALUES(?,1,1)').bind(actor.tenantId)]
+   const statements=[env.DB.prepare('PRAGMA defer_foreign_keys=ON'),env.DB.prepare('INSERT INTO restaurant_tenant_controls(tenant_id,maintenance_mode,restore_mode) VALUES(?,1,1)').bind(actor.tenantId)]
    const regenerated:{table_id:string;qr_token:string}[]=[]
    for(const table of check.tables){
     for(const sourceRow of backup.tables[table.name]){
