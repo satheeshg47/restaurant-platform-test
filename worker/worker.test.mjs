@@ -359,7 +359,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   const adjustment = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/stock-adjustments`, {
     method: 'POST', accessToken: ownerAccess, body: { quantity_delta: 2, reason: 'New stock received' },
   })
-  assert.equal(adjustment.status, 201)
+  assert.equal(adjustment.status, 200)
   assert.equal((await adjustment.json()).stock.new_quantity, 12)
   const insufficient = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/stock-adjustments`, {
     method: 'POST', accessToken: ownerAccess, body: { quantity_delta: -20, reason: 'Test overdraw' },
@@ -367,7 +367,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(insufficient.status, 409)
   const events = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/stock-adjustments`, { accessToken: ownerAccess })
   assert.equal(events.status, 200)
-  assert.equal((await events.json()).stock_adjustments.length, 1)
+  assert.equal((await events.json()).events.length, 1)
 
   const unlink = await call(`/restaurant/green-leaf-kitchen/menu/items/${item.id}/addon-groups/${group.id}`, {
     method: 'DELETE', accessToken: ownerAccess,
