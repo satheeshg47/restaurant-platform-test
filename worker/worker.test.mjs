@@ -417,7 +417,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(guestData.items.length, 1)
 
   const selectedVariant = db.prepare('SELECT id FROM restaurant_menu_variants WHERE tenant_id=? AND item_id=?').get(tenant.id, item.id)
-  const orderPayload = { session_id: session.id, idempotency_key: 'guest-order-test-0001', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
+  const orderPayload = { session_id: session.id, idempotency_key: 'guest-order-test-0001', note: '  No   onions  ', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
   const guestOrderPath = `/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders`
   const placed = await call(guestOrderPath, { method: 'POST', body: orderPayload })
   assert.equal(placed.status, 201)
@@ -425,6 +425,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(placedBody.order.subtotal_minor, 30000)
   assert.equal(placedBody.order.tax_minor, 1500)
   assert.equal(placedBody.order.total_minor, 31500)
+  assert.equal(db.prepare('SELECT special_instructions FROM restaurant_orders WHERE tenant_id=? AND id=?').get(tenant.id, placedBody.order.id).special_instructions, 'No onions')
   assert.equal(db.prepare('SELECT stock_quantity FROM restaurant_menu_items WHERE tenant_id=? AND id=?').get(tenant.id, item.id).stock_quantity, 10)
   assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_kitchen_batches WHERE tenant_id=?').get(tenant.id).count, 1)
   assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_batch_allocations WHERE tenant_id=?').get(tenant.id).count, 1)
@@ -432,8 +433,37 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(duplicate.status, 200)
   assert.equal((await duplicate.json()).order.id, placedBody.order.id)
   assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_orders WHERE tenant_id=? AND session_id=?').get(tenant.id, session.id).count, 2)
-  db.prepare("UPDATE restaurant_orders SET status='served' WHERE tenant_id=? AND id=?").run(tenant.id, placedBody.order.id)
-  db.prepare("INSERT INTO restaurant_payments(tenant_id,session_id,table_id,amount_minor,method) VALUES(?,?,?,31500,'cash')").run(tenant.id, session.id, table.table.id)
+  const orderItemId = db.prepare('SELECT id FROM restaurant_order_items WHERE tenant_id=? AND order_id=?').get(tenant.id, placedBody.order.id).id
+  const queue = await call('/restaurant/green-leaf-kitchen/kitchen/queue', { accessToken: ownerAccess })
+  assert.equal(queue.status, 200)
+  assert.equal((await queue.json()).queue.length, 1)
+  for (const status of ['accepted','preparing','ready']) {
+    const changed = await call(`/restaurant/green-leaf-kitchen/kitchen/items/${orderItemId}/status`, { method: 'PATCH', accessToken: ownerAccess, body: { status } })
+    assert.equal(changed.status, 200)
+  }
+  const board = await call('/restaurant/green-leaf-kitchen/waiter/board', { accessToken: ownerAccess })
+  assert.equal(board.status, 200)
+  assert.equal((await board.json()).ready_items.length, 1)
+  const served = await call(`/restaurant/green-leaf-kitchen/waiter/items/${orderItemId}/serve`, { method: 'POST', accessToken: ownerAccess })
+  assert.equal(served.status, 200)
+  assert.equal((await served.json()).order_status, 'served')
+  const payment = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${session.id}/payments`, { method: 'POST', accessToken: ownerAccess, body: { amount_minor: '31500', method: 'cash' } })
+  assert.equal(payment.status, 201)
+  const overpayment = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${session.id}/payments`, { method: 'POST', accessToken: ownerAccess, body: { amount_minor: '1', method: 'cash' } })
+  assert.equal(overpayment.status, 409)
+  const refund = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${session.id}/refunds`, { method: 'POST', accessToken: ownerAccess, body: { amount_minor: '100', order_id: orderId, reason: 'Test refund', was_paid: true } })
+  assert.equal(refund.status, 201)
+  const settlement = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${session.id}/payments`, { method: 'POST', accessToken: ownerAccess, body: { amount_minor: '100', method: 'cash' } })
+  assert.equal(settlement.status, 201)
+  const bill = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${session.id}/bill`, { accessToken: ownerAccess })
+  assert.equal(bill.status, 200)
+  const billBody = await bill.json()
+  assert.equal(billBody.payments.length, 3)
+  assert.equal(billBody.refunds.length, 1)
+  const serviceRequest = db.prepare("INSERT INTO restaurant_service_requests(tenant_id,session_id,table_id,request_type,note) VALUES(?,?,?,'other','Please bring water') RETURNING id").get(tenant.id, session.id, table.table.id)
+  const handledRequest = await call(`/restaurant/green-leaf-kitchen/waiter/requests/${serviceRequest.id}`, { method: 'PATCH', accessToken: ownerAccess, body: { status: 'handled' } })
+  assert.equal(handledRequest.status, 200)
+  assert.equal((await handledRequest.json()).request.status, 'handled')
 
   const closed = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/close`, {
     method: 'POST', accessToken: ownerAccess,

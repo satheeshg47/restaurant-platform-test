@@ -25,7 +25,7 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
     const key = typeof body.idempotency_key === 'string' ? body.idempotency_key : ''
     const items = body.items
     if (!UUID.test(sessionId) || !/^[A-Za-z0-9._:-]{16,128}$/.test(key) || !Array.isArray(items) || items.length < 1 || items.length > 20) bad(400, 'invalid_order')
-    const note = typeof body.note === 'string' ? body.note.replace(/\\s+/g, ' ').trim().slice(0, 200) : ''
+    const note = typeof body.note === 'string' ? body.note.replace(/\s+/g, ' ').trim().slice(0, 200) : ''
     const hashBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)))
     const tokenHash = [...hashBytes].map(x => x.toString(16).padStart(2, '0')).join('')
     const table = await env.DB.prepare("SELECT id FROM restaurant_tables WHERE tenant_id=? AND public_token_hash=? AND active=1").bind(tenantId, tokenHash).first<{id:string}>()
