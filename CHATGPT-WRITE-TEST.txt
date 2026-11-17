@@ -1,0 +1,3 @@
+Harmless GitHub write-permission test.
+
+This file confirms that ChatGPT can create a file in the connected test repository.
