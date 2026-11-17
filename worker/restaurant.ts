@@ -1,6 +1,7 @@
 import { authenticateIdentity } from './auth.ts'
 import { handleRestaurantMenuRoutes } from './menu.ts'
 import { handleOrderOperations } from './order-operations.ts'
+import { handleRestaurantFinance } from './restaurant-finance.ts'
 import { handleGuestOrder } from './guest-orders.ts'
 import type { Env, Identity } from './types.ts'
 
@@ -338,11 +339,13 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
     if (parts[2] === 'settings' && parts.length === 3) return await handleSettings(request, env, actor)
     if (parts[2] === 'tables') return await handleTables(request, env, actor, parts)
     if (parts[2] === 'menu') return await handleRestaurantMenuRoutes(request, env, actor, parts)
+    const finance = await handleRestaurantFinance(request, env, actor, parts, new URL(request.url))
+    if (finance) return finance
     if (parts[2] === 'kitchen' || parts[2] === 'waiter') {
       const operation = await handleOrderOperations(request, env, actor, parts)
       if (operation) return operation
     }
-    if (['reports','daily-summary','data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
+    if (['data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
     return json(404, { error: 'restaurant_route_not_found' })
   } catch (error) {
     return errorResponse(error, 'restaurant_request_failed')
