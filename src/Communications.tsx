@@ -98,7 +98,7 @@ export default function Communications() {
   }
 
   if (state === 'loading') return <section className="panel registry-state"><RefreshCw size={18} className="spin"/> Checking administrator access…</section>
-  if (state === 'blocked') return <section className="panel registry-state registry-blocked"><div className="registry-state-icon"><ShieldAlert size={20}/></div><div><b>Communication Centre is not connected yet</b><p>{error}. The API requires the configured owner-only sign-in and a live PostgreSQL database. No sample conversations are displayed.</p><button className="button secondary small" onClick={() => void refresh()}><RefreshCw size={14}/> Retry</button></div></section>
+  if (state === 'blocked') return <section className="panel registry-state registry-blocked"><div className="registry-state-icon"><ShieldAlert size={20}/></div><div><b>Communication Centre is not connected yet</b><p>{error}. The API requires configured owner sign-in and a live Cloudflare D1 database. No sample conversations are displayed.</p><button className="button secondary small" onClick={() => void refresh()}><RefreshCw size={14}/> Retry</button></div></section>
   return <div className="communication-layout">
     <section className="panel communication-inbox">
       <div className="panel-heading"><div><h2>Inbox</h2><p>Owner requests, bug reports and group threads.</p></div><button className="button secondary small" onClick={() => void refresh()} disabled={busy}><RefreshCw size={14} className={busy ? 'spin' : ''}/>Refresh</button></div>
