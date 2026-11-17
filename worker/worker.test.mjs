@@ -255,6 +255,8 @@ test('D1 restaurant schema includes tenant-scoped operations, GST invoices and i
   for (const table of ['restaurant_profiles','restaurant_staff','restaurant_tables','restaurant_table_sessions','restaurant_menu_categories','restaurant_menu_items','restaurant_orders','restaurant_order_items','restaurant_kitchen_batches','restaurant_payments','restaurant_refunds','restaurant_service_requests','restaurant_reviews','restaurant_invoice_counters','restaurant_invoices']) {
     assert.ok(tables.includes(table), `missing ${table}`)
   }
+  const menuColumns = db.prepare('PRAGMA table_info(restaurant_menu_items)').all().map(row => row.name)
+  assert.ok(menuColumns.includes('last_stock_adjustment_id'))
   const itemColumns = db.prepare('PRAGMA table_info(restaurant_order_items)').all().map(row => row.name)
   for (const column of ['preparation_started_at','ready_at','served_at','unavailable_at','cancelled_at']) {
     assert.ok(itemColumns.includes(column), `missing order-item timing column ${column}`)
