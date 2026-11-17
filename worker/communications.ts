@@ -1,5 +1,5 @@
-import { authenticateAdmin, authenticateIdentity, authStatus } from './auth'
-import type { Env, Identity } from './types'
+import { authenticateAdmin, authenticateIdentity, authStatus } from './auth.ts'
+import type { Env, Identity } from './types.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const STATUSES = ['open', 'in_progress', 'resolved']
