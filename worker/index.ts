@@ -1,7 +1,7 @@
-import { authenticateAdmin } from './auth'
-import { handleCommunications } from './communications'
-import { handleOwnerInvitations } from './owner-invitations'
-import type { Env, Identity } from './types'
+import { authenticateAdmin } from './auth.ts'
+import { handleCommunications } from './communications.ts'
+import { handleOwnerInvitations } from './owner-invitations.ts'
+import type { Env, Identity } from './types.ts'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
 const APP_KEY = /^[a-z][a-z0-9-]{1,62}$/
