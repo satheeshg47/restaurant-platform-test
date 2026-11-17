@@ -610,7 +610,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(restorePreflight.status, 200)
   assert.equal((await restorePreflight.json()).restore_allowed, false)
   const blockedRestore = await call('/restaurant/green-leaf-kitchen/data-export/restore', {
-    method: 'POST', accessToken: ownerAccess, body: backup,
+    method: 'POST', accessToken: ownerAccess, body: { ...backup, confirmation: 'RESTORE green-leaf-kitchen' },
   })
   assert.equal(blockedRestore.status, 409)
   assert.equal((await blockedRestore.json()).error, 'restore_target_not_empty')
