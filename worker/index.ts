@@ -1,26 +1,7 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose'
-
-interface D1Result<T> { results: T[]; success: boolean; meta?: { changes?: number } }
-interface D1Statement {
-  bind(...values: unknown[]): D1Statement
-  first<T = Record<string, unknown>>(): Promise<T | null>
-  all<T = Record<string, unknown>>(): Promise<D1Result<T>>
-  run(): Promise<D1Result<never>>
-}
-interface D1Database {
-  prepare(sql: string): D1Statement
-  batch<T = D1Result<never>>(statements: D1Statement[]): Promise<T[]>
-}
-interface Env {
-  DB: D1Database
-  ASSETS: { fetch(request: Request): Promise<Response> }
-  OIDC_ISSUER?: string
-  OIDC_AUDIENCE?: string
-  OIDC_JWKS_URL?: string
-  PLATFORM_ADMIN_SUBJECT?: string
-  ENVIRONMENT?: string
-}
-interface AdminIdentity { issuer: string; subject: string }
+import { authenticateAdmin } from './auth.ts'
+import { handleCommunications } from './communications.ts'
+import { handleOwnerInvitations } from './owner-invitations.ts'
+import type { Env, Identity } from './types.ts'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
 const APP_KEY = /^[a-z][a-z0-9-]{1,62}$/
@@ -38,31 +19,6 @@ function withSecurityHeaders(response: Response): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }
 
-function configured(env: Env): boolean {
-  return Boolean(env.OIDC_ISSUER && env.OIDC_AUDIENCE && env.OIDC_JWKS_URL && env.PLATFORM_ADMIN_SUBJECT)
-}
-
-async function authenticateAdmin(request: Request, env: Env): Promise<AdminIdentity> {
-  if (!configured(env)) throw Object.assign(new Error('admin_auth_not_configured'), { status: 503 })
-  const authorization = request.headers.get('Authorization') || ''
-  const match = /^Bearer ([A-Za-z0-9._~-]+)$/.exec(authorization)
-  if (!match) throw Object.assign(new Error('unauthorized'), { status: 401 })
-  try {
-    const { payload } = await jwtVerify(
-      match[1],
-      createRemoteJWKSet(new URL(env.OIDC_JWKS_URL!)),
-      { issuer: env.OIDC_ISSUER!, audience: env.OIDC_AUDIENCE!, algorithms: ['RS256', 'ES256'] },
-    )
-    if (typeof payload.sub !== 'string' || payload.sub !== env.PLATFORM_ADMIN_SUBJECT) {
-      throw Object.assign(new Error('forbidden'), { status: 403 })
-    }
-    return { issuer: env.OIDC_ISSUER!, subject: payload.sub }
-  } catch (error) {
-    if (error && typeof error === 'object' && 'status' in error) throw error
-    throw Object.assign(new Error('unauthorized'), { status: 401 })
-  }
-}
-
 async function readJson(request: Request, maxBytes = 8192): Promise<Record<string, unknown>> {
   const declared = Number(request.headers.get('Content-Length') || 0)
   if (declared > maxBytes) throw Object.assign(new Error('payload_too_large'), { status: 413 })
@@ -78,7 +34,7 @@ async function readJson(request: Request, maxBytes = 8192): Promise<Record<strin
 }
 
 async function handleAdmin(request: Request, env: Env, path: string): Promise<Response> {
-  let admin: AdminIdentity
+  let admin: Identity
   try { admin = await authenticateAdmin(request, env) }
   catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 401
@@ -202,6 +158,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
       return json(503, { status: 'not_ready', checks: { database: 'unavailable' } })
     }
   }
+  if (path === '/admin/owner-invitations' || path.startsWith('/admin/owner-invitations/') || path === '/owner/invitations/accept') return handleOwnerInvitations(request, env, path)
+  if (path.startsWith('/admin/communications') || path.startsWith('/owner/communications')) return handleCommunications(request, env, path)
   if (path.startsWith('/admin/')) return handleAdmin(request, env, path)
   if (path.startsWith('/restaurant/') || path.startsWith('/owner/')) {
     return json(501, { error: 'module_not_migrated_to_d1' })
