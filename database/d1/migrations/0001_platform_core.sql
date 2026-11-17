@@ -5,7 +5,7 @@
 -- Never accept tenant_id for authorization from a request body alone.
 
 CREATE TABLE tenants (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 160),
   slug TEXT NOT NULL UNIQUE CHECK (length(slug) BETWEEN 2 AND 63 AND slug NOT GLOB '*[^a-z0-9-]*' AND substr(slug,1,1) GLOB '[a-z0-9]' AND substr(slug,-1,1) GLOB '[a-z0-9]'),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','closed')),
@@ -14,7 +14,7 @@ CREATE TABLE tenants (
 );
 
 CREATE TABLE platform_users (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   auth_provider TEXT NOT NULL,
   auth_subject TEXT NOT NULL,
   email TEXT,
@@ -23,7 +23,7 @@ CREATE TABLE platform_users (
 );
 
 CREATE TABLE applications (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   app_key TEXT NOT NULL UNIQUE CHECK (length(app_key) BETWEEN 2 AND 63 AND app_key GLOB '[a-z]*' AND app_key NOT GLOB '*[^a-z0-9-]*'),
   name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 160),
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','paused','retired')),
@@ -51,7 +51,7 @@ CREATE UNIQUE INDEX one_active_owner_per_tenant ON tenant_memberships(tenant_id)
 CREATE INDEX tenant_memberships_user_idx ON tenant_memberships(user_id,tenant_id);
 
 CREATE TABLE subscription_plans (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE RESTRICT,
   plan_code TEXT NOT NULL,
   display_name TEXT NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE subscription_plans (
 );
 
 CREATE TABLE subscriptions (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
   application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE RESTRICT,
   plan_id TEXT REFERENCES subscription_plans(id) ON DELETE RESTRICT,
@@ -86,7 +86,7 @@ CREATE TABLE subscriptions (
 CREATE INDEX subscriptions_tenant_status_idx ON subscriptions(tenant_id,status);
 
 CREATE TABLE audit_events (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
   actor_user_id TEXT REFERENCES platform_users(id) ON DELETE SET NULL,
   action TEXT NOT NULL CHECK (length(trim(action)) BETWEEN 1 AND 120),
@@ -98,7 +98,7 @@ CREATE TABLE audit_events (
 CREATE INDEX audit_events_tenant_created_idx ON audit_events(tenant_id,created_at DESC);
 
 CREATE TABLE subscription_payments (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
   subscription_id TEXT NOT NULL,
   amount_minor INTEGER NOT NULL CHECK (amount_minor>0),
@@ -118,7 +118,7 @@ CREATE TABLE subscription_payments (
 CREATE INDEX payments_tenant_created_idx ON subscription_payments(tenant_id,created_at DESC);
 
 CREATE TABLE owner_transfer_requests (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
   from_user_id TEXT NOT NULL REFERENCES platform_users(id) ON DELETE RESTRICT,
   to_user_id TEXT NOT NULL REFERENCES platform_users(id) ON DELETE RESTRICT,
@@ -135,7 +135,7 @@ CREATE UNIQUE INDEX one_pending_owner_transfer_per_tenant ON owner_transfer_requ
 CREATE INDEX owner_transfers_tenant_created_idx ON owner_transfer_requests(tenant_id,created_at DESC);
 
 CREATE TABLE application_releases (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE RESTRICT,
   version TEXT NOT NULL,
   package_object_key TEXT NOT NULL,
@@ -151,7 +151,7 @@ CREATE TABLE application_releases (
 CREATE INDEX releases_application_created_idx ON application_releases(application_id,created_at DESC);
 
 CREATE TABLE application_deployments (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE RESTRICT,
   release_id TEXT NOT NULL REFERENCES application_releases(id) ON DELETE RESTRICT,
   environment TEXT NOT NULL CHECK (environment IN ('development','staging','production')),
@@ -165,7 +165,7 @@ CREATE TABLE application_deployments (
 CREATE INDEX deployments_application_created_idx ON application_deployments(application_id,created_at DESC);
 
 CREATE TABLE platform_audit_events (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   actor_issuer TEXT NOT NULL CHECK (length(trim(actor_issuer)) BETWEEN 1 AND 512),
   actor_subject TEXT NOT NULL CHECK (length(trim(actor_subject)) BETWEEN 1 AND 255),
   action TEXT NOT NULL CHECK (length(trim(action)) BETWEEN 1 AND 120),
@@ -178,7 +178,7 @@ CREATE INDEX platform_audit_events_created_idx ON platform_audit_events(created_
 CREATE INDEX platform_audit_events_resource_idx ON platform_audit_events(resource_type,resource_id,created_at DESC);
 
 CREATE TABLE platform_owner_invitations (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
   email TEXT NOT NULL CHECK (email=lower(trim(email)) AND length(email) BETWEEN 3 AND 320),
   token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash)=64 AND token_hash NOT GLOB '*[^0-9a-f]*'),
