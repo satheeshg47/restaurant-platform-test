@@ -41,7 +41,7 @@ export async function handleGuestLifecycle(request:Request,env:Env,tenantId:stri
    if(itemId!==null){
     if(typeof itemId!=='string'||!UUID.test(itemId))fail(400,'invalid_order_item')
     const item=await env.DB.prepare('SELECT id,status FROM restaurant_order_items WHERE tenant_id=? AND order_id=? AND id=?').bind(tenantId,orderId,itemId).first<{id:string;status:string}>()
-    if(!item)fail(404,'order_item_not_found')
+    if(!item)throw Object.assign(new Error('order_item_not_found'),{status:404})
     if(!['new','accepted'].includes(item.status))fail(409,'cancellation_window_closed')
    }else{
     const preparing=await env.DB.prepare("SELECT count(*) AS count FROM restaurant_order_items WHERE tenant_id=? AND order_id=? AND status IN ('preparing','ready','served')").bind(tenantId,orderId).first<{count:number}>()
