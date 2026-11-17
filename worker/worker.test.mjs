@@ -335,6 +335,8 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(tableList.status, 200)
   assert.equal((await tableList.json()).tables[0].session_id, null)
 
+  const otherTenant = await call('/admin/tenants', { method: 'POST', accessToken: adminToken, body: { name: 'Other Tenant', slug: 'other-tenant' } })
+  assert.equal(otherTenant.status, 201)
   const forbidden = await call('/restaurant/other-tenant/settings', { accessToken: ownerAccess })
-  assert.equal(forbidden.status, 404)
+  assert.equal(forbidden.status, 403)
 })
