@@ -2,6 +2,7 @@ import { authenticateIdentity } from './auth.ts'
 import { handleRestaurantMenuRoutes } from './menu.ts'
 import { handleOrderOperations } from './order-operations.ts'
 import { handleRestaurantFinance } from './restaurant-finance.ts'
+import { handleGuestReviewRoutes, handleRestaurantReviewRoutes } from './restaurant-reviews.ts'
 import { handleGuestOrder } from './guest-orders.ts'
 import type { Env, Identity } from './types.ts'
 
@@ -323,6 +324,7 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
     return handleGuestMenu(env, tenantId, parts[3])
   }
   if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'orders' && request.method === 'POST') return handleGuestOrder(request, env, tenantId, parts[3])
+  if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'reviews') return handleGuestReviewRoutes(request, env, tenantId, parts[3])
   if (parts[2] === 'guest') return json(501, { error: 'guest_ordering_not_migrated_to_d1' })
 
   let identity: Identity
@@ -341,6 +343,10 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
     if (parts[2] === 'menu') return await handleRestaurantMenuRoutes(request, env, actor, parts)
     const finance = await handleRestaurantFinance(request, env, actor, parts, new URL(request.url))
     if (finance) return finance
+    if (parts[2] === 'reviews') {
+      const reviews = await handleRestaurantReviewRoutes(request, env, actor, parts)
+      if (reviews) return reviews
+    }
     if (parts[2] === 'kitchen' || parts[2] === 'waiter') {
       const operation = await handleOrderOperations(request, env, actor, parts)
       if (operation) return operation
