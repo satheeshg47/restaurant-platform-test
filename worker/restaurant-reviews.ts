@@ -30,8 +30,8 @@ export async function handleGuestReviewRoutes(request:Request,env:Env,tenantId:s
    return json(200,{review_session:row&&!row.already_reviewed?{id:row.id,closed_at:row.closed_at}:null,already_reviewed:Boolean(row?.already_reviewed)})
   }
   if(request.method==='POST'){
-   const body=await readBody(request),rating=Number(body.rating)
-   if(!UUID.test(String(body.session_id||''))||!Number.isInteger(rating)||rating<1||rating>5) fail(400,'invalid_review')
+   const body=await readBody(request),rating=Number(body.rating),sessionId=String(body.session_id||'')
+   if(!UUID.test(sessionId)||!Number.isInteger(rating)||rating<1||rating>5) throw Object.assign(new Error('invalid_review'),{status:400})
    const comment=typeof body.comment==='string'?body.comment.trim().slice(0,1000):''
    const session=await env.DB.prepare("SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND id=? AND status='closed' AND closed_at>=datetime('now','-30 days')").bind(tenantId,table.id,sessionId).first()
    if(!session) fail(409,'review_available_after_session_close')
