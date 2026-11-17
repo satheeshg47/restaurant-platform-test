@@ -8,11 +8,11 @@ Set these in the frontend hosting environment and rebuild the frontend:
 
 - `VITE_OIDC_ISSUER`: exact issuer URL from the provider's OIDC discovery document.
 - `VITE_OIDC_CLIENT_ID`: public web application client ID.
-- `VITE_OIDC_API_AUDIENCE`: API resource identifier requested through the OAuth 2.0 `resource` parameter. It must match the audience configured in the API.
+- `VITE_OIDC_API_AUDIENCE`: API identifier requested through Auth0's OAuth `audience` parameter. It must match the audience configured in the API.
 - `VITE_OIDC_REDIRECT_URI`: exact callback URL, ending in `/auth/callback`. It must use HTTPS in production and share the frontend origin.
 - `VITE_API_BASE_URL`: API base path, normally `/api`.
 
-Register the exact callback URL in the identity provider's allowed redirect URI list. Configure the provider to issue a signed JWT access token for the requested API resource, with the API resource identifier as its audience. The provider must support a public client using authorization code + PKCE, return an ID token, and support the OAuth 2.0 resource indicator parameter (or be adapted to its documented equivalent).
+Register the exact callback URL in the identity provider's allowed redirect URI list. In Auth0, create a custom API using the same identifier as the audience and configure it to issue signed JWT access tokens. The provider must support a public client using authorization code + PKCE, return an ID token, and support the Auth0 `audience` parameter for custom APIs.
 
 For local development, the callback may use `http://localhost:<port>/auth/callback`.
 

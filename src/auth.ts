@@ -83,7 +83,7 @@ export async function beginOidcLogin(returnPath: string) {
   url.search = new URLSearchParams({
     response_type: 'code', client_id: settings.clientId, redirect_uri: transaction.redirectUri,
     scope: 'openid email profile', state: transaction.state, nonce: transaction.nonce,
-    resource: settings.apiAudience,
+    audience: settings.apiAudience,
     code_challenge: await challenge(transaction.verifier), code_challenge_method: 'S256',
   }).toString()
   window.location.assign(url.toString())
@@ -102,7 +102,7 @@ export async function completeOidcLogin() {
     if (!transaction || !code || callback.searchParams.get('state') !== transaction.state) throw new Error('Sign-in state validation failed.')
     if (transaction.redirectUri !== settings.redirectUri) throw new Error('Sign-in redirect configuration changed.')
     const metadata = await discovery(settings)
-    const form = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: transaction.redirectUri, client_id: settings.clientId, code_verifier: transaction.verifier, resource: settings.apiAudience })
+    const form = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: transaction.redirectUri, client_id: settings.clientId, code_verifier: transaction.verifier, audience: settings.apiAudience })
     const response = await fetch(metadata.token_endpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: form.toString(), cache: 'no-store' })
     const payload = await response.json().catch(() => ({})) as { id_token?: string; access_token?: string; token_type?: string }
     if (!response.ok || typeof payload.id_token !== 'string' || typeof payload.access_token !== 'string' || !payload.access_token || payload.token_type?.toLowerCase() !== 'bearer') {
