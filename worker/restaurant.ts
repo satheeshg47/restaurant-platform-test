@@ -356,7 +356,6 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
       const operation = await handleOrderOperations(request, env, actor, parts)
       if (operation) return operation
     }
-    if (false && ['data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
     return json(404, { error: 'restaurant_route_not_found' })
   } catch (error) {
     return errorResponse(error, 'restaurant_request_failed')
