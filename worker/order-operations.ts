@@ -129,6 +129,45 @@ async function waiterBill(env: Env, actor: Actor, sessionId: string) {
   ])
   return {session,orders:orders.results,items:items.results,payments:payments.results,refunds:refunds.results,invoice:invoice??null}
 }
+async function recordPayment(request: Request, env: Env, actor: Actor, sessionId: string) {
+  if (!UUID.test(sessionId)) fail(404,'table_session_not_found')
+  const input = await body(request)
+  if (!/^\d{1,15}$/.test(String(input.amount_minor ?? '')) || !['cash','upi','card','other'].includes(String(input.method))) fail(400,'invalid_payment')
+  const amount = BigInt(String(input.amount_minor))
+  if (amount <= 0n) fail(400,'invalid_payment')
+  const reference = typeof input.reference === 'string' ? input.reference.trim().slice(0,120) : null
+  const session = await env.DB.prepare("SELECT id,table_id FROM restaurant_table_sessions WHERE tenant_id=? AND id=? AND status='open'").bind(actor.tenantId,sessionId).first<{id:string;table_id:string}>()
+  if (!session) fail(404,'table_session_not_found')
+  const totals = await env.DB.prepare(`SELECT COALESCE((SELECT sum(total_minor) FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND status<>'cancelled'),0) AS due,COALESCE((SELECT sum(amount_minor) FROM restaurant_payments WHERE tenant_id=? AND session_id=?),0) AS paid,COALESCE((SELECT sum(amount_minor) FROM restaurant_refunds WHERE tenant_id=? AND session_id=? AND was_paid=1),0) AS refunded,COALESCE((SELECT sum(amount_minor) FROM restaurant_refunds WHERE tenant_id=? AND session_id=? AND was_paid=0),0) AS waived`).bind(actor.tenantId,sessionId,actor.tenantId,sessionId,actor.tenantId,sessionId,actor.tenantId,sessionId).first<Record<string,number>>()
+  const balance = BigInt(totals?.due||0)-BigInt(totals?.paid||0)+BigInt(totals?.refunded||0)-BigInt(totals?.waived||0)
+  if (amount > balance) fail(409,'payment_exceeds_balance')
+  const payment = await env.DB.prepare('INSERT INTO restaurant_payments(tenant_id,session_id,table_id,amount_minor,method,reference,confirmed_by) VALUES(?,?,?,?,?,?,?) RETURNING id,amount_minor,method,reference,paid_at').bind(actor.tenantId,sessionId,session.table_id,String(amount),input.method,reference,actor.staffId).first()
+  return {payment,balance_minor:String(balance-amount)}
+}
+async function recordRefund(request: Request, env: Env, actor: Actor, sessionId: string) {
+  if (!UUID.test(sessionId)) fail(404,'table_session_not_found')
+  const input = await body(request)
+  if (!/^\d{1,15}$/.test(String(input.amount_minor ?? '')) || typeof input.order_id !== 'string' || !UUID.test(input.order_id)) fail(400,'invalid_refund')
+  const amount = BigInt(String(input.amount_minor))
+  const reason = typeof input.reason === 'string' ? input.reason.trim() : ''
+  const wasPaid = input.was_paid === true
+  const itemId = input.order_item_id ?? null
+  if (amount<=0n || !reason || reason.length>250 || (itemId!==null && (typeof itemId!=='string' || !UUID.test(itemId)))) fail(400,'invalid_refund')
+  const session = await env.DB.prepare("SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND id=? AND status='open'").bind(actor.tenantId,sessionId).first()
+  if (!session) fail(404,'table_session_not_found')
+  const order = await env.DB.prepare("SELECT id FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND id=? AND status<>'cancelled'").bind(actor.tenantId,sessionId,input.order_id).first()
+  if (!order) fail(404,'order_not_found')
+  if (itemId) {
+    const item = await env.DB.prepare('SELECT id FROM restaurant_order_items WHERE tenant_id=? AND order_id=? AND id=?').bind(actor.tenantId,input.order_id,itemId).first()
+    if (!item) fail(404,'order_item_not_found')
+  }
+  const totals = await env.DB.prepare(`SELECT COALESCE((SELECT sum(total_minor) FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND status<>'cancelled'),0) AS due,COALESCE((SELECT sum(amount_minor) FROM restaurant_payments WHERE tenant_id=? AND session_id=?),0) AS paid,COALESCE((SELECT sum(amount_minor) FROM restaurant_refunds WHERE tenant_id=? AND session_id=? AND was_paid=1),0) AS paid_refunds,COALESCE((SELECT sum(amount_minor) FROM restaurant_refunds WHERE tenant_id=? AND session_id=? AND was_paid=0),0) AS waived`).bind(actor.tenantId,sessionId,actor.tenantId,sessionId,actor.tenantId,sessionId,actor.tenantId,sessionId).first<Record<string,number>>()
+  const due=BigInt(totals?.due||0),paid=BigInt(totals?.paid||0),paidRefunds=BigInt(totals?.paid_refunds||0),waived=BigInt(totals?.waived||0)
+  const balance=due-paid+paidRefunds-waived
+  if (wasPaid ? amount>paid-paidRefunds : amount>(balance>0n?balance:0n)) fail(409,wasPaid?'refund_exceeds_net_paid':'waiver_exceeds_outstanding_balance')
+  const refund = await env.DB.prepare('INSERT INTO restaurant_refunds(tenant_id,order_id,order_item_id,session_id,amount_minor,reason,was_paid,created_by) VALUES(?,?,?,?,?,?,?,?) RETURNING id,order_id,order_item_id,session_id,amount_minor,reason,was_paid,created_at').bind(actor.tenantId,input.order_id,itemId,sessionId,String(amount),reason,Number(wasPaid),actor.staffId).first()
+  return {refund,balance_minor:String(wasPaid?balance+amount:balance-amount)}
+}
 async function updateServiceRequest(request: Request, env: Env, actor: Actor, requestId: string) {
   if (!UUID.test(requestId)) fail(404,'service_request_not_found')
   const input = await body(request)
@@ -149,6 +188,14 @@ export async function handleOrderOperations(request: Request, env: Env, actor: A
   if (parts[2] === 'waiter' && parts[3] === 'sessions' && parts.length === 6 && parts[5] === 'bill' && request.method === 'GET') {
     if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
     return json(200,await waiterBill(env,actor,parts[4]))
+  }
+  if (parts[2] === 'waiter' && parts[3] === 'sessions' && parts.length === 6 && parts[5] === 'payments' && request.method === 'POST') {
+    if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
+    return json(201,await recordPayment(request,env,actor,parts[4]))
+  }
+  if (parts[2] === 'waiter' && parts[3] === 'sessions' && parts.length === 6 && parts[5] === 'refunds' && request.method === 'POST') {
+    if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
+    return json(201,await recordRefund(request,env,actor,parts[4]))
   }
   if (parts[2] === 'waiter' && parts[3] === 'requests' && parts.length === 5 && request.method === 'PATCH') {
     if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
