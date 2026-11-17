@@ -16,7 +16,7 @@ async function tableForToken(env:Env,tenantId:string,token:string){
  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))
  const hash=[...digest].map(v=>v.toString(16).padStart(2,'0')).join('')
  const table=await env.DB.prepare('SELECT id FROM restaurant_tables WHERE tenant_id=? AND public_token_hash=? AND active=1 LIMIT 1').bind(tenantId,hash).first<{id:string}>()
- if(!table) fail(404,'qr_not_found')
+ if(!table) throw Object.assign(new Error('qr_not_found'),{status:404})
  return table
 }
 export async function handleGuestReviewRoutes(request:Request,env:Env,tenantId:string,token:string):Promise<Response>{
@@ -33,10 +33,10 @@ export async function handleGuestReviewRoutes(request:Request,env:Env,tenantId:s
    const body=await readBody(request),rating=Number(body.rating)
    if(!UUID.test(String(body.session_id||''))||!Number.isInteger(rating)||rating<1||rating>5) fail(400,'invalid_review')
    const comment=typeof body.comment==='string'?body.comment.trim().slice(0,1000):''
-   const session=await env.DB.prepare("SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND id=? AND status='closed' AND closed_at>=datetime('now','-30 days')").bind(tenantId,table.id,body.session_id).first()
+   const session=await env.DB.prepare("SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND id=? AND status='closed' AND closed_at>=datetime('now','-30 days')").bind(tenantId,table.id,sessionId).first()
    if(!session) fail(409,'review_available_after_session_close')
    try{
-    const review=await env.DB.prepare('INSERT INTO restaurant_reviews(tenant_id,session_id,table_id,rating,comment) VALUES(?,?,?,?,?) RETURNING id,rating,comment,created_at').bind(tenantId,body.session_id,table.id,rating,comment).first()
+    const review=await env.DB.prepare('INSERT INTO restaurant_reviews(tenant_id,session_id,table_id,rating,comment) VALUES(?,?,?,?,?) RETURNING id,rating,comment,created_at').bind(tenantId,sessionId,table.id,rating,comment).first()
     return json(201,{review})
    }catch(error){
     const message=error instanceof Error?error.message:''
@@ -61,13 +61,15 @@ export async function handleRestaurantReviewRoutes(request:Request,env:Env,actor
    const id=parts[3];if(!UUID.test(id)) fail(404,'review_not_found')
    const body=await readBody(request),keys=Object.keys(body)
    if(!keys.length||keys.some(k=>!['visibility','owner_response'].includes(k))) fail(400,'invalid_review_update')
-   if(body.visibility!==undefined&&!['published','hidden'].includes(body.visibility)) fail(400,'invalid_review_visibility')
-   if(body.owner_response!==undefined&&(typeof body.owner_response!=='string'||body.owner_response.trim().length>1000)) fail(400,'invalid_owner_response')
+   const visibility=body.visibility
+   if(visibility!==undefined&&(typeof visibility!=='string'||!['published','hidden'].includes(visibility))) throw Object.assign(new Error('invalid_review_visibility'),{status:400})
+   const ownerResponse=body.owner_response
+   if(ownerResponse!==undefined&&(typeof ownerResponse!=='string'||ownerResponse.trim().length>1000)) throw Object.assign(new Error('invalid_owner_response'),{status:400})
    const existing=await env.DB.prepare('SELECT id FROM restaurant_reviews WHERE tenant_id=? AND id=?').bind(actor.tenantId,id).first()
    if(!existing) fail(404,'review_not_found')
    const sets:string[]=[],values:unknown[]=[actor.tenantId,id]
-   if(Object.hasOwn(body,'visibility')){values.push(body.visibility);sets.push('visibility=?')}
-   if(Object.hasOwn(body,'owner_response')){values.push(body.owner_response.trim()||null);sets.push('owner_response=?');sets.push(`responded_at=CASE WHEN ? IS NULL THEN NULL ELSE ${"strftime('%Y-%m-%dT%H:%M:%fZ','now')"} END`);values.push(body.owner_response.trim()||null);sets.push('responded_by=?');values.push(actor.staffId)}
+   if(Object.hasOwn(body,'visibility')){values.push(visibility);sets.push('visibility=?')}
+   if(Object.hasOwn(body,'owner_response')){const responseText=(ownerResponse as string).trim()||null;values.push(responseText);sets.push('owner_response=?');sets.push(`responded_at=CASE WHEN ? IS NULL THEN NULL ELSE ${"strftime('%Y-%m-%dT%H:%M:%fZ','now')"} END`);values.push(responseText);sets.push('responded_by=?');values.push(actor.staffId)}
    const result=await env.DB.prepare(`UPDATE restaurant_reviews SET ${sets.join(',')} WHERE tenant_id=? AND id=? RETURNING id,rating,comment,visibility,owner_response,created_at,responded_at`).bind(...values.slice(2),actor.tenantId,id).first()
    return json(200,{review:result})
   }
