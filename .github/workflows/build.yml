@@ -1,0 +1,47 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: platform_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: platform_core_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U platform_test -d platform_core_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Install dependencies
+        run: npm install
+      - name: Test API
+        run: npm test
+      - name: Validate tracked PostgreSQL migrations
+        env:
+          DATABASE_URL: postgres://platform_test:test_password@localhost:5432/platform_core_test
+        run: |
+          npm run db:migrate
+          npm run db:migrate
+          test "$(psql "$DATABASE_URL" -tAc 'SELECT count(*) FROM platform_schema_migrations')" = "13"
+      - name: Build frontend
+        run: npm run build
