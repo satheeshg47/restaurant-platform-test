@@ -565,7 +565,11 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
     method: 'POST', accessToken: ownerAccess, body: backup,
   })
   assert.equal(blockedRestore.status, 409)
-  assert.equal((await blockedRestore.json()).error, 'restore_requires_exclusive_maintenance_mode')
+  assert.equal((await blockedRestore.json()).error, 'restore_target_not_empty')
+  assert.throws(() => db.prepare('INSERT INTO restaurant_tenant_controls(tenant_id,maintenance_mode,restore_mode) VALUES(?,1,1)').run(tenant.id), /restore_target_not_empty/)
+  db.prepare('INSERT INTO restaurant_tenant_controls(tenant_id,maintenance_mode,restore_mode) VALUES(?,1,0)').run(tenant.id)
+  assert.throws(() => db.prepare('UPDATE restaurant_profiles SET display_name=display_name WHERE tenant_id=?').run(tenant.id), /tenant_maintenance_locked/)
+  db.prepare('DELETE FROM restaurant_tenant_controls WHERE tenant_id=?').run(tenant.id)
   const csvExport = await call('/restaurant/green-leaf-kitchen/data-export/restaurant_orders', { accessToken: ownerAccess })
   assert.equal(csvExport.status, 200)
   assert.match(csvExport.headers.get('content-type'), /text\/csv/)
