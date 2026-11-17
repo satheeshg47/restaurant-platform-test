@@ -5,6 +5,7 @@ import { handleRestaurantFinance } from './restaurant-finance.ts'
 import { handleGuestReviewRoutes, handleRestaurantReviewRoutes } from './restaurant-reviews.ts'
 import { handleRestaurantDataExport } from './restaurant-export.ts'
 import { handleGuestOrder } from './guest-orders.ts'
+import { handleGuestLifecycle } from './guest-lifecycle.ts'
 import type { Env, Identity } from './types.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -325,6 +326,8 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
     return handleGuestMenu(env, tenantId, parts[3])
   }
   if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'orders' && request.method === 'POST') return handleGuestOrder(request, env, tenantId, parts[3])
+  if (parts[2] === 'guest' && parts[4] === 'orders' && parts.length >= 6) return handleGuestLifecycle(request, env, tenantId, parts[3], parts)
+  if (parts[2] === 'guest' && parts[4] === 'requests' && parts.length === 5) return handleGuestLifecycle(request, env, tenantId, parts[3], parts)
   if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'reviews') return handleGuestReviewRoutes(request, env, tenantId, parts[3])
   if (parts[2] === 'guest') return json(501, { error: 'guest_ordering_not_migrated_to_d1' })
 
