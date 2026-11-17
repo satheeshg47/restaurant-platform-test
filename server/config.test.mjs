@@ -9,6 +9,7 @@ test('uses safe development defaults', () => {
     environment: 'development',
     oidcIssuer: '',
     oidcAudience: '',
+    oidcClientId: '',
     oidcJwksUrl: '',
     adminIssuer: '',
     adminSubject: '',
@@ -32,12 +33,14 @@ test('keeps OIDC authentication disabled when no provider is configured', () => 
 test('accepts complete HTTPS OIDC configuration', () => {
   const config = loadConfig({
     OIDC_ISSUER: 'https://identity.example.test/',
-    OIDC_AUDIENCE: 'platform-core',
+    OIDC_AUDIENCE: 'platform-core-api',
+    OIDC_CLIENT_ID: 'platform-core-browser-client',
     OIDC_JWKS_URL: 'https://identity.example.test/.well-known/jwks.json',
     PLATFORM_ADMIN_SUBJECT: 'owner-subject',
   })
   assert.equal(config.adminAuthConfigured, true)
   assert.equal(config.adminIssuer, 'https://identity.example.test/')
+  assert.equal(config.oidcClientId, 'platform-core-browser-client')
 })
 
 test('rejects partial OIDC configuration', () => {
@@ -48,6 +51,7 @@ test('rejects insecure OIDC URLs', () => {
   assert.throws(() => loadConfig({
     OIDC_ISSUER: 'http://identity.example.test/',
     OIDC_AUDIENCE: 'platform-core',
+    OIDC_CLIENT_ID: 'platform-core-browser-client',
     OIDC_JWKS_URL: 'https://identity.example.test/jwks',
     PLATFORM_ADMIN_SUBJECT: 'owner-subject',
   }), /HTTPS/)
@@ -82,4 +86,13 @@ test('rejects non-HTTPS object storage endpoints', () => {
 
 test('rejects unsafe bucket names', () => {
   assert.throws(() => loadConfig({ ...storageEnv, OBJECT_STORAGE_BUCKET: '../public' }), /BUCKET is invalid/)
+})
+
+test('requires the browser client ID with the rest of OIDC configuration', () => {
+  assert.throws(() => loadConfig({
+    OIDC_ISSUER: 'https://identity.example.test/',
+    OIDC_AUDIENCE: 'platform-core-api',
+    OIDC_JWKS_URL: 'https://identity.example.test/jwks',
+    PLATFORM_ADMIN_SUBJECT: 'owner-subject',
+  }), /OIDC_CLIENT_ID/)
 })

@@ -18,6 +18,10 @@ import RestaurantReports from './RestaurantReports'
 import RestaurantReviews from './RestaurantReviews'
 import RestaurantDataExport from './RestaurantDataExport'
 import GuestMenu from './GuestMenu'
+import OwnerCommunications from './OwnerCommunications'
+import OwnerInviteAcceptance from './OwnerInviteAcceptance'
+import SignIn from './SignIn'
+import { apiFetch, completeOidcLogin, setSessionToken as setApiSessionToken } from './auth'
 
 type Section = 'Overview' | 'Applications' | 'Restaurant Suite' | 'Tables & QR' | 'Kitchen & Service' | 'Restaurant Settings' | 'Restaurant Reports' | 'Customer Reviews' | 'Restaurant Data Export' | 'Owners' | 'Communications' | 'Subscriptions' | 'Update Centre' | 'Data & Backups' | 'Monitoring' | 'Security' | 'Audit Log'
 type AppRecord = { name: string; category: string; status: 'Active' | 'Draft' | 'Paused'; version: string; owners: number; initials: string; tone: string }
@@ -53,11 +57,62 @@ function App() {
   const [apps] = useState(initialApps)
   const [menuOpen, setMenuOpen] = useState(false)
   const [notice, setNotice] = useState('')
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
+  const [sessionIdToken, setSessionIdToken] = useState<string | null>(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [adminAccess, setAdminAccess] = useState<'checking' | 'allowed' | 'forbidden' | 'unavailable'>('checking')
+  const [, setRouteRefresh] = useState(0)
 
   const notify = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(''), 3200) }
 
+  const ownerRoute = window.location.pathname === '/owner' || window.location.pathname === '/owner/'
+  const ownerInviteRoute = window.location.pathname === '/owner/invitations/accept'
+
+  useEffect(() => {
+    if (window.location.pathname === '/owner/invitations/accept') {
+      const inviteToken = new URLSearchParams(window.location.hash.slice(1)).get('token') || ''
+      if (/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) sessionStorage.setItem('platformcore.owner.invitation.token', inviteToken)
+      if (window.location.hash) window.history.replaceState({}, document.title, window.location.pathname)
+    }
+    if (window.location.pathname !== '/auth/callback') { setAuthReady(true); return }
+    completeOidcLogin().then(tokens => {
+      setApiSessionToken(tokens.accessToken)
+      setSessionToken(tokens.accessToken)
+      setSessionIdToken(tokens.idToken)
+      setAuthError('')
+      setAuthReady(true)
+    }).catch(cause => {
+      setAuthError(cause instanceof Error ? cause.message : 'Sign-in failed. Please try again.')
+      setAuthReady(true)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!authReady || !sessionToken || ownerRoute || ownerInviteRoute) return
+    let active = true
+    setAdminAccess('checking')
+    apiFetch(`${API_BASE}/admin/session`, { headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(response => { if (active) setAdminAccess(response.ok ? 'allowed' : response.status === 403 ? 'forbidden' : 'unavailable') })
+      .catch(() => { if (active) setAdminAccess('unavailable') })
+    return () => { active = false }
+  }, [authReady, sessionToken, ownerRoute, ownerInviteRoute])
+
+  const signOut = () => { setApiSessionToken(null); setSessionToken(null); setSessionIdToken(null); setAdminAccess('checking'); setAuthError('') }
   const guestRoute = window.location.pathname.match(/^\/r\/([^/]+)\/([^/]+)\/?$/)
   if (guestRoute) return <GuestMenu slug={decodeURIComponent(guestRoute[1])} token={decodeURIComponent(guestRoute[2])} />
+  if (!authReady) return <div className="signin-screen"><div className="signin-card">Completing secure sign-in…</div></div>
+  if (ownerInviteRoute) {
+    if (!sessionToken) return <SignIn role="owner" returnPath="/owner/invitations/accept" error={authError}/>
+    return <OwnerInviteAcceptance accessToken={sessionToken} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
+  }
+  if (ownerRoute) {
+    if (!sessionToken) return <SignIn role="owner" error={authError}/>
+    return <main className="owner-portal-shell"><header><div className="signin-brand"><div className="signin-mark"><Store size={22}/></div><div><b>platform<span>core</span></b><small>RESTAURANT OWNER</small></div></div><button className="button secondary small" onClick={signOut}>Sign out</button></header><OwnerCommunications accessToken={sessionToken} apiBaseUrl={API_BASE}/></main>
+  }
+  if (!sessionToken) return <SignIn role="admin" error={authError}/>
+  if (adminAccess === 'checking') return <div className="signin-screen"><div className="signin-card">Verifying administrator access…</div></div>
+  if (adminAccess !== 'allowed') return <SignIn role="admin" error={adminAccess === 'forbidden' ? 'This identity is not the configured Super Admin.' : 'The administrator API is unavailable or not configured.'}/>
 
 
   const pageTitle = section === 'Overview' ? 'Good evening' : section
@@ -78,7 +133,7 @@ function App() {
 
       {menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Close navigation"/>}
       <main className="main">
-        <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="breadcrumb">Platform <span>/</span> <b>{section}</b></div><div className="top-actions"><div className="environment"><i/> Development mode</div><button className="icon-button notification" onClick={() => notify('You’re all caught up.')} aria-label="Notifications"><Bell size={18}/><i/></button><div className="top-avatar">SG</div></div></header>
+        <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="breadcrumb">Platform <span>/</span> <b>{section}</b></div><div className="top-actions"><div className="environment"><i/> Development mode</div><button className="icon-button notification" onClick={() => notify('You’re all caught up.')} aria-label="Notifications"><Bell size={18}/><i/></button><button className="button secondary small" onClick={signOut}>Sign out</button></div></header>
         <div className="content">
           <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}</div><h1>{pageTitle}{section === 'Overview' ? ', Admin' : ''}</h1><p>{pageSubtitle}</p></div><div className="welcome-actions"><button className="button secondary" onClick={() => notify('Reports will be available after connecting live data.')}><Download size={16}/> Export</button><button className="button primary" onClick={() => { setSection('Applications'); notify('Application creation is not connected yet. No data was saved.') }}><Plus size={17}/> Add application</button></div></div>
 

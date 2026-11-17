@@ -15,9 +15,16 @@ const admin = async request => {
   }
   return { issuer: 'https://issuer.example.test/', subject: 'platform-admin' }
 }
+const ownerAccess = async () => ({
+  issuer: 'https://issuer.example.test/', subject: 'owner-subject',
+})
 const verifiedOwner = async () => ({
   issuer: 'https://issuer.example.test/', subject: 'owner-subject',
   email: 'owner@example.test', emailVerified: true,
+})
+const unverifiedOwner = async () => ({
+  issuer: 'https://issuer.example.test/', subject: 'owner-subject',
+  email: 'owner@example.test', emailVerified: false,
 })
 const future = new Date(Date.now() + 60_000).toISOString()
 
@@ -69,11 +76,12 @@ test('creates a one-time invitation and returns only the plaintext token once', 
 test('owner acceptance requires a verified email claim', async () => {
   let databaseTouched = false
   await withServer({
-    authenticateIdentity: async () => ({ issuer: 'issuer', subject: 'subject', email: 'owner@example.test', emailVerified: false }),
+    authenticateIdentity: ownerAccess,
+    authenticateVerifiedEmail: unverifiedOwner,
     database: { connect: async () => { databaseTouched = true } },
   }, async base => {
     const response = await fetch(base + '/owner/invitations/accept', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: 'a'.repeat(43) }),
+      method: 'POST', headers: { Authorization: 'Bearer owner-access-token', 'Content-Type': 'application/json', 'X-OIDC-ID-Token': 'signed-id-token' }, body: JSON.stringify({ token: 'a'.repeat(43) }),
     })
     assert.equal(response.status, 403)
     assert.deepEqual(await response.json(), { error: 'verified_email_required' })
@@ -97,11 +105,12 @@ test('acceptance binds verified email, creates membership and writes platform au
     release: () => statements.push({ sql: 'RELEASE' }),
   }
   await withServer({
-    authenticateIdentity: verifiedOwner,
+    authenticateIdentity: ownerAccess,
+    authenticateVerifiedEmail: verifiedOwner,
     database: { connect: async () => client },
   }, async base => {
     const response = await fetch(base + '/owner/invitations/accept', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner-access-token', 'X-OIDC-ID-Token': 'signed-id-token' },
       body: JSON.stringify({ token: 'a'.repeat(43) }),
     })
     assert.equal(response.status, 200)
@@ -129,11 +138,12 @@ test('acceptance rejects an email mismatch and rolls back', async () => {
     release: () => {},
   }
   await withServer({
-    authenticateIdentity: verifiedOwner,
+    authenticateIdentity: ownerAccess,
+    authenticateVerifiedEmail: verifiedOwner,
     database: { connect: async () => client },
   }, async base => {
     const response = await fetch(base + '/owner/invitations/accept', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner-access-token', 'X-OIDC-ID-Token': 'signed-id-token' },
       body: JSON.stringify({ token: 'a'.repeat(43) }),
     })
     assert.equal(response.status, 403)
@@ -182,4 +192,45 @@ test('Super Admin revokes a pending invitation transactionally and audits it', a
   assert.ok(statements.some(x=>x.sql.includes('owner.invitation.revoked')))
   assert.ok(statements.some(x=>x.sql==='COMMIT'))
   assert.equal(statements.some(x=>x.sql==='ROLLBACK'),false)
+})
+
+test('owner invitation acceptance rejects an ID token for a different subject', async () => {
+  let databaseTouched = false
+  await withServer({
+    authenticateIdentity: ownerAccess,
+    authenticateVerifiedEmail: async () => ({
+      issuer: 'https://issuer.example.test/', subject: 'different-subject',
+      email: 'owner@example.test', emailVerified: true,
+    }),
+    database: { connect: async () => { databaseTouched = true } },
+  }, async base => {
+    const response = await fetch(base + '/owner/invitations/accept', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-access-token',
+        'X-OIDC-ID-Token': 'signed-id-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token: 'a'.repeat(43) }),
+    })
+    assert.equal(response.status, 401)
+    assert.deepEqual(await response.json(), { error: 'identity_token_subject_mismatch' })
+    assert.equal(databaseTouched, false)
+  })
+})
+
+test('owner invitation acceptance requires the separate ID token', async () => {
+  await withServer({
+    authenticateIdentity: ownerAccess,
+    authenticateVerifiedEmail: verifiedOwner,
+    database: { connect: async () => { throw new Error('database must not be touched') } },
+  }, async base => {
+    const response = await fetch(base + '/owner/invitations/accept', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer owner-access-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'a'.repeat(43) }),
+    })
+    assert.equal(response.status, 401)
+    assert.deepEqual(await response.json(), { error: 'id_token_required' })
+  })
 })

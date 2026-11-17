@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useState } from 'react'
 import { AlertCircle, Database, Download, RefreshCw, ShieldCheck, Table2 } from 'lucide-react'
 
@@ -27,7 +28,7 @@ export default function RestaurantDataExport(){
   if(!SLUG.test(clean)){setError('Enter a valid restaurant slug.');return}
   setLoading(true);setError('');setNotice('')
   try{
-   const res=await fetch(`${API_BASE}/restaurant/${encodeURIComponent(clean)}/data-export`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
+   const res=await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(clean)}/data-export`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Could not load export tables')
    const names=(data.tables||[]) as string[]
@@ -41,7 +42,7 @@ export default function RestaurantDataExport(){
   if(!SLUG.test(clean)){setError('Enter a valid restaurant slug.');return}
   setBackingUp(true);setError('');setNotice('')
   try{
-   const res=await fetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/backup',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
+   const res=await apiFetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/backup',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
    if(!res.ok){const data=await res.json().catch(()=>({}));throw new Error(data.error||'Could not create backup')}
    const blob=await res.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a')
    link.href=url;link.download='restaurant-backup-'+clean+'.json';document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url)
@@ -57,7 +58,7 @@ export default function RestaurantDataExport(){
   setValidating(true);setError('');setNotice('');setValidation(null)
   try{
    const contents=await backupFile.text()
-   const res=await fetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/validate-backup',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:contents})
+   const res=await apiFetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/validate-backup',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:contents})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Backup validation failed')
    setValidation(data);setNotice('Backup passed structural and tenant-safety validation. No database records were changed.')
@@ -72,7 +73,7 @@ export default function RestaurantDataExport(){
   setCheckingRestore(true);setError('');setNotice('');setRestoreCheck(null)
   try{
    const contents=await backupFile.text()
-   const res=await fetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/restore-preflight',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:contents})
+   const res=await apiFetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/restore-preflight',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:contents})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Restore readiness check failed')
    setRestoreCheck(data);setNotice(data.message||'Restore readiness checked. No records were changed.')
@@ -88,7 +89,7 @@ export default function RestaurantDataExport(){
   setRestoring(true);setError('');setNotice('')
   try{
    const parsed=JSON.parse(await backupFile.text())
-   const res=await fetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/restore',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({...parsed,confirmation:restoreConfirmation.trim()})})
+   const res=await apiFetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/restore',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({...parsed,confirmation:restoreConfirmation.trim()})})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Restaurant restore failed')
    setNotice('Restore completed: '+data.row_count+' records across '+data.table_count+' tables. '+(data.security_note||''))
@@ -100,7 +101,7 @@ export default function RestaurantDataExport(){
   if(!selected||!tables.includes(selected)){setError('Choose a table to export.');return}
   setDownloading(true);setError('');setNotice('')
   try{
-   const res=await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}/data-export/${encodeURIComponent(selected)}`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}})
+   const res=await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}/data-export/${encodeURIComponent(selected)}`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}})
    if(!res.ok){const data=await res.json().catch(()=>({}));throw new Error(data.error||'Could not export this table')}
    const blob=await res.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a')
    link.href=url;link.download=`${selected}.csv`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url)

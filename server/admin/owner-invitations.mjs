@@ -38,7 +38,7 @@ function tokenHash(token) {
 }
 
 export async function handleOwnerInvitations(request, response, {
-  database = null, authenticateAdmin = null, authenticateIdentity = null,
+  database = null, authenticateAdmin = null, authenticateIdentity = null, authenticateVerifiedEmail = null,
 } = {}) {
   const path = new URL(request.url, 'http://localhost').pathname
   const isAdmin = path === '/admin/owner-invitations'
@@ -61,6 +61,34 @@ export async function handleOwnerInvitations(request, response, {
     send(response, error.statusCode === 403 ? 403 : 401, { error: error.statusCode === 403 ? 'forbidden' : 'unauthorized' })
     return true
   }
+  if (isAccept) {
+    if (!authenticateVerifiedEmail) {
+      send(response, 503, { error: 'verified_email_auth_not_configured' })
+      return true
+    }
+    const idToken = request.headers?.['x-oidc-id-token']
+    if (typeof idToken !== 'string' || !idToken) {
+      send(response, 401, { error: 'id_token_required' })
+      return true
+    }
+    let verifiedIdentity
+    try {
+      verifiedIdentity = await authenticateVerifiedEmail({ headers: { authorization: 'Bearer ' + idToken } })
+    } catch {
+      send(response, 401, { error: 'invalid_id_token' })
+      return true
+    }
+    if (verifiedIdentity.issuer !== identity.issuer || verifiedIdentity.subject !== identity.subject) {
+      send(response, 401, { error: 'identity_token_subject_mismatch' })
+      return true
+    }
+    identity = Object.freeze({
+      ...identity,
+      email: verifiedIdentity.email,
+      emailVerified: verifiedIdentity.emailVerified,
+    })
+  }
+
   if (!database) {
     send(response, 503, { error: 'database_not_configured' })
     return true

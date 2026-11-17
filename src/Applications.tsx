@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useCallback, useEffect, useState } from 'react'
 import { Activity, AppWindow, RefreshCw, ShieldAlert } from 'lucide-react'
 
@@ -24,7 +25,7 @@ export default function Applications() {
     setRefreshing(true)
     setError('')
     try {
-      const sessionResponse = await fetch(`${API_BASE}/admin/session`, {
+      const sessionResponse = await apiFetch(`${API_BASE}/admin/session`, {
         headers: { Accept: 'application/json' },
         cache: 'no-store',
       })
@@ -45,7 +46,7 @@ export default function Applications() {
       }
       if (!sessionResponse.ok) throw new Error('The administrator session check failed.')
 
-      const response = await fetch(`${API_BASE}/admin/applications`, {
+      const response = await apiFetch(`${API_BASE}/admin/applications`, {
         headers: { Accept: 'application/json' },
         cache: 'no-store',
       })

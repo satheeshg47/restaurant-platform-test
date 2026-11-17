@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useEffect, useState } from 'react'
 import { Activity, AlertCircle, CheckCircle2, LockKeyhole, RefreshCw, ScrollText } from 'lucide-react'
 
@@ -12,7 +13,7 @@ export default function AuditLog() {
   async function checkAccess() {
     setRefreshing(true)
     try {
-      const response = await fetch(`${API_BASE}/admin/session`, {
+      const response = await apiFetch(`${API_BASE}/admin/session`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         cache: 'no-store',

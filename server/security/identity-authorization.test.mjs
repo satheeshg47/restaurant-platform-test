@@ -80,3 +80,19 @@ test('rejects requests without a bearer token', async () => {
 test('requires complete OIDC verification configuration', () => {
   assert.throws(() => createOidcIdentityVerifier({}), /not configured/)
 })
+
+
+test('can verify an ID token against a separate browser-client audience', async () => {
+  let verifiedAudience
+  const authenticate = createOidcIdentityVerifier(config, {
+    audience: 'platform-core-browser-client',
+    jwks: {},
+    verify: async (_token, _keySet, options) => {
+      verifiedAudience = options.audience
+      return { payload: { iss: config.oidcIssuer, sub: 'subject-123', email: 'owner@example.test', email_verified: true } }
+    },
+  })
+  const identity = await authenticate({ headers: { authorization: 'Bearer signed.id.token' } })
+  assert.equal(verifiedAudience, 'platform-core-browser-client')
+  assert.equal(identity.emailVerified, true)
+})

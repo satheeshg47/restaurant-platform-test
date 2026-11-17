@@ -33,14 +33,15 @@ export function loadConfig(env = process.env) {
 
   const oidcIssuer = env.OIDC_ISSUER || ''
   const oidcAudience = env.OIDC_AUDIENCE || ''
+  const oidcClientId = env.OIDC_CLIENT_ID || ''
   const oidcJwksUrl = env.OIDC_JWKS_URL || ''
   const adminIssuer = env.PLATFORM_ADMIN_ISSUER || oidcIssuer
   const adminSubject = env.PLATFORM_ADMIN_SUBJECT || ''
-  const oidcValues = [oidcIssuer, oidcAudience, oidcJwksUrl, adminSubject]
+  const oidcValues = [oidcIssuer, oidcAudience, oidcClientId, oidcJwksUrl, adminSubject]
   const oidcConfigured = oidcValues.every(Boolean)
 
   if (oidcValues.some(Boolean) && !oidcConfigured) {
-    throw new Error('OIDC_ISSUER, OIDC_AUDIENCE, OIDC_JWKS_URL and PLATFORM_ADMIN_SUBJECT must be configured together')
+    throw new Error('OIDC_ISSUER, OIDC_AUDIENCE, OIDC_CLIENT_ID, OIDC_JWKS_URL and PLATFORM_ADMIN_SUBJECT must be configured together')
   }
   if (oidcConfigured) {
     let issuerUrl
@@ -62,6 +63,7 @@ export function loadConfig(env = process.env) {
     environment: env.NODE_ENV ?? 'development',
     oidcIssuer,
     oidcAudience,
+    oidcClientId,
     oidcJwksUrl,
     adminIssuer,
     adminSubject,

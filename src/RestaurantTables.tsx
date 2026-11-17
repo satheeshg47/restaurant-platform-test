@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useCallback, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { Copy, ExternalLink, Plus, RefreshCw, Table2, QrCode, AlertCircle, Check } from 'lucide-react'
@@ -21,7 +22,7 @@ export default function RestaurantTables() {
   const endpoint = slug.trim().toLowerCase()
 
   const request = useCallback(async (path:string, init?:RequestInit) => {
-    const response = await fetch(`${API_BASE}/restaurant/${encodeURIComponent(endpoint)}${path}`, {
+    const response = await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(endpoint)}${path}`, {
       ...init, credentials:'same-origin', cache:'no-store',
       headers:{ Accept:'application/json', ...(init?.body ? {'Content-Type':'application/json'} : {}), ...init?.headers },
     })

@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, CirclePlus, Clock3, Leaf, LoaderCircle, Plus, RefreshCw, Save, Store, Utensils, X, ImagePlus } from 'lucide-react'
 
@@ -63,7 +64,7 @@ export default function RestaurantMenu() {
 
   const endpoint = useMemo(() => slug.trim().toLowerCase(), [slug])
   const request = useCallback(async (path: string, init?: RequestInit) => {
-    const response = await fetch(`${API_BASE}/restaurant/${encodeURIComponent(endpoint)}${path}`, {
+    const response = await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(endpoint)}${path}`, {
       ...init,
       credentials: 'same-origin',
       headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },

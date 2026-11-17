@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useState } from 'react'
 import { AlertCircle, Eye, EyeOff, MessageSquare, RefreshCw, Save, Star } from 'lucide-react'
 
@@ -15,7 +16,7 @@ export default function RestaurantReviews(){
   if(!/^[a-z0-9][a-z0-9-]{1,62}$/.test(clean)){setError('Enter a valid restaurant slug.');return}
   setBusy(true);setError('');setNotice('')
   try{
-   const res=await fetch(`${API_BASE}/restaurant/${encodeURIComponent(clean)}/reviews`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
+   const res=await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(clean)}/reviews`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Could not load reviews')
    setReviews(data.reviews||[])
@@ -26,7 +27,7 @@ export default function RestaurantReviews(){
  async function update(review:Review,patch:Partial<Pick<Review,'visibility'|'owner_response'>>){
   setError('');setNotice('')
   try{
-   const res=await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}/reviews/${review.id}`,{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(patch)})
+   const res=await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}/reviews/${review.id}`,{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(patch)})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Could not update review')
    setReviews(current=>current.map(item=>item.id===review.id?{...item,...data.review}:item))

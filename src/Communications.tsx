@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useCallback, useEffect, useState } from 'react'
 import { BellRing, MessageCircle, RefreshCw, Send, ShieldAlert, Users } from 'lucide-react'
 
@@ -21,7 +22,7 @@ export default function Communications() {
   const [busy, setBusy] = useState(false)
 
   const request = async (path: string, init: RequestInit = {}) => {
-    const response = await fetch(API_BASE + path, {
+    const response = await apiFetch(API_BASE + path, {
       ...init,
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...init.headers },
       cache: 'no-store',
@@ -38,7 +39,7 @@ export default function Communications() {
   const refresh = useCallback(async () => {
     setBusy(true); setError('')
     try {
-      const session = await fetch(API_BASE + '/admin/session', { cache: 'no-store' })
+      const session = await apiFetch(API_BASE + '/admin/session', { cache: 'no-store' })
       if (!session.ok) {
         const payload = await session.json().catch(() => ({}))
         throw new Error(payload.error || (session.status === 401 ? 'Sign-in required' : 'Administrator access is unavailable'))

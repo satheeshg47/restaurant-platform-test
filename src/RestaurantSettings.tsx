@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Check, LoaderCircle, RefreshCw, Save, Settings } from 'lucide-react'
 
@@ -12,7 +13,7 @@ export default function RestaurantSettings(){
  const [error,setError]=useState('')
  const [notice,setNotice]=useState('')
  const request=useCallback(async(path:string,init?:RequestInit)=>{
-  const response=await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}${path}`,{...init,credentials:'same-origin',headers:{Accept:'application/json',...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers},cache:'no-store'})
+  const response=await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}${path}`,{...init,credentials:'same-origin',headers:{Accept:'application/json',...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers},cache:'no-store'})
   const payload=await response.json().catch(()=>({}))
   if(!response.ok) throw new Error(payload.error || (response.status===401?'Sign in required':response.status===403?'Owner or manager access required':'Settings request failed'))
   return payload

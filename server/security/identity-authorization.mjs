@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 
-export function createOidcIdentityVerifier(config, { verify = jwtVerify, jwks = null } = {}) {
-  if (!config?.oidcIssuer || !config?.oidcAudience || !config?.oidcJwksUrl) {
+export function createOidcIdentityVerifier(config, { verify = jwtVerify, jwks = null, audience = config?.oidcAudience } = {}) {
+  if (!config?.oidcIssuer || !audience || !config?.oidcJwksUrl) {
     throw new Error('OIDC identity verification is not configured')
   }
   const keySet = jwks ?? createRemoteJWKSet(new URL(config.oidcJwksUrl))
@@ -15,7 +15,7 @@ export function createOidcIdentityVerifier(config, { verify = jwtVerify, jwks = 
     try {
       const { payload } = await verify(match[1], keySet, {
         issuer: config.oidcIssuer,
-        audience: config.oidcAudience,
+        audience,
         algorithms: ['RS256', 'ES256'],
       })
       if (typeof payload.sub !== 'string' || !payload.sub) throw new Error('Missing subject')
