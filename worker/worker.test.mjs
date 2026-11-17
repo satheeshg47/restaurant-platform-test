@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { generateKeyPair, exportJWK, SignJWT } from 'jose'
 import worker from './index.ts'
+import { handleRestaurantDataExport } from './restaurant-export.ts'
 
 class Statement {
   constructor(db, sql) { this.db = db; this.sql = sql; this.values = [] }
@@ -263,6 +264,36 @@ test('D1 restaurant schema includes tenant-scoped operations, GST invoices and i
     assert.ok(itemColumns.includes(column), `missing order-item timing column ${column}`)
   }
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
+})
+
+test('D1 restore atomically restores rows and regenerates private QR tokens', async () => {
+  const restoreTenantId = crypto.randomUUID()
+  db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(restoreTenantId,'Restore Target','restore-target','active')
+  const tableId = crypto.randomUUID()
+  db.prepare('INSERT INTO restaurant_tables(id,tenant_id,label,table_type) VALUES(?,?,?,?)').run(tableId,restoreTenantId,'Restored Table','dine_in')
+  db.prepare("INSERT INTO restaurant_settings(tenant_id,setting_key,setting_value) VALUES(?,?,?)").run(restoreTenantId,'restore_test','{"ok":true}')
+  const actor = { tenantId: restoreTenantId, userId: 'restore-test-user', staffId: null, role: 'owner' }
+  const parts = ['restaurant','restore-target','data-export','backup']
+  const backupResponse = await handleRestaurantDataExport(new Request('https://example.test/backup'),env,actor,parts)
+  assert.equal(backupResponse.status,200)
+  const backup = await backupResponse.json()
+  assert.equal(backup.row_count,2)
+  assert.equal(backup.tables.restaurant_tables[0].public_token_hash,undefined)
+  db.prepare('DELETE FROM restaurant_tables WHERE tenant_id=?').run(restoreTenantId)
+  db.prepare('DELETE FROM restaurant_settings WHERE tenant_id=?').run(restoreTenantId)
+  const restored = await handleRestaurantDataExport(new Request('https://example.test/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(backup)}),env,actor,['restaurant','restore-target','data-export','restore'])
+  assert.equal(restored.status,200)
+  const result = await restored.json()
+  assert.equal(result.restored,true)
+  assert.equal(result.row_count,2)
+  assert.equal(result.regenerated_qr_tokens.length,1)
+  const token = result.regenerated_qr_tokens[0].qr_token
+  assert.equal(token.length,43)
+  const stored = db.prepare('SELECT public_token_hash FROM restaurant_tables WHERE tenant_id=? AND id=?').get(restoreTenantId,tableId)
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))
+  assert.equal(stored.public_token_hash,[...digest].map(x=>x.toString(16).padStart(2,'0')).join(''))
+  assert.equal(db.prepare('SELECT setting_value FROM restaurant_settings WHERE tenant_id=? AND setting_key=?').get(restoreTenantId,'restore_test').setting_value,'{"ok":true}')
+  assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_tenant_controls WHERE tenant_id=?').get(restoreTenantId).count,0)
 })
 
 test('Super Admin can create a tenant, invite its owner and manage restaurant settings and tables', async () => {
