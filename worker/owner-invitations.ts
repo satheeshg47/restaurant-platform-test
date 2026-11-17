@@ -37,10 +37,10 @@ async function hashToken(token: string): Promise<string> {
   return [...digest].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-function safeAuthResponse(error: unknown): Response {
+function safeAuthResponse(error: unknown, isAccept: boolean): Response {
   const status = authStatus(error, 401)
   return json(status, {
-    error: status === 503 ? 'owner_auth_not_configured' : status === 403 ? 'forbidden' : 'unauthorized',
+    error: status === 503 ? (isAccept ? 'owner_auth_not_configured' : 'admin_auth_not_configured') : status === 403 ? 'forbidden' : 'unauthorized',
   })
 }
 
@@ -55,7 +55,7 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
     identity = isAccept
       ? await authenticateIdentity(request, env)
       : await authenticateAdmin(request, env)
-  } catch (error) { return safeAuthResponse(error) }
+  } catch (error) { return safeAuthResponse(error, isAccept) }
 
   let verifiedIdentity: Identity | null = null
   if (isAccept) {
