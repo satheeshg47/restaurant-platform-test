@@ -24,7 +24,8 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
     const sessionId = typeof body.session_id === 'string' ? body.session_id : ''
     const key = typeof body.idempotency_key === 'string' ? body.idempotency_key : ''
     const items = body.items
-    if (!UUID.test(sessionId) || !/^[A-Za-z0-9_-]{12,100}$/.test(key) || !Array.isArray(items) || items.length < 1 || items.length > 20) bad(400, 'invalid_order')
+    if (!UUID.test(sessionId) || !/^[A-Za-z0-9._:-]{16,128}$/.test(key) || !Array.isArray(items) || items.length < 1 || items.length > 20) bad(400, 'invalid_order')
+    const note = typeof body.note === 'string' ? body.note.replace(/\\s+/g, ' ').trim().slice(0, 200) : ''
     const hashBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)))
     const tokenHash = [...hashBytes].map(x => x.toString(16).padStart(2, '0')).join('')
     const table = await env.DB.prepare("SELECT id FROM restaurant_tables WHERE tenant_id=? AND public_token_hash=? AND active=1").bind(tenantId, tokenHash).first<{id:string}>()
@@ -33,6 +34,8 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
     if (!session) bad(409, 'table_session_not_open')
     const profile = await env.DB.prepare('SELECT accepting_orders,tax_mode,tax_rate,gst_rate,tax_inclusive FROM restaurant_profiles WHERE tenant_id=?').bind(tenantId).first<Record<string, unknown>>()
     if (!profile || !Boolean(profile.accepting_orders)) bad(409, 'restaurant_not_accepting_orders')
+    const recent = await env.DB.prepare("SELECT count(*) AS count FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND created_at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-10 minutes')").bind(tenantId,sessionId).first<{count:number}>()
+    if (Number(recent?.count || 0) >= 5) bad(429, 'order_rate_limited')
     const prior = await env.DB.prepare('SELECT id,order_number,status,total_minor FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND idempotency_key=?').bind(tenantId, sessionId, key).first<Record<string, unknown>>()
     if (prior) return json(200, { order: prior })
     const prepared: Array<{id:string;itemId:string;variantId:string|null;categoryId:string;name:string;variantName:string|null;addons:string;qty:number;unit:number;addonUnit:number;line:number}> = []
@@ -87,7 +90,7 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
     const orderId=crypto.randomUUID()
     const numberRow=await env.DB.prepare('SELECT COALESCE(MAX(order_number),0)+1 AS next_number FROM restaurant_orders WHERE tenant_id=?').bind(tenantId).first<{next_number:number}>()
     const orderNumber=Number(numberRow?.next_number || 1)
-    const statements=[env.DB.prepare(`INSERT INTO restaurant_orders(id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,source,idempotency_key,tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot) VALUES(?,?,?,?,?,'new',?,?,?,'qr',?,?,?,?)`).bind(orderId,tenantId,orderNumber,table.id,sessionId,subtotal,tax,total,key,mode,rate,Number(inclusive))]
+    const statements=[env.DB.prepare(`INSERT INTO restaurant_orders(id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,special_instructions,source,idempotency_key,tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot) VALUES(?,?,?,?,?,'new',?,?,?,?,'qr',?,?,?,?)`).bind(orderId,tenantId,orderNumber,table.id,sessionId,subtotal,tax,total,note,key,mode,rate,Number(inclusive))]
     for(const line of prepared) {
       statements.push(env.DB.prepare(`INSERT INTO restaurant_order_items(id,tenant_id,order_id,item_id,variant_id,category_id,item_name_snapshot,variant_name_snapshot,addons_snapshot,quantity,unit_price_minor,addons_price_minor,line_total_minor) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(line.id,tenantId,orderId,line.itemId,line.variantId,line.categoryId,line.name,line.variantName,line.addons,line.qty,line.unit,line.addonUnit,line.line))
       const batchKey = `guest:${orderId}:${line.id}`
