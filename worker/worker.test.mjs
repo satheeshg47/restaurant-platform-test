@@ -416,6 +416,25 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(guestData.categories.length, 1)
   assert.equal(guestData.items.length, 1)
 
+  const selectedVariant = db.prepare('SELECT id FROM restaurant_menu_variants WHERE tenant_id=? AND item_id=?').get(tenant.id, item.id)
+  const orderPayload = { session_id: session.id, idempotency_key: 'guest-order-test-0001', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
+  const guestOrderPath = `/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders`
+  const placed = await call(guestOrderPath, { method: 'POST', body: orderPayload })
+  assert.equal(placed.status, 201)
+  const placedBody = await placed.json()
+  assert.equal(placedBody.order.subtotal_minor, 30000)
+  assert.equal(placedBody.order.tax_minor, 1500)
+  assert.equal(placedBody.order.total_minor, 31500)
+  assert.equal(db.prepare('SELECT stock_quantity FROM restaurant_menu_items WHERE tenant_id=? AND id=?').get(tenant.id, item.id).stock_quantity, 10)
+  assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_kitchen_batches WHERE tenant_id=?').get(tenant.id).count, 1)
+  assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_batch_allocations WHERE tenant_id=?').get(tenant.id).count, 1)
+  const duplicate = await call(guestOrderPath, { method: 'POST', body: orderPayload })
+  assert.equal(duplicate.status, 200)
+  assert.equal((await duplicate.json()).order.id, placedBody.order.id)
+  assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_orders WHERE tenant_id=? AND session_id=?').get(tenant.id, session.id).count, 2)
+  db.prepare("UPDATE restaurant_orders SET status='served' WHERE tenant_id=? AND id=?").run(tenant.id, placedBody.order.id)
+  db.prepare("INSERT INTO restaurant_payments(tenant_id,session_id,table_id,amount_minor,method) VALUES(?,?,?,31500,'cash')").run(tenant.id, session.id, table.table.id)
+
   const closed = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/close`, {
     method: 'POST', accessToken: ownerAccess,
   })
