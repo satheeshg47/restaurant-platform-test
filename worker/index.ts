@@ -1,7 +1,7 @@
 import { authenticateAdmin } from './auth'
 import { handleCommunications } from './communications'
 import { handleOwnerInvitations } from './owner-invitations'
-import type { Env } from './types'
+import type { Env, Identity } from './types'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
 const APP_KEY = /^[a-z][a-z0-9-]{1,62}$/
@@ -34,7 +34,7 @@ async function readJson(request: Request, maxBytes = 8192): Promise<Record<strin
 }
 
 async function handleAdmin(request: Request, env: Env, path: string): Promise<Response> {
-  let admin: AdminIdentity
+  let admin: Identity
   try { admin = await authenticateAdmin(request, env) }
   catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 401
