@@ -1,4 +1,5 @@
 import { authenticateIdentity } from './auth.ts'
+import { handleRestaurantMenuRoutes } from './menu.ts'
 import type { Env, Identity } from './types.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -142,7 +143,16 @@ async function handleGuestMenu(env: Env, tenantId: string, token: string): Promi
         "SELECT id,status FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND status='open' LIMIT 1",
       ).bind(tenantId, table.id).first(),
     ])
-    return json(200, { table, session: session ?? null, ...menu })
+    const categories = menu.categories.filter(row => Boolean(row.active))
+    const categoryIds = new Set(categories.map(row => String(row.id)))
+    const items = menu.items.filter(row => Boolean(row.active) && categoryIds.has(String(row.category_id)))
+    const itemIds = new Set(items.map(row => String(row.id)))
+    const addon_groups = menu.addon_groups.filter(row => Boolean(row.active))
+    const groupIds = new Set(addon_groups.map(row => String(row.id)))
+    const variants = menu.variants.filter(row => Boolean(row.active) && itemIds.has(String(row.item_id)))
+    const addons = menu.addons.filter(row => Boolean(row.active) && groupIds.has(String(row.group_id)))
+    const item_addon_groups = menu.item_addon_groups.filter(row => itemIds.has(String(row.item_id)) && groupIds.has(String(row.group_id)))
+    return json(200, { table, session: session ?? null, ...menu, categories, items, variants, addon_groups, addons, item_addon_groups })
   } catch { return json(500, { error: 'restaurant_menu_unavailable' }) }
 }
 
@@ -324,7 +334,8 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
   try {
     if (parts[2] === 'settings' && parts.length === 3) return await handleSettings(request, env, actor)
     if (parts[2] === 'tables') return await handleTables(request, env, actor, parts)
-    if (['menu','kitchen','waiter','reports','daily-summary','data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
+    if (parts[2] === 'menu') return await handleRestaurantMenuRoutes(request, env, actor, parts)
+    if (['kitchen','waiter','reports','daily-summary','data-export'].includes(parts[2] || '')) return json(501, { error: 'restaurant_module_not_migrated_to_d1' })
     return json(404, { error: 'restaurant_route_not_found' })
   } catch (error) {
     return errorResponse(error, 'restaurant_request_failed')
