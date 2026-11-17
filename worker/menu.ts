@@ -341,7 +341,7 @@ async function handleItemAddonGroup(request: Request, env: Env, actor: Actor, pa
     const itemId=parts[4],groupId=parts[6]
     if(!uuid(itemId)||!uuid(groupId)) fail(404,'menu_item_or_addon_group_not_found')
     const result=await env.DB.prepare('DELETE FROM restaurant_item_addon_groups WHERE tenant_id=? AND item_id=? AND group_id=?').bind(actor.tenantId,itemId,groupId).run()
-    if(Number(result.meta.changes)!==1) fail(404,'menu_item_addon_group_not_found')
+    if(Number(result.meta?.changes)!==1) fail(404,'menu_item_addon_group_not_found')
     return json(200,{linked:false})
   }
   return json(404,{error:'menu_route_not_found'})
