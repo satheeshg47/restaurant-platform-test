@@ -73,6 +73,8 @@ beforeEach(() => {
   db.exec('PRAGMA foreign_keys=ON')
   db.exec(readFileSync('database/d1/migrations/0001_platform_core.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0002_owner_communication_centre.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0003_restaurant_domain.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0004_restaurant_order_item_timing.sql', 'utf8'))
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
   env = {
@@ -242,4 +244,17 @@ test('admin announcements reach only selected active owners', async () => {
   const conversations = (await inbox.json()).conversations
   assert.equal(conversations.length, 1)
   assert.equal(conversations[0].kind, 'announcement')
+})
+
+test('D1 restaurant schema includes tenant-scoped operations, GST invoices and item timing', () => {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'restaurant_%' ORDER BY name").all().map(row => row.name)
+  assert.equal(tables.length, 25)
+  for (const table of ['restaurant_profiles','restaurant_staff','restaurant_tables','restaurant_table_sessions','restaurant_menu_categories','restaurant_menu_items','restaurant_orders','restaurant_order_items','restaurant_kitchen_batches','restaurant_payments','restaurant_refunds','restaurant_service_requests','restaurant_reviews','restaurant_invoice_counters','restaurant_invoices']) {
+    assert.ok(tables.includes(table), `missing ${table}`)
+  }
+  const itemColumns = db.prepare('PRAGMA table_info(restaurant_order_items)').all().map(row => row.name)
+  for (const column of ['preparation_started_at','ready_at','served_at','unavailable_at','cancelled_at']) {
+    assert.ok(itemColumns.includes(column), `missing order-item timing column ${column}`)
+  }
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
 })
