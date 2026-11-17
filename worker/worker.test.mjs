@@ -432,7 +432,20 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(duplicate.status, 200)
   assert.equal((await duplicate.json()).order.id, placedBody.order.id)
   assert.equal(db.prepare('SELECT count(*) AS count FROM restaurant_orders WHERE tenant_id=? AND session_id=?').get(tenant.id, session.id).count, 2)
-  db.prepare("UPDATE restaurant_orders SET status='served' WHERE tenant_id=? AND id=?").run(tenant.id, placedBody.order.id)
+  const orderItemId = db.prepare('SELECT id FROM restaurant_order_items WHERE tenant_id=? AND order_id=?').get(tenant.id, placedBody.order.id).id
+  const queue = await call('/restaurant/green-leaf-kitchen/kitchen/queue', { accessToken: ownerAccess })
+  assert.equal(queue.status, 200)
+  assert.equal((await queue.json()).queue.length, 1)
+  for (const status of ['accepted','preparing','ready']) {
+    const changed = await call(`/restaurant/green-leaf-kitchen/kitchen/items/${orderItemId}/status`, { method: 'PATCH', accessToken: ownerAccess, body: { status } })
+    assert.equal(changed.status, 200)
+  }
+  const board = await call('/restaurant/green-leaf-kitchen/waiter/board', { accessToken: ownerAccess })
+  assert.equal(board.status, 200)
+  assert.equal((await board.json()).ready_items.length, 1)
+  const served = await call(`/restaurant/green-leaf-kitchen/waiter/items/${orderItemId}/serve`, { method: 'POST', accessToken: ownerAccess })
+  assert.equal(served.status, 200)
+  assert.equal((await served.json()).order_status, 'served')
   db.prepare("INSERT INTO restaurant_payments(tenant_id,session_id,table_id,amount_minor,method) VALUES(?,?,?,31500,'cash')").run(tenant.id, session.id, table.table.id)
 
   const closed = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/close`, {
