@@ -38,8 +38,6 @@ jobs:
         run: npm test
       - name: Apply D1 migrations to local test database
         run: npm run d1:migrate:local
-      - name: Bundle Worker without deploying
-        run: npx wrangler deploy --dry-run --outdir .wrangler-dry-run
       - name: Validate tracked PostgreSQL migrations
         env:
           DATABASE_URL: postgres://platform_test:test_password@localhost:5432/platform_core_test
@@ -49,3 +47,5 @@ jobs:
           test "$(psql "$DATABASE_URL" -tAc 'SELECT count(*) FROM platform_schema_migrations')" = "13"
       - name: Build frontend
         run: npm run build
+      - name: Bundle Worker without deploying
+        run: npx wrangler deploy --dry-run --outdir .wrangler-dry-run
