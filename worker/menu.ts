@@ -272,7 +272,7 @@ async function handleVariant(request: Request, env: Env, actor: Actor, id: strin
 async function handleAddonGroups(request: Request, env: Env, actor: Actor, parts: string[]) {
   if(parts.length===4&&request.method==='POST'){
     const input=await body(request)
-    const name=localized(input.name), required=bool(input.required,false), minPick=int(input.min_pick,0,20,0), maxPick=int(input.max_pick,minPick,20,1), active=bool(input.active,true), sortOrder=int(input.sort_order,0,100000,0)
+    const name=localized(input.name), required=bool(input.required,false), minPick=int(input.min_pick,0,20,0), maxPick=int(input.max_pick,minPick,20,Math.max(minPick,1)), active=bool(input.active,true), sortOrder=int(input.sort_order,0,100000,0)
     const result=await env.DB.prepare('INSERT INTO restaurant_addon_groups(tenant_id,name,required,min_pick,max_pick,active,sort_order) VALUES(?,?,?,?,?,?,?) RETURNING *').bind(actor.tenantId,name,required,minPick,maxPick,active,sortOrder).all<Row>()
     return json(201,{addon_group:parsedRows(result.results,['name'],['required','active'])[0]})
   }
