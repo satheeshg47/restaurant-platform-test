@@ -1,6 +1,8 @@
 import { authenticateAdmin } from './auth.ts'
 import { handleCommunications } from './communications.ts'
 import { handleOwnerInvitations } from './owner-invitations.ts'
+import { handleAdminTenants } from './tenants.ts'
+import { handleRestaurantRoutes } from './restaurant.ts'
 import type { Env, Identity } from './types.ts'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
@@ -160,10 +162,10 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   }
   if (path === '/admin/owner-invitations' || path.startsWith('/admin/owner-invitations/') || path === '/owner/invitations/accept') return handleOwnerInvitations(request, env, path)
   if (path.startsWith('/admin/communications') || path.startsWith('/owner/communications')) return handleCommunications(request, env, path)
+  if (path === '/admin/tenants') return handleAdminTenants(request, env, path)
   if (path.startsWith('/admin/')) return handleAdmin(request, env, path)
-  if (path.startsWith('/restaurant/') || path.startsWith('/owner/')) {
-    return json(501, { error: 'module_not_migrated_to_d1' })
-  }
+  if (path.startsWith('/restaurant/')) return handleRestaurantRoutes(request, env, path)
+  if (path.startsWith('/owner/')) return json(501, { error: 'module_not_migrated_to_d1' })
   return json(404, { error: 'not_found' })
 }
 
