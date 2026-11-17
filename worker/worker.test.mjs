@@ -318,6 +318,23 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(opened.status, 201)
   const session = (await opened.json()).session
 
+  const orderId = crypto.randomUUID()
+  db.prepare(`INSERT INTO restaurant_orders(id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,source,idempotency_key)
+    VALUES(?,?,?,?,?,'new',100,0,100,'qr',?)`).run(orderId, tenant.id, 1, table.table.id, session.id, 'session-test-order')
+  const blockedUnfinished = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/close`, {
+    method: 'POST', accessToken: ownerAccess,
+  })
+  assert.equal(blockedUnfinished.status, 409)
+  assert.equal((await blockedUnfinished.json()).error, 'orders_not_completed')
+  db.prepare("UPDATE restaurant_orders SET status='served' WHERE tenant_id=? AND id=?").run(tenant.id, orderId)
+  const blockedUnpaid = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/close`, {
+    method: 'POST', accessToken: ownerAccess,
+  })
+  assert.equal(blockedUnpaid.status, 409)
+  assert.equal((await blockedUnpaid.json()).error, 'payment_due')
+  db.prepare(`INSERT INTO restaurant_payments(tenant_id,session_id,table_id,amount_minor,method)
+    VALUES(?,?,?,100,'cash')`).run(tenant.id, session.id, table.table.id)
+
   const qrMenu = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/menu`)
   assert.equal(qrMenu.status, 200)
   const guestData = await qrMenu.json()
