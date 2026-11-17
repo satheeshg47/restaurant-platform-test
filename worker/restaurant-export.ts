@@ -109,7 +109,8 @@ export async function handleRestaurantDataExport(request:Request,env:Env,actor:A
    if(new TextEncoder().encode(raw).byteLength>MAX_BACKUP_BYTES)fail(413,'backup_size_limit_exceeded')
    let value:unknown;try{value=JSON.parse(raw)}catch{fail(400,'invalid_backup_json')}
    const check=await preflight(env,actor.tenantId,value)
-   if(!check.restore_allowed)fail(409,check.row_count>MAX_RESTORE_ROWS?'restore_row_limit_exceeded':'restore_target_not_empty')
+   if(check.row_count>MAX_RESTORE_ROWS)fail(413,'restore_row_limit_exceeded')
+   if(!check.restore_allowed)fail(409,'restore_target_not_empty')
    const backup=value as {tables:Record<string,Record<string,unknown>[]>}
    const statements: D1PreparedStatement[]=[env.DB.prepare('PRAGMA defer_foreign_keys=ON'),env.DB.prepare('INSERT INTO restaurant_tenant_controls(tenant_id,maintenance_mode,restore_mode) VALUES(?,1,1)').bind(actor.tenantId)]
    const regenerated:{table_id:string;qr_token:string}[]=[]
