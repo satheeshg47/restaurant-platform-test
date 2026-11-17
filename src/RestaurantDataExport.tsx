@@ -95,7 +95,7 @@ export default function RestaurantDataExport(){
    if(!res.ok)throw new Error(data.error||'Restaurant restore failed')
    setNotice('Restore completed: '+data.row_count+' records. New QR tokens are shown below; save them securely. Staff passwords must be reset and menu photos re-uploaded.')
    setRestoredQrTokens(Array.isArray(data.regenerated_qr_tokens)?data.regenerated_qr_tokens:[])
-   setRestoreCheck(null);setRestoreConfirmation('');setRestoredQrTokens([])
+   setRestoreCheck(null);setRestoreConfirmation('')
   }catch(e){setError(e instanceof Error?e.message:'Restaurant restore failed')}
   finally{setRestoring(false)}
  }
@@ -129,7 +129,7 @@ export default function RestaurantDataExport(){
   <div className="restaurant-report-panel restaurant-report-wide">
    <h3><ShieldCheck size={17}/> Validate an existing backup</h3>
    <p className="restaurant-settings-note">Choose a previously downloaded JSON backup. Validation checks its format, table names, columns, row tenant IDs and manifest counts. It does not restore or modify records.</p>
-   <label>Backup JSON file<input type="file" accept="application/json,.json" onChange={e=>{setBackupFile(e.target.files?.[0]||null);setValidation(null);setRestoreCheck(null);setRestoreConfirmation('');setError("");setNotice("")}}/></label>
+   <label>Backup JSON file<input type="file" accept="application/json,.json" onChange={e=>{setBackupFile(e.target.files?.[0]||null);setValidation(null);setRestoreCheck(null);setRestoreConfirmation('');setRestoredQrTokens([]);setError("");setNotice("")}}/></label>
    <button className="button secondary" onClick={()=>void validateBackup()} disabled={validating||!backupFile}>{validating?"Validating backup…":"Validate backup file"}</button>
    <button className="button secondary" onClick={()=>void checkRestoreReadiness()} disabled={checkingRestore||!backupFile}>{checkingRestore?"Checking target…":"Check restore readiness"}</button>
    {restoreCheck&&<div className={restoreCheck.restore_allowed?"restaurant-settings-success":"restaurant-menu-alert"}><strong>{restoreCheck.restore_allowed?"Target is empty and within restore limits":"Restore blocked"}</strong><p>{restoreCheck.row_count} backup records · {restoreCheck.backup_bytes} bytes · maximum {restoreCheck.restore_row_limit} rows per restore</p>{restoreCheck.blocked_tables.length>0&&<p>Tables containing existing data: {restoreCheck.blocked_tables.map(title).join(", ")}</p>}
