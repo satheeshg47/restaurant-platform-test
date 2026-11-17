@@ -475,6 +475,47 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(tableList.status, 200)
   assert.equal((await tableList.json()).tables[0].session_id, null)
 
+  const invoiceTableResponse = await call('/restaurant/green-leaf-kitchen/tables', {
+    method: 'POST', accessToken: ownerAccess, body: { label: 'Invoice Table', table_type: 'dine_in', table_number: 2 },
+  })
+  assert.equal(invoiceTableResponse.status, 201)
+  const invoiceTable = await invoiceTableResponse.json()
+  const invoiceSessionResponse = await call(`/restaurant/green-leaf-kitchen/tables/${invoiceTable.table.id}/sessions`, {
+    method: 'POST', accessToken: ownerAccess, body: { guest_count: 2 },
+  })
+  assert.equal(invoiceSessionResponse.status, 201)
+  const invoiceSession = (await invoiceSessionResponse.json()).session
+  const invoiceOrderId = crypto.randomUUID()
+  const nextOrderNumber = db.prepare('SELECT COALESCE(MAX(order_number),0)+1 AS n FROM restaurant_orders WHERE tenant_id=?').get(tenant.id).n
+  db.prepare(`INSERT INTO restaurant_orders(id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,source,idempotency_key,tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot)
+    VALUES(?,?,?,?,?,'served',1000,50,1050,'waiter','invoice-test','gst',5,0)`).run(invoiceOrderId,tenant.id,nextOrderNumber,invoiceTable.table.id,invoiceSession.id)
+  db.prepare(`INSERT INTO restaurant_order_items(tenant_id,order_id,item_id,category_id,item_name_snapshot,quantity,unit_price_minor,addons_price_minor,line_total_minor,status)
+    VALUES(?,?,?,?,?,1,1000,0,1000,'served')`).run(tenant.id,invoiceOrderId,item.id,category.id,'Paneer Tikka')
+  const invoicePayment = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${invoiceSession.id}/payments`, {
+    method: 'POST', accessToken: ownerAccess, body: { amount_minor: '1050', method: 'cash' },
+  })
+  assert.equal(invoicePayment.status, 201)
+  const invoiceResponse = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${invoiceSession.id}/invoice`, {
+    method: 'POST', accessToken: ownerAccess,
+  })
+  assert.equal(invoiceResponse.status, 201)
+  const invoiceBody = await invoiceResponse.json()
+  assert.equal(invoiceBody.invoice.total_minor, 1050)
+  assert.equal(invoiceBody.invoice.cgst_minor, 25)
+  assert.equal(invoiceBody.invoice.sgst_minor, 25)
+  assert.equal(invoiceBody.invoice.seller_snapshot.gstin, '29ABCDE1234F1Z5')
+  assert.equal(db.prepare('SELECT status FROM restaurant_table_sessions WHERE tenant_id=? AND id=?').get(tenant.id,invoiceSession.id).status,'closed')
+  const reportDay = db.prepare("SELECT date('now','+5 hours','+30 minutes') AS day").get().day
+  const report = await call(`/restaurant/green-leaf-kitchen/reports?from=${reportDay}&to=${reportDay}`, { accessToken: ownerAccess })
+  assert.equal(report.status, 200)
+  assert.ok((await report.json()).summary.order_count >= 1)
+  const archived = await call(`/restaurant/green-leaf-kitchen/daily-summary?date=${reportDay}`, { method: 'POST', accessToken: ownerAccess })
+  assert.equal(archived.status, 200)
+  assert.equal((await archived.json()).archived, true)
+  const savedSummary = await call(`/restaurant/green-leaf-kitchen/daily-summary?date=${reportDay}`, { accessToken: ownerAccess })
+  assert.equal(savedSummary.status, 200)
+  assert.ok((await savedSummary.json()).summary.order_count >= 1)
+
   const otherTenant = await call('/admin/tenants', { method: 'POST', accessToken: adminToken, body: { name: 'Other Tenant', slug: 'other-tenant' } })
   assert.equal(otherTenant.status, 201)
   const forbidden = await call('/restaurant/other-tenant/settings', { accessToken: ownerAccess })
