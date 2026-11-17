@@ -118,7 +118,6 @@ async function reportData(env: Env, tenantId: string, from: string, to: string) 
   const timezone = profile?.timezone || 'Asia/Kolkata'
   let start: string, end: string
   try { start=zonedMidnightUtc(from,timezone); end=zonedMidnightUtc(addDays(to,1),timezone) } catch { fail(400,'invalid_restaurant_timezone') }
-  console.log('D1_REPORT_WINDOW', {timezone,start,end})
   const [summary,payments,refunds,dailyRows,topItems] = await Promise.all([
     env.DB.prepare(`SELECT count(*) AS order_count,COALESCE(sum(subtotal_minor),0) AS subtotal_minor,COALESCE(sum(tax_minor),0) AS tax_minor,COALESCE(sum(total_minor),0) AS sales_minor FROM restaurant_orders WHERE tenant_id=? AND status<>'cancelled' AND created_at>=? AND created_at<?`).bind(tenantId,start,end).first<Record<string,number>>(),
     env.DB.prepare(`SELECT method,COALESCE(sum(amount_minor),0) AS amount_minor,count(*) AS payment_count FROM restaurant_payments WHERE tenant_id=? AND paid_at>=? AND paid_at<? GROUP BY method ORDER BY method`).bind(tenantId,start,end).all(),
@@ -156,7 +155,7 @@ export async function handleRestaurantFinance(request: Request, env: Env, actor:
     const day=url.searchParams.get('date')
     if (!validDay(day) || day>localParts(new Date(),'Asia/Kolkata').year+'-'+localParts(new Date(),'Asia/Kolkata').month+'-'+localParts(new Date(),'Asia/Kolkata').day) fail(400,'invalid_business_date')
     if (request.method==='GET') {
-      const saved=await env.DB.prepare('SELECT business_date,order_count,revenue_minor,tax_minor,cancelled_count,refunds_minor,average_order_minor,metrics,updated_at FROM restaurant_daily_summaries WHERE tenant_id=? AND business_date=?').bind(actor.tenantId,day).first<Record<string,unknown>>()
+      const saved=await env.DB.prepare('SELECT business_date,order_count,revenue_minor,tax_minor,cancelled_count,refunds_minor,average_order_minor,metrics FROM restaurant_daily_summaries WHERE tenant_id=? AND business_date=?').bind(actor.tenantId,day).first<Record<string,unknown>>()
       return saved?json(200,{summary:{...saved,metrics:parseJson(saved.metrics)}}):json(404,{error:'daily_summary_not_found'})
     }
     const data=await reportData(env,actor.tenantId,day,day)
