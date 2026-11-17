@@ -232,13 +232,13 @@ function ServiceHealth() {
         </div>
         <div className="service-health-item">
           <div className="service-health-icon"><Database size={17}/></div>
-          <div><b>PostgreSQL</b><small>Readiness probe: SELECT 1</small></div>
+          <div><b>Cloudflare D1</b><small>Readiness probe: SELECT 1</small></div>
           <span className={`service-status ${tone(databaseStatus)}`}><i/>{label(databaseStatus)}</span>
         </div>
       </div>
       <div className="service-health-footnote">
         {checkedAt ? `Last checked at ${checkedAt}.` : 'Waiting for the first health check.'}
-        {databaseStatus === 'not_configured' && ' Add DATABASE_URL to the API environment to enable database readiness.'}
+        {databaseStatus === 'not_configured' && ' Apply the Cloudflare D1 migrations to enable database readiness.'}
         {apiStatus === 'unavailable' && ' Start the API and check that the frontend /api proxy is configured.'}
       </div>
     </section>
