@@ -226,7 +226,7 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
     const tableType = body.table_type ?? 'dine_in'
     const tableNumber = body.table_number ?? null
     if (!label || label.length > 80 || !['dine_in','takeaway'].includes(String(tableType)) ||
-        (tableNumber !== null && (!Number.isInteger(tableNumber) || Number(tableNumber) < 1 || Number(tableNumber) > 9999)) ||
+        (tableNumber !== null && (typeof tableNumber !== 'number' || !Number.isInteger(tableNumber) || tableNumber < 1 || tableNumber > 9999)) ||
         (tableType === 'takeaway' && tableNumber !== null)) fail(400, 'invalid_table')
     const token = base64url(crypto.getRandomValues(new Uint8Array(32)))
     const hash = await sha256(token)
@@ -235,7 +235,9 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
         `INSERT INTO restaurant_tables(tenant_id,table_number,label,table_type,public_token_hash)
          VALUES(?,?,?,?,?) RETURNING id,table_number,label,table_type,active`,
       ).bind(actor.tenantId, tableNumber, label, tableType, hash).all<Record<string, unknown>>()
-      return json(201, { table: { ...result.results[0], active: Boolean(result.results[0]?.active) }, qr_token: token })
+      const row = result.results[0]
+      if (!row) fail(500, 'table_create_failed')
+      return json(201, { table: { ...row, active: Boolean(row.active) }, qr_token: token })
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       return json(/UNIQUE|constraint/i.test(message) ? 409 : 500, { error: /UNIQUE|constraint/i.test(message) ? 'table_number_exists' : 'table_create_failed' })
@@ -247,7 +249,7 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
     requireRole(actor, ['owner','manager','waiter'])
     const body = await readBody(request)
     const guestCount = body.guest_count ?? null
-    if (guestCount !== null && (!Number.isInteger(guestCount) || Number(guestCount) < 1 || Number(guestCount) > 100)) fail(400, 'invalid_guest_count')
+    if (guestCount !== null && (typeof guestCount !== 'number' || !Number.isInteger(guestCount) || guestCount < 1 || guestCount > 100)) fail(400, 'invalid_guest_count')
     const table = await env.DB.prepare(
       'SELECT id FROM restaurant_tables WHERE tenant_id=? AND id=? AND active=1',
     ).bind(actor.tenantId, tableId).first()
