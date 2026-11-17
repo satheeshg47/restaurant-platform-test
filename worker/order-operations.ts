@@ -129,7 +129,7 @@ export async function handleOrderOperations(request: Request, env: Env, actor: A
     if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
     return json(200,await waiterBoard(env,actor))
   }
-  if (parts[2] === 'waiter' && parts[3] === 'items' && parts.length === 5 && parts[5] === 'serve' && request.method === 'POST') {
+  if (parts[2] === 'waiter' && parts[3] === 'items' && parts.length === 6 && parts[5] === 'serve' && request.method === 'POST') {
     if (!['owner','manager','waiter'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
     return json(200,await serveItem(env,actor,parts[4]))
   }
