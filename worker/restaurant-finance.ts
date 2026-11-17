@@ -98,7 +98,7 @@ async function invoiceForSession(env: Env, actor: Actor, sessionId: string) {
   const taxRate = Number(orders.results[0].tax_rate_snapshot ?? session.gst_rate)
   try {
     const invoice = await env.DB.prepare(`INSERT INTO restaurant_invoices(tenant_id,session_id,invoice_number,financial_year,seller_snapshot,items_snapshot,subtotal_minor,tax_minor,cgst_minor,sgst_minor,igst_minor,other_tax_minor,total_minor,tax_rate,tax_inclusive,created_by)
-      VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,?) RETURNING *`).bind(actor.tenantId,sessionId,invoiceNumber,fy,JSON.stringify(seller),JSON.stringify(itemsSnapshot),String(subtotal),String(tax),String(cgst),String(sgst),'0',String(total),taxRate,Number(Boolean([...inclusive][0])),actor.staffId).first<Record<string,unknown>>()
+      VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,?) RETURNING *`).bind(actor.tenantId,sessionId,invoiceNumber,fy,JSON.stringify(seller),JSON.stringify(itemsSnapshot),String(subtotal),String(tax),String(cgst),String(sgst),String(total),taxRate,Number(Boolean([...inclusive][0])),actor.staffId).first<Record<string,unknown>>()
     if (!invoice) fail(500,'invoice_create_failed')
     const closed = await env.DB.prepare(`UPDATE restaurant_table_sessions SET status='closed',closed_at=${now},closed_by=?,close_reason='invoice' WHERE tenant_id=? AND id=? AND status='open'`).bind(actor.staffId,actor.tenantId,sessionId).run()
     if (!closed.meta.changes) fail(409,'table_session_not_open')
