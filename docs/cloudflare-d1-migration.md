@@ -24,7 +24,7 @@ The Worker currently exposes platform health/readiness, Super Admin, owner invit
 2. Port platform administration routes and verify OIDC issuer, audience, JWKS and owner subject checks.
 3. Port owner invitations and communications with atomic D1 batches and concurrency-safe state transitions.
 4. Translate the complete restaurant schema, including table sessions, menu/catalogue, order lifecycle, kitchen allocation, payments/refunds, service requests, reviews, GST snapshots and invoices.
-5. Port restaurant routes in feature slices: tenant onboarding and profiles/tables/QR sessions; menu/catalogue; guest ordering; kitchen/waiter flows; payments/refunds/invoices; reports/reviews/settings.
+5. Port restaurant routes in feature slices: tenant onboarding and profiles/tables/QR sessions; menu/catalogue and audited stock; guest ordering; kitchen/waiter flows; payments/refunds/invoices; reports/reviews/settings.
 6. Port export, backup and restore with tenant-boundary and non-empty-target safeguards.
 7. Run cross-database fixture tests, route parity tests, authorization tests, migration replay tests and restore drills.
 8. Only after all checks pass, apply additive migrations to the empty production D1 database, deploy the D1 Worker, verify health and smoke tests, and then remove the PostgreSQL runtime path in a later change.
