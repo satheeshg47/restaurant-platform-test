@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
-import type { Env, Identity } from './types'
+import type { Env, Identity } from './types.ts'
 
 function authError(message: string, status: number): Error & { status: number } {
   return Object.assign(new Error(message), { status })
