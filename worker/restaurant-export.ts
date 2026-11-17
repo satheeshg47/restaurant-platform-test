@@ -110,6 +110,7 @@ export async function handleRestaurantDataExport(request:Request,env:Env,actor:A
    const raw=await request.text()
    if(new TextEncoder().encode(raw).byteLength>MAX_BACKUP_BYTES)fail(413,'backup_size_limit_exceeded')
    let value:unknown;try{value=JSON.parse(raw)}catch{fail(400,'invalid_backup_json')}
+   if(!value||typeof value!=='object'||(value as Record<string,unknown>).confirmation!==`RESTORE ${parts[1]}`)fail(400,'restore_confirmation_required')
    const check=await preflight(env,actor.tenantId,value)
    if(check.row_count>MAX_RESTORE_ROWS)fail(413,'restore_row_limit_exceeded')
    if(!check.restore_allowed)fail(409,'restore_target_not_empty')
