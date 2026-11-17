@@ -79,6 +79,7 @@ async function invoiceForSession(env: Env, actor: Actor, sessionId: string) {
   if (Number(refunds?.adjustment_count||0)>0) fail(409,'invoice_adjustments_not_supported')
   if (due-paid+paidRefunds-waived !== 0n) fail(409,'settle_balance_before_invoice')
   if (items.results.some(row=>!/^(?:\d{4}|\d{6}|\d{8})$/.test(String(row.hsn_sac_code||'')))) fail(409,'invoice_hsn_sac_missing')
+  if (orders.results.some(row=>row.status==='partially_unavailable')) fail(409,'invoice_order_adjustments_not_supported')
   if (orders.results.some(row=>(row.tax_mode_snapshot||session.tax_mode)!=='gst')) fail(409,'mixed_tax_modes_not_supported')
   const rates = new Set(orders.results.map(row=>Number(row.tax_rate_snapshot ?? session.gst_rate)))
   const inclusive = new Set(orders.results.map(row=>Boolean(row.tax_inclusive_snapshot ?? session.tax_inclusive)))
