@@ -23,7 +23,6 @@ interface Env {
 interface AdminIdentity { issuer: string; subject: string }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const APP_KEY = /^[a-z][a-z0-9-]{1,62}$/
 
 function json(status: number, body: unknown): Response {
