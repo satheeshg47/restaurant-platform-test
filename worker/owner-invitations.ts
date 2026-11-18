@@ -1,5 +1,6 @@
 import { authenticateAdmin, authenticateIdentity, authenticateVerifiedEmail, authStatus } from './auth.ts'
 import type { Env, Identity, D1Result } from './types.ts'
+import { hashPassword } from './native-auth-crypto.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
@@ -50,24 +51,33 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
   const isAccept = path === '/owner/invitations/accept'
   if (!isAdminList && !revokeMatch && !isAccept) return json(404, { error: 'not_found' })
 
-  let identity: Identity
-  try {
-    identity = isAccept
-      ? await authenticateIdentity(request, env)
-      : await authenticateAdmin(request, env)
-  } catch (error) { return safeAuthResponse(error, isAccept) }
-
+  let identity: Identity | null = null
   let verifiedIdentity: Identity | null = null
   if (isAccept) {
-    try { verifiedIdentity = await authenticateVerifiedEmail(request, env) }
-    catch (error) {
-      const status = authStatus(error, 401)
-      return json(status, { error: status === 503 ? 'verified_email_auth_not_configured' : status === 403 ? 'verified_email_required' : 'invalid_id_token' })
+    const hasSession = request.headers.has('Authorization') ||
+      request.headers.has('X-OIDC-ID-Token') ||
+      (request.headers.get('Cookie') || '').includes('platformcore_session=')
+    if (hasSession) {
+      try { identity = await authenticateIdentity(request, env) }
+      catch (error) { return safeAuthResponse(error, true) }
+      if (identity.issuer === 'native') {
+        verifiedIdentity = { ...identity, emailVerified: true }
+      } else {
+        try { verifiedIdentity = await authenticateVerifiedEmail(request, env) }
+        catch (error) {
+          const status = authStatus(error, 401)
+          return json(status, { error: status === 503 ? 'verified_email_auth_not_configured' : status === 403 ? 'verified_email_required' : 'invalid_id_token' })
+        }
+        if (verifiedIdentity.issuer !== identity.issuer || verifiedIdentity.subject !== identity.subject) {
+          return json(401, { error: 'identity_token_subject_mismatch' })
+        }
+      }
     }
-    if (verifiedIdentity.issuer !== identity.issuer || verifiedIdentity.subject !== identity.subject) {
-      return json(401, { error: 'identity_token_subject_mismatch' })
-    }
+  } else {
+    try { identity = await authenticateAdmin(request, env) }
+    catch (error) { return safeAuthResponse(error, false) }
   }
+  if (!isAccept && !identity) return json(401, { error: 'unauthorized' })
 
   if (isAdminList && request.method === 'GET') {
     try {
@@ -100,7 +110,7 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
            SELECT ?,?,'owner.invitation.revoked','owner_invitation',?,?
            WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=? AND status='revoked')
              AND NOT EXISTS (SELECT 1 FROM platform_audit_events WHERE action='owner.invitation.revoked' AND resource_id=?)`,
-        ).bind(identity.issuer, identity.subject, invitationId, JSON.stringify({ tenant_id: invitation.tenant_id, email: invitation.email }), invitationId, invitationId),
+        ).bind(identity!.issuer, identity!.subject, invitationId, JSON.stringify({ tenant_id: invitation.tenant_id, email: invitation.email }), invitationId, invitationId),
       ])
       const after = await env.DB.prepare('SELECT status FROM platform_owner_invitations WHERE id=?').bind(invitationId).first<{ status: string }>()
       return after?.status === 'revoked'
@@ -144,12 +154,12 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
              AND NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active')
              AND NOT EXISTS (SELECT 1 FROM platform_owner_invitations WHERE tenant_id=? AND email=? AND status='pending')
            RETURNING id,tenant_id,email,expires_at`,
-        ).bind(id, tenantId, email, tokenHash, identity.issuer, identity.subject, expiresAt, tenantId, tenantId, tenantId, email),
+        ).bind(id, tenantId, email, tokenHash, identity!.issuer, identity!.subject, expiresAt, tenantId, tenantId, tenantId, email),
         env.DB.prepare(
           `INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata)
            SELECT ?,?,'owner.invitation.created','owner_invitation',?,?
            WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=?)`,
-        ).bind(identity.issuer, identity.subject, id, JSON.stringify({ tenant_id: tenantId, email }), id),
+        ).bind(identity!.issuer, identity!.subject, id, JSON.stringify({ tenant_id: tenantId, email }), id),
       ]
       const results = await env.DB.batch<D1Result<Record<string, unknown>>>(statements)
       const row = results[0]?.results?.[0]
