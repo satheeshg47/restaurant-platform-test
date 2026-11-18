@@ -25,7 +25,7 @@ function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 export function randomToken(bytes = 32): string {
-  if (!Number.isInteger(bytes) || bytes < 16 || bytes > 64) throw new Error('invalid_random_size')
+  if (!Number.isInteger(bytes) || bytes < 8 || bytes > 64) throw new Error('invalid_random_size')
   return base64url(crypto.getRandomValues(new Uint8Array(bytes)))
 }
 
