@@ -141,6 +141,16 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
   assert.equal(db.prepare('SELECT count(*) AS count FROM platform_audit_events').get().count, 1)
 })
 
+test('Auth0 multi-audience access tokens validate azp against the SPA client ID', async () => {
+  const validToken = await token(adminSubject, [audience, issuer + 'userinfo'], { azp: clientId })
+  const validSession = await call('/admin/session', { accessToken: validToken })
+  assert.equal(validSession.status, 200)
+
+  const wrongClientToken = await token(adminSubject, [audience, issuer + 'userinfo'], { azp: 'another-client-id' })
+  const rejectedSession = await call('/admin/session', { accessToken: wrongClientToken })
+  assert.equal(rejectedSession.status, 401)
+})
+
 test('Super Admin manages subscription plans, manual payments and subscription lifecycle', async () => {
   const adminToken = await token(adminSubject,audience)
   const application = db.prepare("SELECT id FROM applications WHERE app_key='restaurant'").get()
