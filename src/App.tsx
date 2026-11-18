@@ -20,7 +20,7 @@ import RestaurantReports from './RestaurantReports'
 import RestaurantReviews from './RestaurantReviews'
 import RestaurantDataExport from './RestaurantDataExport'
 import GuestMenu from './GuestMenu'
-import OwnerCommunications from './OwnerCommunications'
+import OwnerPortal from './OwnerPortal'
 import OwnerInviteAcceptance from './OwnerInviteAcceptance'
 import SignIn from './SignIn'
 import { apiFetch, completeOidcLogin, setSessionToken as setApiSessionToken } from './auth'
@@ -104,7 +104,7 @@ function App() {
   }
   if (ownerRoute) {
     if (!sessionToken) return <SignIn role="owner" error={authError}/>
-    return <main className="owner-portal-shell"><header><div className="signin-brand"><div className="signin-mark"><Store size={22}/></div><div><b>platform<span>core</span></b><small>RESTAURANT OWNER</small></div></div><button className="button secondary small" onClick={signOut}>Sign out</button></header><OwnerCommunications accessToken={sessionToken} apiBaseUrl={API_BASE}/></main>
+    return <main className="owner-portal-shell"><header><div className="signin-brand"><div className="signin-mark"><Store size={22}/></div><div><b>platform<span>core</span></b><small>RESTAURANT OWNER</small></div></div><button className="button secondary small" onClick={signOut}>Sign out</button></header><OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE}/></main>
   }
   if (!sessionToken) return <SignIn role="admin" error={authError}/>
   if (adminAccess === 'checking') return <div className="signin-screen"><div className="signin-card">Verifying administrator access…</div></div>
