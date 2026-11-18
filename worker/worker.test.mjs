@@ -467,6 +467,39 @@ test('owner invitation requires matching verified identity and creates one activ
   assert.equal(duplicate.status, 409)
 })
 
+test('owner invitation can create an individual native owner account and require TOTP', async () => {
+  const adminToken = await token(adminSubject, audience)
+  const created = await call('/admin/owner-invitations', {
+    method: 'POST', accessToken: adminToken,
+    body: { tenant_id: tenantId, email: 'native-owner@example.test' },
+  })
+  assert.equal(created.status, 201)
+  const invitation = await created.json()
+
+  const accepted = await call('/owner/invitations/accept', {
+    method: 'POST',
+    body: { token: invitation.token, login_id: 'native-owner', password: 'owner-password-strong-123' },
+  })
+  assert.equal(accepted.status, 200)
+  const acceptedPayload = await accepted.json()
+  assert.equal(acceptedPayload.accepted, true)
+  assert.equal(acceptedPayload.account_created, true)
+
+  const user = db.prepare("SELECT id FROM platform_users WHERE auth_provider='native' AND email=?").get('native-owner@example.test')
+  assert.ok(user?.id)
+  const credential = db.prepare('SELECT login_id_normalized FROM platform_user_credentials WHERE user_id=?').get(user.id)
+  assert.equal(credential.login_id_normalized, 'native-owner')
+  assert.equal(db.prepare("SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=? AND status='active'").get(tenantId, user.id).role, 'owner')
+
+  const login = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'NATIVE-OWNER', password: 'owner-password-strong-123' },
+  })
+  assert.equal(login.status, 200)
+  const payload = await login.json()
+  assert.equal(payload.totp_enrollment_required, true)
+  assert.ok(payload.provisioning_uri)
+})
+
 test('owner support conversations and admin replies are tenant-scoped', async () => {
   const adminToken = await token(adminSubject, audience)
   const inviteResponse = await call('/admin/owner-invitations', {
