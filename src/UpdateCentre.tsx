@@ -46,7 +46,7 @@ export default function UpdateCentre({ apiBaseUrl }: { apiBaseUrl: string }) {
         <b>{manifestResult.valid?'Manifest metadata passed preflight':'Manifest preflight did not pass'}</b>
         {manifestResult.error&&<p>{manifestResult.error}</p>}
         {manifestResult.errors?.map((issue,index)=><p key={index}>{issue.path||'Manifest'} · {issue.code}: {issue.message}</p>)}
-        {manifestResult.checks&&<p>{Object.entries(manifestResult.checks).map(([key,value])=>`${key.replaceAll('_',' ')}: ${value?'passed':'failed'}`).join(' · ')}</p>}
+        {manifestResult.checks&&<p>{Object.entries(manifestResult.checks).map(([key,value])=>`${key.split('_').join(' ')}: ${value?'passed':'failed'}`).join(' · ')}</p>}
         {manifestResult.limitations?.map((item,index)=><p key={index}>{item}</p>)}
       </div>}
       <div className="feature-note"><AlertTriangle size={16}/> Preflight checks metadata only. ZIP inspection, file-hash verification, private artifact storage, backup and deployment remain disabled.</div>
