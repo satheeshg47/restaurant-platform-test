@@ -121,6 +121,69 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
 
   if (isAdminList) {
     if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    let body: Record<string, unknown>
+    try { body = await readBody(request) }
+    catch (error) { const status = authStatus(error, 400); return json(status, { error: status === 413 ? 'payload_too_large' : 'invalid_json' }) }
+    const tenantId = typeof body.tenant_id === 'string' ? body.tenant_id : ''
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    if (!UUID.test(tenantId) || email.length > 320 || !EMAIL.test(email)) return json(400, { error: 'invalid_invitation' })
+
+    const tokenBytes = crypto.getRandomValues(new Uint8Array(32))
+    const token = base64url(tokenBytes)
+    const tokenHash = await hashToken(token)
+    const id = crypto.randomUUID()
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+    try {
+      const tenant = await env.DB.prepare("SELECT id FROM tenants WHERE id=? AND status='active'").bind(tenantId).first()
+      if (!tenant) return json(404, { error: 'tenant_not_found' })
+      const owner = await env.DB.prepare(
+        "SELECT 1 AS found FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active' LIMIT 1",
+      ).bind(tenantId).first()
+      if (owner) return json(409, { error: 'active_owner_already_exists' })
+
+      await env.DB.prepare(
+        "UPDATE platform_owner_invitations SET status='expired' WHERE tenant_id=? AND email=? AND status='pending' AND expires_at<=?",
+      ).bind(tenantId, email, new Date().toISOString()).run()
+
+      const statements = [
+        env.DB.prepare(
+          `INSERT INTO platform_owner_invitations
+            (id,tenant_id,email,token_hash,created_by_issuer,created_by_subject,expires_at)
+           SELECT ?,?,?,?,?,?,?
+           WHERE EXISTS (SELECT 1 FROM tenants WHERE id=? AND status='active')
+             AND NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active')
+             AND NOT EXISTS (SELECT 1 FROM platform_owner_invitations WHERE tenant_id=? AND email=? AND status='pending')
+           RETURNING id,tenant_id,email,expires_at`,
+        ).bind(id, tenantId, email, tokenHash, identity!.issuer, identity!.subject, expiresAt, tenantId, tenantId, tenantId, email),
+        env.DB.prepare(
+          `INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata)
+           SELECT ?,?,'owner.invitation.created','owner_invitation',?,?
+           WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=?)`,
+        ).bind(identity!.issuer, identity!.subject, id, JSON.stringify({ tenant_id: tenantId, email }), id),
+      ]
+      const results = await env.DB.batch<D1Result<Record<string, unknown>>>(statements)
+      const row = results[0]?.results?.[0]
+      if (!row) {
+        const active = await env.DB.prepare(
+          "SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active' LIMIT 1",
+        ).bind(tenantId).first()
+        if (active) return json(409, { error: 'active_owner_already_exists' })
+        return json(409, { error: 'pending_invitation_exists' })
+      }
+      return json(201, {
+        invitation: { id: row.id, tenant_id: row.tenant_id, email: row.email, expires_at: row.expires_at },
+        token,
+        delivery: 'manual_link_required',
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      return json(/UNIQUE|constraint/i.test(message) ? 409 : 500, {
+        error: /UNIQUE|constraint/i.test(message) ? 'pending_invitation_exists' : 'owner_invitation_create_failed',
+      })
+    }
+  }
+
+  if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
   let body: Record<string, unknown>
   try { body = await readBody(request) }
   catch (error) { const status = authStatus(error, 400); return json(status, { error: status === 413 ? 'payload_too_large' : 'invalid_json' }) }
