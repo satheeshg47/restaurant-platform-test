@@ -627,3 +627,27 @@
 .owner-staff-error{background:#fff3f2;color:#a13a34}
 .owner-staff-notice{background:#eefaf5;color:#16744f}
 @media(max-width:620px){.owner-staff-fields{grid-template-columns:1fr}.owner-staff-row{grid-template-columns:34px minmax(0,1fr)}.owner-staff-controls{grid-column:1/-1;justify-content:flex-start}.owner-staff-reset{grid-column:1/-1}.owner-staff-controls select{max-width:none}}
+
+
+.staff-portal{min-height:100vh;background:#f6f7fb}
+.staff-portal-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px max(20px,calc((100vw - 1180px)/2));background:#fff;border-bottom:1px solid #e9ecf3}
+.staff-portal-brand{display:flex;align-items:center;gap:10px}
+.staff-portal-brand>span{width:36px;height:36px;display:grid;place-items:center;background:#efeeff;color:#6658d7;border-radius:10px}
+.staff-portal-brand>div{display:grid;gap:2px}
+.staff-portal-brand b{font-size:14px;color:#253148;letter-spacing:-.3px}
+.staff-portal-brand b span{color:#6556d8}
+.staff-portal-brand small{font-size:8px;letter-spacing:1.2px;color:#8992a2;font-weight:800}
+.staff-portal-user{display:flex;align-items:center;gap:14px}
+.staff-portal-user>div{display:grid;gap:2px;text-align:right}
+.staff-portal-user b{font-size:11px;color:#2e394d}
+.staff-portal-user small{font-size:9px;color:#8b95a5}
+.staff-portal-user button{display:inline-flex;align-items:center;gap:6px;border:1px solid #e4e7ef;border-radius:8px;background:#fff;color:#596579;padding:8px 10px;font-size:10px;font-weight:750}
+.staff-portal-main{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+.staff-portal-heading{margin-bottom:16px}
+.staff-portal-heading h1{font-size:24px;letter-spacing:-.7px;color:#263348;margin:5px 0}
+.staff-portal-heading p{font-size:11px;color:#7b8798;margin:0}
+.staff-portal-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.staff-portal-tabs button{display:inline-flex;align-items:center;gap:6px;border:1px solid #e3e7ef;border-radius:8px;background:#fff;color:#596579;padding:9px 12px;font-size:10px;font-weight:750}
+.staff-portal-tabs button.active{background:#efeeff;border-color:#d9d4ff;color:#5949ca}
+.staff-portal-tools{display:grid;gap:14px}
+@media(max-width:520px){.staff-portal-header{padding:12px 14px}.staff-portal-user{gap:7px}.staff-portal-user>div{display:none}.staff-portal-main{padding:16px 12px 40px}.staff-portal-heading h1{font-size:20px}}
