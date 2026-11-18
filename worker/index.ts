@@ -205,6 +205,16 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
 async function handleApi(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const path = url.pathname.replace(/^\/api/, '') || '/'
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.has('Cookie')) {
+    const origin = request.headers.get('Origin')
+    if (origin) {
+      try {
+        if (new URL(origin).origin !== url.origin) return json(403, { error: 'origin_not_allowed' })
+      } catch {
+        return json(403, { error: 'origin_not_allowed' })
+      }
+    }
+  }
   const nativeAuthResponse = await handleNativeAuth(request, env, path)
   if (nativeAuthResponse) return nativeAuthResponse
   if (path === '/health' && request.method === 'GET') {
