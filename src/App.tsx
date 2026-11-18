@@ -148,7 +148,7 @@ function App() {
     return <StaffPortal slug={membership.tenant_slug} role={membership.staff_role as 'cook' | 'waiter' | 'manager'} displayName={membership.display_name || nativeUser.login_id} onSignOut={signOut}/>
   }
   if (staffRoute && sessionToken === 'native' && nativeUser?.tenant_role === 'owner' && !nativeUser.is_admin) {
-    return <OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE}/>
+    return <OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE} onSignOut={signOut}/>
   }
   if (staffRoute && !sessionToken) return <SignIn role="staff" error={authError} onAuthenticated={handleNativeAuthenticated}/>
   if (ownerInviteRoute) {
@@ -156,7 +156,7 @@ function App() {
   }
   if (ownerRoute) {
     if (!sessionToken) return <SignIn role="owner" error={authError} onAuthenticated={handleNativeAuthenticated}/>
-    return <main className="owner-portal-shell"><header><div className="signin-brand"><div className="signin-mark"><Store size={22}/></div><div><b>platform<span>core</span></b><small>RESTAURANT OWNER</small></div></div><button className="button secondary small" onClick={signOut}>Sign out</button></header><OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE}/></main>
+    return <main className="owner-portal-shell"><header><div className="signin-brand"><div className="signin-mark"><Store size={22}/></div><div><b>platform<span>core</span></b><small>RESTAURANT OWNER</small></div></div><button className="button secondary small" onClick={signOut}>Sign out</button></header><OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE} onSignOut={signOut}/></main>
   }
   if (!sessionToken) return <SignIn role="admin" error={authError} bootstrapAvailable={bootstrapAvailable} encryptionReady={encryptionReady} onAuthenticated={handleNativeAuthenticated}/>
   if (adminAccess === 'checking') return <div className="signin-screen"><div className="signin-card">Verifying administrator access…</div></div>
