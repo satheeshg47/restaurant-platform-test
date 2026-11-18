@@ -518,3 +518,25 @@
 .subscription-section-heading{display:flex;align-items:center;justify-content:space-between}
 @media(max-width:760px){.subscription-admin-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.subscription-form{grid-template-columns:1fr}.subscription-plan-row{align-items:flex-start;flex-wrap:wrap}.subscription-main{align-items:flex-start;flex-wrap:wrap}.subscription-meta{display:grid;gap:5px}.subscription-actions .button{flex:1}.subscription-payment-row{align-items:flex-start}}
+
+.monitoring-card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:16px 0 20px}
+.monitoring-card{border:1px solid #e6e9f0;border-radius:12px;padding:13px;background:#fff;min-width:0}
+.monitoring-card>div{display:flex;align-items:center;justify-content:space-between;gap:7px;color:#818b9b;font-size:10px}
+.monitoring-card strong{display:block;margin-top:11px;font-size:24px;line-height:1.1;color:#253247}
+.monitoring-section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.monitoring-section-grid>.panel{min-width:0;padding:15px;border:1px solid #e6e9f0;border-radius:13px;background:#fff}
+.monitoring-section-grid .panel-heading{margin-bottom:12px}
+.monitoring-section-grid h3{margin:0;font-size:13px}
+.monitoring-section-grid .panel-heading p{margin:4px 0 0;color:#818b9b;font-size:10px}
+.monitoring-event-list{display:grid;gap:10px}
+.monitoring-event{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:9px;border-bottom:1px solid #edf0f5}
+.monitoring-event:last-child{border-bottom:0;padding-bottom:0}
+.monitoring-event>div{display:grid;gap:4px;min-width:0}
+.monitoring-event b{font-size:11px;color:#273244;overflow-wrap:anywhere}
+.monitoring-event small,.monitoring-actor{font-size:9px;color:#818b9b;overflow-wrap:anywhere}
+.monitoring-empty{font-size:11px;color:#818b9b;padding:10px 0}
+.monitoring-notice{display:flex;gap:10px;align-items:flex-start;margin-top:16px;padding:12px;border:1px solid #e7eaf0;border-radius:10px;background:#f8fafc;color:#566174}
+.monitoring-notice b{font-size:11px}
+.monitoring-notice p{font-size:10px;margin:4px 0 0;line-height:1.5}
+@media(max-width:900px){.monitoring-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.monitoring-section-grid{grid-template-columns:1fr}}
+@media(max-width:520px){.monitoring-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.monitoring-event{align-items:flex-start;flex-direction:column}}

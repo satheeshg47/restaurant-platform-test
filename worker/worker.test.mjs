@@ -221,6 +221,21 @@ test('Super Admin manages subscription plans, manual payments and subscription l
   assert.equal((await archived.json()).plan.is_active,0)
 })
 
+test('Super Admin monitoring reports application, billing and deployment health', async () => {
+  const adminToken = await token(adminSubject,audience)
+  const response = await call('/admin/monitoring',{accessToken:adminToken})
+  assert.equal(response.status,200)
+  const data=await response.json()
+  assert.ok(data.generated_at)
+  assert.equal(typeof data.counts.active_applications,'number')
+  assert.equal(typeof data.counts.active_tenants,'number')
+  assert.equal(typeof data.counts.payments_awaiting_review,'number')
+  assert.equal(typeof data.counts.failed_deployments,'number')
+  assert.ok(Array.isArray(data.recent_events))
+  assert.ok(Array.isArray(data.recent_deployments))
+  assert.equal(data.usage_metrics.available,false)
+})
+
 test('owner invitation requires matching verified identity and creates one active owner', async () => {
   const adminToken = await token(adminSubject, audience)
   const created = await call('/admin/owner-invitations', {

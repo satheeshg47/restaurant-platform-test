@@ -3,6 +3,7 @@ import { handleCommunications } from './communications.ts'
 import { handleOwnerInvitations } from './owner-invitations.ts'
 import { handleAdminTenants } from './tenants.ts'
 import { handleAdminSubscriptions } from './admin-subscriptions.ts'
+import { handleAdminMonitoring } from './admin-monitoring.ts'
 import { handleRestaurantRoutes } from './restaurant.ts'
 import type { Env, Identity } from './types.ts'
 
@@ -46,6 +47,11 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
 
   if (path === '/admin/session' && request.method === 'GET') {
     return json(200, { authenticated: true, admin })
+  }
+
+  if (path === '/admin/monitoring') {
+    const monitoring = await handleAdminMonitoring(request, env, admin)
+    if (monitoring) return monitoring
   }
 
   if (path.startsWith('/admin/subscription-plans') || path.startsWith('/admin/subscriptions') || path.startsWith('/admin/subscription-payments/')) {
