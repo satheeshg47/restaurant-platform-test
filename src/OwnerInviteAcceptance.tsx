@@ -1,62 +1,140 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { ArrowRight, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { apiFetch, beginOidcLogin, getOidcSettings } from './auth'
+import SignIn from './SignIn'
 
-type Props = { accessToken: string; idToken: string; apiBaseUrl: string; onAccepted: () => void; onSignOut: () => void }
+type Props = {
+  accessToken: string
+  idToken: string
+  apiBaseUrl: string
+  onAccepted: () => void
+  onSignOut: () => void
+  onAuthenticated: () => void
+}
+type State = 'checking' | 'setup' | 'signin' | 'ready' | 'sending' | 'accepted' | 'error'
 
-export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl, onAccepted, onSignOut }: Props) {
-  const [state, setState] = useState<'checking' | 'ready' | 'sending' | 'accepted' | 'error'>('checking')
+export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl, onAccepted, onSignOut, onAuthenticated }: Props) {
+  const [state, setState] = useState<State>('checking')
   const [token, setToken] = useState('')
+  const [loginId, setLoginId] = useState('')
+  const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
+  const [accountCreated, setAccountCreated] = useState(false)
   const base = apiBaseUrl.replace(/\/$/, '')
+  const oidcConfigured = Boolean(getOidcSettings())
 
   useEffect(() => {
     const saved = sessionStorage.getItem('platformcore.owner.invitation.token') || ''
     if (/^[A-Za-z0-9_-]{43}$/.test(saved)) {
       setToken(saved)
-      setState('ready')
+      setState(accessToken || idToken ? 'ready' : 'setup')
     } else {
       setState('error')
       setMessage('This invitation link is missing or invalid. Ask the platform administrator to send a new link.')
     }
   }, [])
 
-  const accept = async () => {
-    if (!token || state !== 'ready') return
-    if (!idToken) { setState('error'); setMessage('Your verified sign-in session is missing. Sign in again to accept this invitation.'); return }
-    setState('sending'); setMessage('')
+  useEffect(() => {
+    if (token && (accessToken || idToken) && (state === 'setup' || state === 'signin')) {
+      setState('ready')
+      setMessage('')
+    }
+  }, [accessToken, idToken, token, state])
+
+  const accept = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+    if (!token || state !== 'ready' && state !== 'setup') return
+    const creatingAccount = !accessToken && !idToken
+    if (creatingAccount && (!/^[A-Za-z0-9._-]{3,64}$/.test(loginId.trim()) || password.length < 12 || password.length > 256)) {
+      setState('error')
+      setMessage('Choose a login ID (3–64 letters, numbers, dots, underscores or hyphens) and a password of at least 12 characters.')
+      return
+    }
+    setState('sending')
+    setMessage('')
     try {
-      const response = await fetch(base + '/owner/invitations/accept', {
+      const headers: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/json' }
+      if (idToken) headers['X-OIDC-ID-Token'] = idToken
+      const response = await apiFetch(base + '/owner/invitations/accept', {
         method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken, 'X-OIDC-ID-Token': idToken },
-        body: JSON.stringify({ token }),
+        headers,
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token,
+          ...(creatingAccount ? { login_id: loginId.trim(), password } : {}),
+        }),
         cache: 'no-store',
       })
-      const payload = await response.json().catch(() => ({})) as { error?: string; tenant?: { name?: string } }
+      const payload = await response.json().catch(() => ({})) as { error?: string; tenant?: { name?: string }; account_created?: boolean }
       if (!response.ok) {
         const errors: Record<string, string> = {
           invitation_not_found: 'This invitation is invalid, already used or has been revoked.',
           invitation_expired: 'This invitation has expired. Ask the platform administrator for a new one.',
-          invitation_email_mismatch: 'Sign in with the verified email address that received this invitation.',
-          verified_email_required: 'Your identity provider must return a verified email address.',
+          invitation_email_mismatch: 'Sign in with the account that matches the invited email address.',
+          verified_email_required: 'The identity provider must return a verified email address.',
           active_owner_already_exists: 'This restaurant already has an active owner.',
           tenant_not_active: 'This restaurant is currently inactive.',
+          owner_auth_not_configured: 'Owner account setup is temporarily unavailable because the Worker encryption key is not configured.',
+          native_account_exists_sign_in: 'An owner account already exists for this email. Sign in to that account, then accept the invitation.',
+          login_id_unavailable: 'That login ID is already in use. Choose another one.',
+          invalid_account_details: 'Check the login ID and password requirements.',
+        }
+        if (payload.error === 'native_account_exists_sign_in') {
+          setState('signin')
+          setMessage(errors[payload.error])
+          return
         }
         throw new Error(errors[payload.error || ''] || payload.error || 'The invitation could not be accepted.')
       }
       sessionStorage.removeItem('platformcore.owner.invitation.token')
       setToken('')
+      setAccountCreated(payload.account_created === true)
       setState('accepted')
-      setMessage('You are now the owner of ' + (payload.tenant?.name || 'this restaurant') + '.')
+      setMessage(payload.account_created
+        ? 'Your owner login has been created for ' + (payload.tenant?.name || 'this restaurant') + '. Sign in next to enroll your authenticator.'
+        : 'You are now the owner of ' + (payload.tenant?.name || 'this restaurant') + '.')
     } catch (cause) {
       setState('error')
       setMessage(cause instanceof Error ? cause.message : 'The invitation could not be accepted.')
     }
   }
 
+  const signInWithOidc = async () => {
+    try { await beginOidcLogin('/owner/invitations/accept') }
+    catch (cause) { setState('error'); setMessage(cause instanceof Error ? cause.message : 'Sign-in could not be started.') }
+  }
+
+  if (state === 'signin') {
+    return <SignIn role="owner" returnPath="/owner/invitations/accept" error={message} onAuthenticated={onAuthenticated}/>
+  }
+
   return <main className="signin-screen"><section className="signin-card">
     <div className="signin-brand"><div className="signin-mark"><CheckCircle2 size={23}/></div><div><b>platform<span>core</span></b><small>OWNER INVITATION</small></div></div>
-    {state === 'accepted' ? <><div className="signin-icon"><CheckCircle2 size={22}/></div><span className="signin-eyebrow">INVITATION ACCEPTED</span><h1>Welcome aboard</h1><p>{message}</p><button className="signin-button" onClick={onAccepted}>Open owner support <ArrowRight size={16}/></button></> :
-      <><div className="signin-icon"><ShieldAlert size={22}/></div><span className="signin-eyebrow">RESTAURANT OWNER ACCESS</span><h1>Accept your invitation</h1><p>Confirm your invitation to link your verified account to this restaurant.</p>{message && <p className="signin-error" role="alert">{message}</p>}{state === 'error' && token && <div className="modal-actions"><button className="button secondary" onClick={() => setState('ready')}>Try again</button><button className="button secondary" onClick={onSignOut}>Sign out to switch account</button></div>}<button className="signin-button" onClick={() => void accept()} disabled={state !== 'ready'}>{state === 'sending' ? 'Accepting invitation…' : state === 'checking' ? 'Checking invitation…' : 'Accept invitation'}{state === 'ready' && <ArrowRight size={16}/>}</button></>}
-    <div className="signin-foot">The invitation is one-time use and must match the verified email address it was issued to.</div>
+    {state === 'accepted' ? <>
+      <div className="signin-icon"><CheckCircle2 size={22}/></div>
+      <span className="signin-eyebrow">INVITATION ACCEPTED</span>
+      <h1>{accountCreated ? 'Your owner account is ready' : 'Welcome aboard'}</h1>
+      <p>{message}</p>
+      <button className="signin-button" onClick={onAccepted}>{accountCreated ? 'Continue to sign in' : 'Open owner workspace'} <ArrowRight size={16}/></button>
+    </> : <>
+      <div className="signin-icon"><ShieldAlert size={22}/></div>
+      <span className="signin-eyebrow">RESTAURANT OWNER ACCESS</span>
+      <h1>{state === 'setup' ? 'Create your owner account' : 'Accept your invitation'}</h1>
+      <p>{state === 'setup'
+        ? 'Create an individual login using the one-time invitation sent by the platform administrator. Your account will require authenticator setup at first sign-in.'
+        : 'Confirm your invitation to link your account to this restaurant.'}</p>
+      {message && <p className="signin-error" role="alert">{message}</p>}
+      {state === 'setup' && <form className="signin-form" onSubmit={event => void accept(event)}>
+        <label>Choose a login ID<input value={loginId} onChange={event => setLoginId(event.target.value)} required minLength={3} maxLength={64} autoComplete="username"/></label>
+        <label>Create password<input value={password} onChange={event => setPassword(event.target.value)} type="password" required minLength={12} maxLength={256} autoComplete="new-password"/><small>Use at least 12 characters.</small></label>
+        <button className="signin-button" type="submit" disabled={state === 'sending'}>{state === 'sending' ? 'Creating owner account…' : 'Create account and accept invitation'} <ArrowRight size={16}/></button>
+      </form>}
+      {state === 'ready' && <button className="signin-button" onClick={() => void accept()}>{state === 'sending' ? 'Accepting invitation…' : 'Accept invitation'} <ArrowRight size={16}/></button>}
+      {state === 'sending' && <div className="owner-home-state">Verifying invitation and creating your secure owner account…</div>}
+      {state === 'error' && <button className="signin-button" onClick={() => setState(accessToken || idToken ? 'ready' : 'setup')}>Try again</button>}
+      {!accessToken && !idToken && oidcConfigured && <button className="signin-link" type="button" onClick={() => void signInWithOidc()}>Continue with existing identity provider</button>}
+      {(accessToken || idToken) && <button className="signin-link" type="button" onClick={onSignOut}>Sign out to switch account</button>}
+    </>}
+    <div className="signin-foot">The invitation is one-time use and expires after 48 hours. Owner accounts require authenticator verification.</div>
   </section></main>
 }
