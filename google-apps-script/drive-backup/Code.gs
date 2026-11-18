@@ -54,6 +54,7 @@ function runDailyBackup() {
     }
     const response = cloudflarePost_({ output_format: 'polling' });
     processExportResponse_(response);
+    if (props.getProperty('BACKUP_BOOKMARK')) scheduleContinuation_();
   });
 }
 
@@ -146,10 +147,26 @@ function deliverPendingBackup_() {
 
   const folder = getBackupFolder_();
   const stamp = timestamp_();
-  const outputName = 'restaurant-platform-' + stamp + '.sql.gz';
+  const outputName = props.getProperty('PENDING_DRIVE_NAME') || ('restaurant-platform-' + stamp + '.sql.gz');
+  props.setProperty('PENDING_DRIVE_NAME', outputName);
   const existing = folder.getFilesByName(outputName);
   if (existing.hasNext()) {
     const file = existing.next();
+    const manifestName = outputName + '.manifest.json';
+    const manifests = folder.getFilesByName(manifestName);
+    if (!manifests.hasNext()) {
+      const description = file.getDescription() || '';
+      const match = description.match(/SHA-256=([a-f0-9]{64})/);
+      const manifest = {
+        format: 'restaurant-platform-d1-drive-backup', version: 1,
+        created_at: new Date().toISOString(), cloudflare_database_id: getConfig_().databaseId,
+        source_filename: sourceName, drive_filename: outputName, drive_file_id: file.getId(),
+        compressed_bytes: file.getSize(), sha256_compressed: match ? match[1] : null,
+        verification: 'Existing Drive file size confirmed; checksum is recorded in the file description when available',
+        retention: 'No automatic deletion of backups or D1 rows'
+      };
+      folder.createFile(manifestName, JSON.stringify(manifest, null, 2), MimeType.PLAIN_TEXT);
+    }
     props.setProperties({ LAST_SUCCESS_AT: new Date().toISOString(), LAST_FILE_ID: file.getId(), LAST_FILE_NAME: file.getName() });
     clearPending_();
     removeTriggers_('continueDailyBackup');
@@ -274,7 +291,7 @@ function removeTriggers_(handlerName) {
 
 function clearPending_() {
   const props = PropertiesService.getScriptProperties();
-  ['PENDING_SIGNED_URL', 'PENDING_FILENAME', 'PENDING_EXPIRES_AT'].forEach(function (key) { props.deleteProperty(key); });
+  ['PENDING_SIGNED_URL', 'PENDING_FILENAME', 'PENDING_EXPIRES_AT', 'PENDING_DRIVE_NAME'].forEach(function (key) { props.deleteProperty(key); });
 }
 
 function timestamp_() {
