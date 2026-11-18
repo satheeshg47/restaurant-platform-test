@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createTotpSecret, decryptTotpSecret, encryptTotpSecret, hashPassword,
+  createTotpSecret, decryptTotpSecret, encryptTotpSecret, generateTotpCode, hashPassword,
   sha256Hex, totpProvisioningUri, verifyPassword, verifyTotp,
 } from './native-auth-crypto.ts'
 
@@ -20,12 +20,12 @@ test('password hashes are salted, versioned and verified', async () => {
 test('TOTP secrets provision and verify with a bounded clock window', async () => {
   const secret = createTotpSecret()
   const now = 1_700_000_000_000
-  const internal = await import('./native-auth-crypto.ts')
   const uri = totpProvisioningUri(secret, 'admin-login')
   assert.match(uri, /^otpauth:\/\/totp\//)
   assert.match(uri, /issuer=Platform\+Core/)
-  const code = await internal['__testOnlyTotpCode']?.(secret, now)
-  if (code) assert.equal(await verifyTotp(secret, code, now), true)
+  const code = await generateTotpCode(secret, now)
+  assert.equal(await verifyTotp(secret, code, now), true)
+  assert.equal(await verifyTotp(secret, code, now + 180_000, 0), false)
   assert.equal(await verifyTotp(secret, '00000x', now), false)
   assert.equal(await verifyTotp(secret, '123456', now, 0), false)
 })
