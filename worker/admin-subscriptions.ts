@@ -75,7 +75,7 @@ export async function handleAdminSubscriptions(request:Request,env:Env,path:stri
     env.DB.prepare("SELECT id FROM subscriptions WHERE tenant_id=? AND application_id=? AND status IN ('trial','pending','active','past_due')").bind(tenantId,applicationId).first(),
    ])
    if(!tenant)fail(404,'active_tenant_not_found')
-   if(!plan||plan.application_id!==applicationId)fail(404,'active_plan_not_found')
+   if(!plan||plan.application_id!==applicationId)throw Object.assign(new Error('active_plan_not_found'),{status:404})
    if(existing)fail(409,'subscription_already_exists')
    const now=new Date().toISOString(),trialDays=Number(plan.trial_days),status=Number(plan.amount_minor)===0?'active':trialDays>0?'trial':'pending'
    const endsAt=status==='trial'?new Date(Date.now()+trialDays*86400000).toISOString():null
@@ -108,7 +108,7 @@ export async function handleAdminSubscriptions(request:Request,env:Env,path:stri
    const input=await body(request),amount=input.amount_minor,method=String(input.payment_method||''),reference=typeof input.provider_reference==='string'?input.provider_reference.trim().slice(0,120):''
    if(!Number.isSafeInteger(amount)||Number(amount)<=0||!['cash','bank_transfer','upi','other'].includes(method)||(/^\d{13,19}$/.test(reference)))fail(400,'invalid_manual_payment')
    const subscription=await env.DB.prepare("SELECT id,tenant_id,amount_minor,currency,status FROM subscriptions WHERE id=?").bind(id).first<{id:string;tenant_id:string;amount_minor:number;currency:string;status:string}>()
-   if(!subscription)fail(404,'subscription_not_found')
+   if(!subscription)throw Object.assign(new Error('subscription_not_found'),{status:404})
    if(subscription.status==='cancelled'||Number(amount)!==Number(subscription.amount_minor))fail(409,'payment_amount_or_subscription_status_invalid')
    const paymentId=crypto.randomUUID()
    await env.DB.batch([
@@ -124,7 +124,7 @@ export async function handleAdminSubscriptions(request:Request,env:Env,path:stri
    if(!ID.test(id))fail(404,'subscription_payment_not_found')
    const payment=await env.DB.prepare(`SELECT p.id,p.tenant_id,p.subscription_id,p.amount_minor,p.status,s.status AS subscription_status,s.billing_interval,s.ends_at,s.starts_at
     FROM subscription_payments p JOIN subscriptions s ON s.tenant_id=p.tenant_id AND s.id=p.subscription_id WHERE p.id=?`).bind(id).first<{id:string;tenant_id:string;subscription_id:string;amount_minor:number;status:string;subscription_status:string;billing_interval:string;ends_at:string|null;starts_at:string|null}>()
-   if(!payment)fail(404,'subscription_payment_not_found')
+   if(!payment)throw Object.assign(new Error('subscription_payment_not_found'),{status:404})
    if(!['pending','submitted'].includes(payment.status))fail(409,'subscription_payment_not_pending')
    if(action==='reject'){
     await env.DB.batch([
