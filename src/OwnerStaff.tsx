@@ -104,6 +104,14 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
     finally { setBusy('') }
   }
 
+  const copyCreatedCredentials = async () => {
+    if (!createdCredentials) return
+    try {
+      await navigator.clipboard.writeText('Login ID: ' + createdCredentials.loginId + '\\nPassword: ' + createdCredentials.password)
+      setNotice('Credentials copied. Share them through a private channel.')
+    } catch { setNotice('Clipboard unavailable. Copy the login ID and password shown above manually.') }
+  }
+
   const savePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!resetFor) return
@@ -147,7 +155,7 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
       <b>New staff credentials — copy and share privately</b>
       <code>Login ID: {createdCredentials.loginId}</code>
       <code>Password: {createdCredentials.password}</code>
-      <div><button type="button" className="owner-staff-primary" onClick={() => void navigator.clipboard.writeText('Login ID: ' + createdCredentials.loginId + '\\nPassword: ' + createdCredentials.password)}>Copy credentials</button><button type="button" className="owner-staff-secondary" onClick={() => setCreatedCredentials(null)}>Dismiss</button></div>
+      <div><button type="button" className="owner-staff-primary" onClick={() => void copyCreatedCredentials()}>Copy credentials</button><button type="button" className="owner-staff-secondary" onClick={() => setCreatedCredentials(null)}>Dismiss</button></div>
     </div>}
     {loading ? <div className="owner-home-state">Loading staff accounts…</div> :
       staff.length === 0 ? <div className="owner-home-state"><UserRound size={22}/><b>No staff accounts yet</b><p>Add each team member with their own login ID and role.</p></div> :
