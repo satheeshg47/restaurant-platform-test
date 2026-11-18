@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Activity, AppWindow, ArrowUpRight, Bell, Boxes, Check, QrCode, BarChart3,
-  ChevronDown, CircleHelp, CreditCard, Database, Download, FileArchive,
+  ChevronDown, CircleHelp, CreditCard, Database, Download,
   FileCheck2, LayoutDashboard, LifeBuoy, LockKeyhole,
   Menu, MoreHorizontal, Plus, Settings, ShieldCheck, Store, Utensils,
   Users, X, Zap, ScrollText, MessageCircle
@@ -11,6 +11,7 @@ import Applications from './Applications'
 import Owners from './Owners'
 import Subscriptions from './Subscriptions'
 import Monitoring from './Monitoring'
+import UpdateCentre from './UpdateCentre'
 import Communications from './Communications'
 import RestaurantMenu from './RestaurantMenu'
 import RestaurantOperations from './RestaurantOperations'
@@ -145,7 +146,7 @@ function App() {
           {section === 'Restaurant Data Export' && <RestaurantDataExport />}
           {section === 'Communications' && <Communications />}
           {section === 'Subscriptions' && <Subscriptions />}
-          {section === 'Update Centre' && <Placeholder icon={FileArchive} title="Safe application updates" description="Release-manifest validation is available as a foundation. Package upload, pre-deployment backup, approval, deployment and rollback are not connected yet. No release can be uploaded or deployed from this screen." items={['Manifest and ZIP inspection foundation','Compatibility and migration checks: pending','Independent pre-deployment backup: unavailable','Approval, deployment, health check and rollback: pending']}/>}
+          {section === 'Update Centre' && <UpdateCentre apiBaseUrl={API_BASE}/>}
           {section === 'Data & Backups' && <Placeholder icon={Database} title="Data & backups" description="Production D1 schema is installed. Free Cloudflare D1 Time Travel provides seven-day point-in-time recovery; it is not an offsite backup." items={['Production schema: 43 application tables, migrations 0001–0007','D1 Time Travel: seven-day recovery window on Workers Free','Tenant JSON export, backup validation and guarded restore in Restaurant Data Export','Offsite backup destination and scheduled recovery drills: not configured']}/>}
           {section === 'Monitoring' && <Monitoring />}
           {section === 'Security' && <Placeholder icon={LockKeyhole} title="Security & access" description="Administrator OIDC sign-in is working and the Super Admin identity is restricted server-side. MFA/passkey enforcement has not yet been configured or verified." items={['OIDC administrator sign-in: verified','MFA and passkey enforcement: pending','Tenant and role authorization: enforced in Worker routes','Administrative audit trail: enabled; immutability not claimed']}/>}
