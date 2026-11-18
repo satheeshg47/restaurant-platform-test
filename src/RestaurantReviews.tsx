@@ -1,11 +1,11 @@
 import { apiFetch } from './auth'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertCircle, Eye, EyeOff, MessageSquare, RefreshCw, Save, Star } from 'lucide-react'
 
 const API_BASE=(import.meta.env.VITE_API_BASE_URL||'/api').replace(/\/$/,'')
 type Review={id:string;rating:number;comment:string|null;visibility:'published'|'hidden';owner_response:string|null;created_at:string;responded_at:string|null;table_label:string;closed_at:string|null}
-export default function RestaurantReviews(){
- const [slug,setSlug]=useState('')
+export default function RestaurantReviews({initialSlug=''}:{initialSlug?:string}={}){
+ const [slug,setSlug]=useState(initialSlug)
  const [reviews,setReviews]=useState<Review[]>([])
  const [drafts,setDrafts]=useState<Record<string,string>>({})
  const [busy,setBusy]=useState(false)
@@ -24,6 +24,7 @@ export default function RestaurantReviews(){
   }catch(e){setReviews([]);setError(e instanceof Error?e.message:'Could not load reviews')}
   finally{setBusy(false)}
  }
+ useEffect(()=>{if(initialSlug) void load()},[initialSlug])
  async function update(review:Review,patch:Partial<Pick<Review,'visibility'|'owner_response'>>){
   setError('');setNotice('')
   try{
@@ -36,7 +37,7 @@ export default function RestaurantReviews(){
  }
  return <section className="restaurant-menu">
   <div className="restaurant-menu-heading"><div className="restaurant-menu-title"><div className="restaurant-menu-icon"><MessageSquare size={20}/></div><div><span className="eyebrow">RESTAURANT SUITE</span><h2>Customer reviews</h2><p>Read guest feedback, hide inappropriate reviews and post an owner response.</p></div></div></div>
-  <div className="restaurant-review-filter"><label>Restaurant slug<input value={slug} onChange={e=>setSlug(e.target.value)} placeholder="e.g. my-restaurant" autoCapitalize="none"/></label><button className="button primary" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/>{busy?'Loading…':'Load reviews'}</button></div>
+  {!initialSlug && <div className="restaurant-review-filter"><label>Restaurant slug<input value={slug} onChange={e=>setSlug(e.target.value)} placeholder="e.g. my-restaurant" autoCapitalize="none"/></label><button className="button primary" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/>{busy?'Loading…':'Load reviews'}</button></div>}
   {error&&<div className="restaurant-menu-alert"><AlertCircle size={16}/>{error}</div>}
   {notice&&<div className="restaurant-settings-success">{notice}</div>}
   {!reviews.length?<div className="restaurant-menu-empty">Load a restaurant to see guest reviews. New reviews can be submitted after a table session is closed.</div>:<div className="restaurant-review-list">
