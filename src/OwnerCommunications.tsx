@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, MessageCircle, Plus, RefreshCw, Send, ShieldAlert } from 'lucide-react'
+import { apiFetch } from './auth'
 
 type Tenant = { tenant_id: string; tenant_name: string; tenant_slug: string }
 type Conversation = {
@@ -37,14 +38,14 @@ export default function OwnerCommunications({
   const [error, setError] = useState('')
 
   const request = useCallback(async (path: string, init: RequestInit = {}) => {
-    const response = await fetch(base + path, {
+    const response = await apiFetch(base + path, {
       ...init,
       headers: {
         Accept: 'application/json',
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        Authorization: 'Bearer ' + accessToken,
         ...init.headers,
       },
+      credentials: 'same-origin',
       cache: 'no-store',
     })
     const payload = await response.json().catch(() => ({}))
