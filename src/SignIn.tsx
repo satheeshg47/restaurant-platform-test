@@ -250,7 +250,7 @@ export default function SignIn({
       {error && <p className="signin-error" role="alert">{error}</p>}
       {notice && <p className="signin-notice" role="status">{notice}</p>}
       {phase === 'credentials' && configured && <div className="signin-alternative"><span>OR</span><button className="signin-button secondary" type="button" onClick={() => void signInOidc()} disabled={busy}>{busy ? 'Connecting securely…' : 'Continue with existing identity provider'}{!busy && <ArrowRight size={16}/>}</button></div>}
-      <div className="signin-foot"><LockKeyhole size={13}/> Native sessions use secure HTTP-only cookies. Administrator and owner accounts require authenticator verification. Existing identity-provider sign-in remains available during migration.</div>
+      <div className="signin-foot"><LockKeyhole size={13}/> Native sessions use secure HTTP-only cookies. Native administrator and owner accounts require authenticator verification. Legacy identity-provider sign-in remains available during migration.</div>
     </section>
   </main>
 }
