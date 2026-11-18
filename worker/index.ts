@@ -166,10 +166,29 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   }
   if (path === '/ready' && request.method === 'GET') {
     try {
-      await env.DB.prepare('SELECT 1 AS ok').first()
-      return json(200, { status: 'ready', checks: { database: 'ok' } })
+      const schema = await env.DB.prepare(
+        `SELECT
+          (SELECT name FROM d1_migrations ORDER BY name DESC LIMIT 1) AS latest_migration,
+          (SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN (
+            'application_deployments','application_releases','applications','audit_events',
+            'communication_conversations','communication_messages','communication_participants',
+            'owner_transfer_requests','platform_audit_events','platform_owner_invitations','platform_users',
+            'restaurant_activity_events','restaurant_addon_groups','restaurant_addons','restaurant_batch_allocations',
+            'restaurant_daily_summaries','restaurant_invoice_counters','restaurant_invoices','restaurant_item_addon_groups',
+            'restaurant_kitchen_batches','restaurant_menu_categories','restaurant_menu_items','restaurant_menu_variants',
+            'restaurant_order_items','restaurant_orders','restaurant_payments','restaurant_profiles','restaurant_refunds',
+            'restaurant_reviews','restaurant_service_requests','restaurant_settings','restaurant_staff',
+            'restaurant_staff_assignments','restaurant_stock_events','restaurant_table_sessions','restaurant_tables',
+            'restaurant_tenant_controls','subscription_payments','subscription_plans','subscriptions',
+            'tenant_applications','tenant_memberships','tenants'
+          )) AS required_tables`,
+      ).first<{ latest_migration: string | null; required_tables: number }>()
+      if (schema?.latest_migration !== '0007_tenant_restore_guard.sql' || Number(schema.required_tables) !== 43) {
+        return json(503, { status: 'not_ready', checks: { database: 'ok', schema: 'incomplete' }, required_migration: '0007_tenant_restore_guard.sql' })
+      }
+      return json(200, { status: 'ready', checks: { database: 'ok', schema: 'complete' }, latest_migration: schema.latest_migration })
     } catch {
-      return json(503, { status: 'not_ready', checks: { database: 'unavailable' } })
+      return json(503, { status: 'not_ready', checks: { database: 'unavailable', schema: 'incomplete' } })
     }
   }
   if (path === '/admin/owner-invitations' || path.startsWith('/admin/owner-invitations/') || path === '/owner/invitations/accept') return handleOwnerInvitations(request, env, path)
