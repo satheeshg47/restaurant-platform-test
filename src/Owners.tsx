@@ -8,7 +8,7 @@ export default function Owners(){
  const [rows,setRows]=useState<OwnerRow[]>([]),[state,setState]=useState('loading'),[error,setError]=useState(''),[busy,setBusy]=useState(false)
  const [invitations,setInvitations]=useState<Invitation[]>([]),[invitationState,setInvitationState]=useState('loading'),[invitationError,setInvitationError]=useState(''),[revoking,setRevoking]=useState('')
  const [target,setTarget]=useState<OwnerRow|null>(null),[email,setEmail]=useState(''),[inviteBusy,setInviteBusy]=useState(false),[inviteError,setInviteError]=useState(''),[created,setCreated]=useState<{invitation:Invitation;token:string}|null>(null),[copied,setCopied]=useState(false)
- const [tenantName,setTenantName]=useState(''),[tenantSlug,setTenantSlug]=useState(''),[tenantBusy,setTenantBusy]=useState(false),[tenantError,setTenantError]=useState('')
+ const [tenantName,setTenantName]=useState(''),[tenantSlug,setTenantSlug]=useState(''),[tenantBusy,setTenantBusy]=useState(false),[tenantError,setTenantError]=useState(''),[statusBusy,setStatusBusy]=useState('')
  const refresh=useCallback(async()=>{setBusy(true);setError('');try{
   const session=await apiFetch(`${API_BASE}/admin/session`,{cache:'no-store'})
   if(!session.ok){setState(session.status===503?'auth_not_configured':session.status===403?'forbidden':'sign_in_required');setRows([]);return}
@@ -33,6 +33,19 @@ export default function Owners(){
    setTenantName('');setTenantSlug('')
    await refresh()
   }catch(e){setTenantError(e instanceof Error?e.message:'Restaurant could not be created.')}finally{setTenantBusy(false)}
+ }
+ const changeTenantStatus=async(row:OwnerRow)=>{
+  const next=row.tenant_status==='active'?'suspended':'active'
+  const verb=next==='suspended'?'suspend':'reactivate'
+  if(!window.confirm(`Are you sure you want to ${verb} ${row.tenant_name}? ${next==='suspended'?'Owner and guest access will be blocked until it is reactivated.':'Access will be restored for active members.'}`))return
+  setStatusBusy(row.tenant_id);setError('')
+  try{
+   const response=await apiFetch(`${API_BASE}/admin/tenants/${row.tenant_id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json',Accept:'application/json'},cache:'no-store',body:JSON.stringify({status:next})})
+   const payload=await response.json().catch(()=>({}))
+   if(!response.ok)throw new Error(payload.error||'Restaurant status could not be updated.')
+   setRows(current=>current.map(item=>item.tenant_id===row.tenant_id?{...item,tenant_status:payload.tenant?.status||next}:item))
+  }catch(e){setError(e instanceof Error?e.message:'Restaurant status could not be updated.')}
+  finally{setStatusBusy('')}
  }
  const openInvite=(row:OwnerRow)=>{setTarget(row);setEmail('');setInviteError('');setCreated(null);setCopied(false)}
  const closeInvite=()=>{setTarget(null);setEmail('');setInviteError('');setCreated(null);setCopied(false)}
@@ -59,8 +72,8 @@ export default function Owners(){
    {tenantError&&<p className="registry-error" role="alert">{tenantError}</p>}
   </form>}
   {state!=='ready'&&<div className="registry-state registry-blocked"><ShieldAlert size={20}/><div><b>{state==='loading'?'Loading owner directory':state==='auth_not_configured'?'Administrator sign-in is not configured':state==='forbidden'?'Owner access denied':state==='sign_in_required'?'Owner sign-in required':'Owner directory unavailable'}</b><p>{error||'Only the configured platform owner can view this directory. No sample records are displayed.'}</p></div></div>}
-  {state==='ready'&&(rows.length===0?<div className="registry-empty"><Users size={22}/><b>No tenants found</b><p>Tenants will appear here after they are created.</p></div>:<div className="app-list">{rows.map(row=><div className="app-row" key={row.tenant_id}><div className="app-icon violet">{row.tenant_name.slice(0,2).toUpperCase()}</div><div className="app-info"><b>{row.tenant_name}</b><small>{row.tenant_slug} · {row.owner_present?row.email||'Owner account':'No owner assigned'}</small><small>Tenant: {row.tenant_status} · Membership: {row.membership_status||'—'}</small></div><span className={`status ${row.owner_present?'active':'draft'}`}>{row.owner_present?'Owner listed':'Unassigned'}</span>{!row.owner_present&&row.tenant_status==='active'&&<button className="button secondary small" onClick={()=>openInvite(row)}><MailPlus size={14}/> Invite</button>}</div>)}</div>)}
-  <div className="registry-footnote">Owner invitations are available for active tenants without an owner. Suspension and ownership transfer are not implemented.</div>
+  {state==='ready'&&(rows.length===0?<div className="registry-empty"><Users size={22}/><b>No tenants found</b><p>Tenants will appear here after they are created.</p></div>:<div className="app-list">{rows.map(row=><div className="app-row" key={row.tenant_id}><div className="app-icon violet">{row.tenant_name.slice(0,2).toUpperCase()}</div><div className="app-info"><b>{row.tenant_name}</b><small>{row.tenant_slug} · {row.owner_present?row.email||'Owner account':'No owner assigned'}</small><small>Tenant: {row.tenant_status} · Membership: {row.membership_status||'—'}</small></div><span className={`status ${row.tenant_status==='active'?'active':'paused'}`}>{row.tenant_status}</span><span className={`status ${row.owner_present?'active':'draft'}`}>{row.owner_present?'Owner listed':'Unassigned'}</span>{!row.owner_present&&row.tenant_status==='active'&&<button className="button secondary small" onClick={()=>openInvite(row)}><MailPlus size={14}/> Invite</button>}{(row.tenant_status==='active'||row.tenant_status==='suspended')&&<button className="button secondary small" onClick={()=>void changeTenantStatus(row)} disabled={statusBusy===row.tenant_id}>{statusBusy===row.tenant_id?'Saving…':row.tenant_status==='active'?'Suspend':'Reactivate'}</button>}</div>)}</div>)}
+  <div className="registry-footnote">Owner invitations are available for active tenants without an owner. Super Admin can suspend or reactivate a tenant; suspension blocks owner and guest access without deleting customer data. Ownership transfer remains a separate controlled workflow.</div>
   <div className="panel-heading" style={{marginTop:24}}><div><h2>Owner invitations</h2><p>Review invitation status and revoke unused links.</p></div><span className="status">{invitations.filter(item=>item.status==='pending').length} pending</span></div>
   {invitationError&&<div className="registry-state registry-blocked" role="alert"><ShieldAlert size={18}/><p>{invitationError}</p></div>}
   {invitationState==='loading'&&<p className="registry-footnote">Loading invitations…</p>}
