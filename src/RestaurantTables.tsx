@@ -7,8 +7,8 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, ''
 type TableRecord = { id:string; table_number:number|null; label:string; table_type:'dine_in'|'takeaway'; active:boolean; session_id:string|null; opened_at:string|null; guest_count:number|null; open_requests:number }
 type CreatedQr = { label:string; url:string }
 
-export default function RestaurantTables() {
-  const [slug,setSlug] = useState('')
+export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: string } = {}) {
+  const [slug,setSlug] = useState(initialSlug)
   const [tables,setTables] = useState<TableRecord[]>([])
   const [state,setState] = useState<'idle'|'loading'|'ready'|'auth'|'forbidden'|'error'>('idle')
   const [error,setError] = useState('')
@@ -43,6 +43,7 @@ export default function RestaurantTables() {
   },[endpoint,request])
 
   useEffect(()=>{ setTables([]); setCreated(null); setQrImage(''); setQrError(''); setState('idle') },[endpoint])
+  useEffect(()=>{ if(initialSlug) void load() },[initialSlug])
 
   useEffect(()=>{
     let cancelled=false
@@ -75,10 +76,10 @@ export default function RestaurantTables() {
 
   return <section className="panel restaurant-tables">
     <div className="panel-heading"><div><h2>Tables & QR access</h2><p>Create table records and issue secure guest QR links.</p></div><Table2 size={20}/></div>
-    <div className="restaurant-table-connect">
+    {!initialSlug && <div className="restaurant-table-connect">
       <label>Restaurant slug<input value={slug} onChange={e=>setSlug(e.target.value)} placeholder="your-restaurant" autoCapitalize="none"/></label>
       <button className="button secondary" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/>{busy?'Loading':'Load tables'}</button>
-    </div>
+    </div>}
     {state==='auth'&&<div className="restaurant-inline-error"><AlertCircle size={16}/>Owner sign-in required.</div>}
     {state==='forbidden'&&<div className="restaurant-inline-error"><AlertCircle size={16}/>Owner or manager access required.</div>}
     {error&&<p className="restaurant-table-message" role="status">{error}</p>}
