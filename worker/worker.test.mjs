@@ -156,6 +156,31 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
   assert.equal(db.prepare('SELECT count(*) AS count FROM platform_audit_events').get().count, 1)
 })
 
+test('Super Admin release registry is authenticated and hides artifact storage keys', async () => {
+  const unauthorized = await call('/admin/releases')
+  assert.equal(unauthorized.status, 401)
+
+  const application = db.prepare("SELECT id FROM applications WHERE app_key='restaurant'").get()
+  assert.ok(application)
+  const releaseId = crypto.randomUUID()
+  const manifest = { schema_version: 1, app_key: 'restaurant', version: '1.2.3', database_migration_version: 7, files: [{ path: 'index.html', sha256: 'a'.repeat(64), size_bytes: 12 }] }
+  db.prepare(`INSERT INTO application_releases (id,application_id,version,package_object_key,package_sha256,manifest,status)
+    VALUES (?,?,?,?,?,?,?)`).run(releaseId, application.id, '1.2.3', 'private/internal/object-key', 'a'.repeat(64), JSON.stringify(manifest), 'uploaded')
+  db.prepare(`INSERT INTO application_deployments (id,application_id,release_id,environment,status,health_report)
+    VALUES (?,?,?,?,?,?)`).run(crypto.randomUUID(), application.id, releaseId, 'staging', 'healthy', JSON.stringify({ readiness: 'passed' }))
+
+  const adminToken = await token(adminSubject, audience)
+  const response = await call('/admin/releases', { accessToken: adminToken })
+  assert.equal(response.status, 200)
+  const payload = await response.json()
+  assert.equal(payload.releases.length, 1)
+  assert.equal(payload.releases[0].version, '1.2.3')
+  assert.equal(payload.releases[0].manifest.files[0].path, 'index.html')
+  assert.equal('package_object_key' in payload.releases[0], false)
+  assert.equal(payload.deployments.length, 1)
+  assert.equal(payload.deployments[0].health_report.readiness, 'passed')
+})
+
 test('D1 readiness fails closed when production schema migrations are absent', async () => {
   db.exec('DROP TABLE d1_migrations')
   const ready = await call('/ready')
