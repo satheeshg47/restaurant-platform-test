@@ -291,6 +291,25 @@ async function logout(request: Request, env: Env): Promise<Response> {
 
 export async function handleNativeAuth(request: Request, env: Env, path: string): Promise<Response | null> {
   if (!path.startsWith('/auth/')) return null
+  if (path === '/auth/session' && request.method === 'GET') {
+    const identity = await authenticateNativeSession(request, env)
+    if (identity) {
+      const user = await env.DB.prepare(
+        `SELECT pu.id,pu.email,c.login_id,
+          EXISTS(SELECT 1 FROM platform_admin_accounts aa WHERE aa.user_id=pu.id AND aa.status='active') AS is_admin,
+          (SELECT tm.role FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' ORDER BY CASE tm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END LIMIT 1) AS tenant_role
+         FROM platform_users pu JOIN platform_user_credentials c ON c.user_id=pu.id WHERE pu.id=?`,
+      ).bind(identity.subject).first<{ id: string; email: string | null; login_id: string; is_admin: number; tenant_role: string | null }>()
+      if (!user) return json(401, { authenticated: false })
+      return json(200, { authenticated: true, user: { id: user.id, email: user.email, login_id: user.login_id, is_admin: Boolean(user.is_admin), tenant_role: user.tenant_role } })
+    }
+    const admins = await env.DB.prepare('SELECT COUNT(*) AS count FROM platform_admin_accounts').first<{ count: number }>()
+    return json(200, {
+      authenticated: false,
+      bootstrap_available: Number(admins?.count || 0) === 0 && Boolean(env.AUTH_BOOTSTRAP_SECRET),
+      encryption_ready: Boolean(env.AUTH_ENCRYPTION_KEY),
+    })
+  }
   if (!['POST'].includes(request.method)) return json(405, { error: 'method_not_allowed' })
   if (!validOrigin(request)) return json(403, { error: 'origin_not_allowed' })
   if (path === '/auth/bootstrap-admin') return bootstrapAdmin(request, env)
