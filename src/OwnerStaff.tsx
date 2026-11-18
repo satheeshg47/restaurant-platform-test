@@ -41,7 +41,7 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
       cache: 'no-store',
       headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
     })
-    const payload = await response.json().catch(() => ({})) as { error?: string; staff?: Staff[]; staff?: Staff; password_reset?: boolean }
+    const payload = await response.json().catch(() => ({})) as { error?: string; staff?: Staff[]; password_reset?: boolean }
     if (!response.ok) throw new Error(payload.error || 'staff_request_failed')
     return payload
   }, [base])
