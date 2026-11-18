@@ -33,3 +33,12 @@ jobs:
           cat /tmp/health.json 2>/dev/null || true
           cat /tmp/ready.json 2>/dev/null || true
           exit 1
+
+      - name: Verify native authentication bootstrap readiness
+        env:
+          BASE_URL: https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --max-time 15 --output /tmp/auth-session.json --write-out '%{http_code}' "$BASE_URL/api/auth/session")"
+          test "$code" = "200"
+          node -e 'const s=JSON.parse(require("node:fs").readFileSync("/tmp/auth-session.json","utf8")); if(typeof s.authenticated!=="boolean") throw new Error("Native session response is invalid"); if(s.authenticated!==true && (s.encryption_ready!==true || typeof s.bootstrap_available!=="boolean")) throw new Error("Native bootstrap secrets are not ready"); if(s.authenticated===true && (!s.user || typeof s.user.id!=="string")) throw new Error("Native authenticated session is incomplete"); console.log(JSON.stringify({native_session_endpoint:"ok",authenticated:s.authenticated,bootstrap_available:s.bootstrap_available??false,encryption_ready:s.encryption_ready??true}));'
