@@ -194,7 +194,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   }
   if (path === '/admin/owner-invitations' || path.startsWith('/admin/owner-invitations/') || path === '/owner/invitations/accept') return handleOwnerInvitations(request, env, path)
   if (path.startsWith('/admin/communications') || path.startsWith('/owner/communications')) return handleCommunications(request, env, path)
-  if (path === '/admin/tenants') return handleAdminTenants(request, env, path)
+  if (path === '/admin/tenants' || path.startsWith('/admin/tenants/')) return handleAdminTenants(request, env, path)
   if (path === '/owner/restaurants') return handleOwnerRestaurants(request, env)
   if (path.startsWith('/admin/')) return handleAdmin(request, env, path)
   if (path.startsWith('/restaurant/')) return handleRestaurantRoutes(request, env, path)
