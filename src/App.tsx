@@ -128,8 +128,7 @@ function App() {
   if (guestRoute) return <GuestMenu slug={decodeURIComponent(guestRoute[1])} token={decodeURIComponent(guestRoute[2])} />
   if (!authReady) return <div className="signin-screen"><div className="signin-card">Completing secure sign-in…</div></div>
   if (ownerInviteRoute) {
-    if (!sessionToken) return <SignIn role="owner" returnPath="/owner/invitations/accept" error={authError} onAuthenticated={handleNativeAuthenticated}/>
-    return <OwnerInviteAcceptance accessToken={sessionToken} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
+    return <OwnerInviteAcceptance accessToken={sessionToken || ''} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAuthenticated={handleNativeAuthenticated} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
   }
   if (ownerRoute) {
     if (!sessionToken) return <SignIn role="owner" error={authError} onAuthenticated={handleNativeAuthenticated}/>
