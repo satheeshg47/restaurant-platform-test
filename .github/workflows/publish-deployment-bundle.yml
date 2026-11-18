@@ -28,7 +28,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          test -d ./bundle/.wrangler-dry-run
+          test -d ./bundle/wrangler-dry-run
           test -d ./bundle/dist
           mkdir -p /tmp/restaurant-platform-bundle
           cp -a ./bundle/. /tmp/restaurant-platform-bundle/
