@@ -11,10 +11,10 @@ test('password hashes are salted, versioned and verified', async () => {
   const first = await hashPassword('a-strong-test-password-123')
   const second = await hashPassword('a-strong-test-password-123')
   assert.notEqual(first, second)
-  assert.match(first, /^pbkdf2-sha256\$600000\$/)
+  assert.match(first, /^pbkdf2-sha256\$100000\$/)
   assert.equal(await verifyPassword('a-strong-test-password-123', first), true)
   assert.equal(await verifyPassword('wrong-password-value', first), false)
-  assert.equal(await verifyPassword('a-strong-test-password-123', first.replace('600000', '1')), false)
+  assert.equal(await verifyPassword('a-strong-test-password-123', first.replace('100000', '1')), false)
 })
 
 test('TOTP secrets provision and verify with a bounded clock window', async () => {
