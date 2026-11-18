@@ -1,7 +1,7 @@
 import type { Env, Identity } from './types.ts'
 import {
   createTotpSecret, decryptTotpSecret, encryptTotpSecret, hashPassword,
-  randomToken, sha256Hex, totpProvisioningUri, verifyPassword, verifyTotp,
+  findTotpCounter, randomToken, sha256Hex, totpProvisioningUri, verifyPassword,
 } from './native-auth-crypto.ts'
 
 const encoder = new TextEncoder()
@@ -249,13 +249,17 @@ async function verifyMfa(request: Request, env: Env, enrollment: boolean): Promi
   const purpose = enrollment ? 'totp_enrollment' : 'login_totp'
   const challenge = await verifyChallenge(env, token, purpose)
   if (!challenge || challenge.attempts >= 10) return json(401, { error: 'invalid_or_expired_challenge' })
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+  if (!await consumeRateLimit(env, `mfa:${challenge.user_id}:${ip}`)) return json(429, { error: 'too_many_attempts' })
   const user = await getUserAuth(env, challenge.user_id)
   if (!user || user.credential_status !== 'active' || !user.totp_secret_ciphertext || !env.AUTH_ENCRYPTION_KEY) return json(401, { error: 'invalid_or_expired_challenge' })
   let valid = false
+  let matchedCounter: number | null = null
   if (/^\d{6}$/.test(code)) {
     try {
       const secret = await decryptTotpSecret(user.totp_secret_ciphertext, env.AUTH_ENCRYPTION_KEY)
-      valid = await verifyTotp(secret, code)
+      matchedCounter = await findTotpCounter(secret, code)
+      valid = matchedCounter !== null
     } catch { valid = false }
   } else if (!enrollment && /^[A-Z0-9_-]{12}$/.test(code)) {
     const used = await env.DB.prepare(
@@ -268,9 +272,19 @@ async function verifyMfa(request: Request, env: Env, enrollment: boolean): Promi
     return json(401, { error: 'invalid_code' })
   }
   if (!await consumeChallenge(env, challenge.id)) return json(409, { error: 'challenge_already_used' })
+  if (matchedCounter !== null) {
+    const now = new Date().toISOString()
+    const counterUpdate = enrollment
+      ? await env.DB.prepare(
+          'UPDATE platform_user_credentials SET totp_enabled=1,totp_enrolled_at=?,totp_last_counter=?,updated_at=? WHERE user_id=? AND totp_enabled=0 RETURNING user_id',
+        ).bind(now, matchedCounter, now, user.id).first<{ user_id: string }>()
+      : await env.DB.prepare(
+          'UPDATE platform_user_credentials SET totp_last_counter=?,updated_at=? WHERE user_id=? AND totp_enabled=1 AND (totp_last_counter IS NULL OR totp_last_counter<?) RETURNING user_id',
+        ).bind(matchedCounter, now, user.id, matchedCounter).first<{ user_id: string }>()
+    if (!counterUpdate) return json(401, { error: 'invalid_code' })
+  }
   if (enrollment) {
-    await env.DB.prepare('UPDATE platform_user_credentials SET totp_enabled=1,totp_enrolled_at=?,updated_at=? WHERE user_id=?')
-      .bind(new Date().toISOString(), new Date().toISOString(), user.id).run()
+    if (matchedCounter === null) return json(401, { error: 'invalid_code' })
     const recoveryCodes: string[] = []
     const inserts = []
     for (let i = 0; i < 10; i++) {
