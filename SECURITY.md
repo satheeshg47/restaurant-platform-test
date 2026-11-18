@@ -7,7 +7,7 @@
 - The Worker validates signed JWTs against the configured issuer/JWKS and API audience, including expiry and allowed signing algorithms.
 - Super Admin authorization is based on the exact configured issuer + stable subject pair. Email address alone is never an administrator identity.
 - The Auth0 tenant and SPA/API configuration are provisioned and administrator sign-in has been verified.
-- **MFA/passkey enforcement is not yet configured and verified.** This is a mandatory launch gate; do not describe the platform as production-ready.
+- **MFA/passkey enforcement is not yet configured and verified.** This remains a mandatory launch gate; do not describe the platform as production-ready.
 
 ## Tenant authorization boundary
 
@@ -32,23 +32,26 @@
 - Store private keys, administrator subject configuration and other credentials in Cloudflare Worker secrets or the provider's secret store.
 - Never commit secrets or place private values in frontend environment variables.
 - GitHub Actions must run build and test checks before deployment; the post-deployment smoke workflow checks `/api/health` and `/api/ready`.
-- A successful health/readiness smoke test confirms service/schema availability only. It does not prove MFA, tenant isolation, offsite backups or disaster recovery.
+- A successful health/readiness smoke test confirms service/schema availability only. It does not prove MFA, tenant isolation, offsite backup confidentiality or disaster recovery.
 
 ## Backup and recovery
 
 - D1 Time Travel currently provides 7-day recovery; it is not an independent offsite backup.
-- Google Drive offsite integration is not configured because the connected Drive capability is unavailable under the account's administrator policy.
-- Cloudflare R2 is intentionally not enabled because it requires a paid billing path and the project has a strict ₹0/month constraint.
-- Tenant JSON/CSV export, validation, restore preflight and guarded restore foundations are available.
-- Scheduled offsite backups and end-to-end restore drills remain mandatory launch gates.
+- A Google Apps Script → private Google Drive snapshot bridge is configured. A manual production snapshot and manifest were created successfully; a separate temporary D1 restore completed.
+- Direct read-only comparison of production and restore-test confirmed the same 43 required application tables plus the D1 migration ledger, matching schema objects and all existing rows. No production data was overwritten or deleted.
+- The daily Apps Script trigger is configured for approximately 02:20 Asia/Kolkata. Scheduled runs and Drive capacity must continue to be monitored.
+- The SQL dump is not client-side encrypted in the current bridge. Keep the Drive folder private, restrict Apps Script project editors, secure the Google account with MFA and do not share the backup folder.
+- The Apps Script download path has a 50 MB response limit. Implement and test chunked transfer before the SQL export approaches that limit.
+- Cloudflare R2 remains intentionally disabled because it conflicts with the strict ₹0/month constraint.
+- No automatic D1 cleanup or Drive backup deletion is enabled. Do not prune legal, financial, audit, identity, ownership or master-data records.
 
 ## Current launch status
 
-The Worker, Auth0 sign-in, production D1 schema, schema-aware readiness, tenant export/restore safeguards and live health/readiness smoke test have been verified. The platform remains **pre-launch** until all of the following are complete:
+The Worker, Auth0 sign-in, production D1 schema, schema-aware readiness, tenant export/restore safeguards, configured Drive snapshot bridge and one isolated restore drill have been verified. The platform remains **pre-launch** until all of the following are complete:
 
 1. Enforce and verify administrator MFA/passkeys.
-2. Configure a genuinely independent offsite backup destination without violating the zero-cost rule.
-3. Run and document backup restoration drills.
+2. Monitor scheduled backup executions and confirm recurring snapshots continue to arrive and validate in Drive.
+3. Complete backup confidentiality hardening and establish a tested recovery-time procedure.
 4. Complete the Update Centre release approval/deployment/rollback workflow.
 5. Onboard and verify the first real restaurant and owner; do not create dummy tenant records.
 

@@ -18,18 +18,18 @@ The dashboard is in **pre-launch mode**. Production hosting, OIDC sign-in, D1 sc
 ## Current launch gates
 
 1. **Administrator MFA:** Auth0 sign-in works, but MFA/passkey enforcement has not been configured and verified.
-2. **Offsite backups:** D1 Time Travel provides limited recovery, not an independent offsite backup. A Google Apps Script → Google Drive daily D1 export bridge has been added to the repository, but it is not active until its one-time secure setup, first successful backup and isolated restore drill are completed. Cloudflare R2 remains disabled.
-3. **Recovery drills:** tenant export, validation, restore preflight and guarded restore are implemented, but scheduled offsite backup and end-to-end recovery drills remain outstanding.
-4. **Update Centre:** release-manifest validation exists, but the full upload, approval, deployment and rollback workflow is not complete.
+2. **Offsite backups:** The Google Apps Script → Google Drive bridge is configured. A manual production D1 snapshot was saved to Drive with a SHA-256 manifest, and the snapshot was restored into a separate temporary D1 database. Direct comparison confirmed all 43 application tables plus the migration ledger, table definitions, existing rows and schema objects matched. The daily trigger is configured for approximately 02:20 Asia/Kolkata. Continue monitoring scheduled executions and Drive capacity. The bridge does not encrypt the SQL dump client-side and has a 50 MB Apps Script download limit.
+3. **Recovery drills:** One isolated restore drill has passed. Repeat periodically and document recovery time. Do not restore test data over production.
+4. **Update Centre:** Release-manifest validation exists, but the full upload, approval, deployment and rollback workflow is not complete.
 5. **First tenant:** no real restaurant or owner has been onboarded. Do not seed dummy customers or owners.
 
-Do not use this project for live customer operations until the launch gates have been completed and verified.
+Do not use this project for live customer operations until the remaining launch gates have been completed and verified.
 
 ## Zero-cost operating rule
 
 The project is configured for Cloudflare Workers Free and D1 Free. No paid-plan upgrade, trial conversion, payment method, R2 subscription or automatic billing is authorized. Free-tier quotas are finite; if a quota or required capability cannot be met at zero cost, stop and report the limitation instead of enabling paid usage.
 
-D1 Time Travel is a recovery feature, not a substitute for encrypted offsite backups. Never describe the current setup as having offsite backup protection.
+D1 Time Travel is a recovery feature, not a substitute for independent offsite backup protection. The Drive bridge adds an offsite snapshot, but its privacy, storage capacity, account security and scheduled execution still require ongoing monitoring.
 
 ## Local development
 
@@ -67,7 +67,7 @@ D1 does not provide PostgreSQL row-level security. Every tenant-facing Worker op
 - Tenant identity must come from verified identity and membership checks, not request parameters.
 - Keep customer data separate from application code releases.
 - Record sensitive administrative actions in the platform audit trail.
-- Require MFA, offsite backups and successful restore drills before onboarding real customers.
+- Require MFA and ongoing verified backup/restore coverage before onboarding real customers.
 
 ## Release package inspection
 
@@ -76,5 +76,6 @@ The repository contains bounded ZIP/manifest inspection and release validation f
 ## Documentation
 
 - [OIDC PKCE setup](docs/authentication-setup.md)
-- [Cloudflare D1 migration and operating limits](docs/cloudflare-d1-migration.md)\n- [Google Drive backup and seven-day hot-data plan](docs/drive-backup-and-retention.md)
+- [Cloudflare D1 migration and operating limits](docs/cloudflare-d1-migration.md)
+- [Google Drive backup and seven-day hot-data plan](docs/drive-backup-and-retention.md)
 - [Security implementation notes](SECURITY.md)
