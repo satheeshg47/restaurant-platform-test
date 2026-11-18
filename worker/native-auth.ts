@@ -19,6 +19,7 @@ type UserAuthRow = {
   totp_enabled: number
   is_admin: number
   is_owner: number
+  is_member_active: number
 }
 
 function json(status: number, body: unknown, extra?: HeadersInit): Response {
@@ -120,7 +121,8 @@ async function getUserAuth(env: Env, userId: string): Promise<UserAuthRow | null
   return env.DB.prepare(
     `SELECT pu.id,pu.email,c.login_id,c.password_hash,c.credential_status,c.totp_secret_ciphertext,c.totp_enabled,
        EXISTS(SELECT 1 FROM platform_admin_accounts aa WHERE aa.user_id=pu.id AND aa.status='active') AS is_admin,
-       EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner
+       EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner,
+       EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active') AS is_member_active
      FROM platform_users pu JOIN platform_user_credentials c ON c.user_id=pu.id WHERE pu.id=?`,
   ).bind(userId).first<UserAuthRow>()
 }
@@ -132,7 +134,8 @@ async function identityForToken(env: Env, token: string): Promise<Identity | nul
      JOIN platform_users pu ON pu.id=s.user_id
      JOIN platform_user_credentials c ON c.user_id=pu.id
      WHERE s.token_hash=? AND s.revoked_at IS NULL AND s.expires_at>?
-       AND c.credential_status='active'`,
+       AND c.credential_status='active'
+       AND (EXISTS (SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active') OR EXISTS (SELECT 1 FROM platform_admin_accounts aa WHERE aa.user_id=pu.id AND aa.status='active'))`,
   ).bind(await sha256Hex(token), new Date().toISOString()).first<{ id: string; email: string | null }>()
   if (!row) return null
   return { issuer: 'native', subject: row.id, ...(row.email ? { email: row.email } : {}), emailVerified: false }
@@ -212,13 +215,14 @@ async function login(request: Request, env: Env): Promise<Response> {
   const user = await env.DB.prepare(
     `SELECT pu.id,pu.email,c.login_id,c.password_hash,c.credential_status,c.totp_secret_ciphertext,c.totp_enabled,
        EXISTS(SELECT 1 FROM platform_admin_accounts aa WHERE aa.user_id=pu.id AND aa.status='active') AS is_admin,
-       EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner
+       EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner,
+       EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active') AS is_member_active
      FROM platform_user_credentials c JOIN platform_users pu ON pu.id=c.user_id
      WHERE c.login_id_normalized=? LIMIT 1`,
   ).bind(loginId.toLowerCase()).first<UserAuthRow>()
   const dummyHash = 'pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
   const valid = await verifyPassword(password, user && user.credential_status === 'active' ? user.password_hash : dummyHash)
-  if (!user || user.credential_status !== 'active' || !valid) return json(401, { error: 'invalid_credentials' })
+  if (!user || user.credential_status !== 'active' || !valid || (!Number(user.is_admin) && !Number(user.is_owner) && !Number(user.is_member_active))) return json(401, { error: 'invalid_credentials' })
   if (Number(user.is_admin) || Number(user.is_owner)) {
     if (!user.totp_enabled) {
       if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
@@ -301,7 +305,22 @@ export async function handleNativeAuth(request: Request, env: Env, path: string)
          FROM platform_users pu JOIN platform_user_credentials c ON c.user_id=pu.id WHERE pu.id=?`,
       ).bind(identity.subject).first<{ id: string; email: string | null; login_id: string; is_admin: number; tenant_role: string | null }>()
       if (!user) return json(401, { authenticated: false })
-      return json(200, { authenticated: true, user: { id: user.id, email: user.email, login_id: user.login_id, is_admin: Boolean(user.is_admin), tenant_role: user.tenant_role } })
+      const memberships = await env.DB.prepare(
+        `SELECT tm.tenant_id,t.name AS tenant_name,t.slug AS tenant_slug,tm.role AS membership_role,
+          rs.id AS staff_id,rs.role AS staff_role,rs.display_name
+         FROM tenant_memberships tm JOIN tenants t ON t.id=tm.tenant_id
+         LEFT JOIN restaurant_staff rs ON rs.tenant_id=tm.tenant_id AND rs.user_id=tm.user_id AND rs.active=1
+         WHERE tm.user_id=? AND tm.status='active'
+         ORDER BY CASE tm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END`,
+      ).bind(identity.subject).all<Record<string, unknown>>()
+      return json(200, {
+        authenticated: true,
+        user: {
+          id: user.id, email: user.email, login_id: user.login_id,
+          is_admin: Boolean(user.is_admin), tenant_role: user.tenant_role,
+          memberships: memberships.results,
+        },
+      })
     }
     const admins = await env.DB.prepare('SELECT COUNT(*) AS count FROM platform_admin_accounts').first<{ count: number }>()
     return json(200, {
