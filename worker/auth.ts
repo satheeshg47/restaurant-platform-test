@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { Env, Identity } from './types.ts'
+import { authenticateNativeSession } from './native-auth.ts'
 
 function authError(message: string, status: number): Error & { status: number } {
   return Object.assign(new Error(message), { status })
@@ -36,13 +37,22 @@ function bearer(request: Request): string {
 }
 
 export async function authenticateIdentity(request: Request, env: Env): Promise<Identity> {
+  const nativeIdentity = await authenticateNativeSession(request, env)
+  if (nativeIdentity) return nativeIdentity
   if (!env.OIDC_AUDIENCE) throw authError('owner_auth_not_configured', 503)
   return verifyToken(bearer(request), env, env.OIDC_AUDIENCE)
 }
 
 export async function authenticateAdmin(request: Request, env: Env): Promise<Identity> {
-  if (!env.PLATFORM_ADMIN_SUBJECT) throw authError('admin_auth_not_configured', 503)
   const identity = await authenticateIdentity(request, env)
+  if (identity.issuer === 'native') {
+    const admin = await env.DB.prepare(
+      "SELECT 1 AS allowed FROM platform_admin_accounts WHERE user_id=? AND status='active'",
+    ).bind(identity.subject).first()
+    if (!admin) throw authError('forbidden', 403)
+    return identity
+  }
+  if (!env.PLATFORM_ADMIN_SUBJECT) throw authError('admin_auth_not_configured', 503)
   if (identity.subject !== env.PLATFORM_ADMIN_SUBJECT) throw authError('forbidden', 403)
   return identity
 }
