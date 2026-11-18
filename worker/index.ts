@@ -242,8 +242,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
             'platform_admin_accounts','platform_auth_rate_limits','tenant_membership_permissions'
           )) AS required_tables`,
       ).first<{ latest_migration: string | null; required_tables: number }>()
-      if (schema?.latest_migration !== '0008_native_auth_foundation.sql' || Number(schema.required_tables) !== 50) {
-        return json(503, { status: 'not_ready', checks: { database: 'ok', schema: 'incomplete' }, required_migration: '0008_native_auth_foundation.sql' })
+      if (schema?.latest_migration !== '0009_totp_replay_protection.sql' || Number(schema.required_tables) !== 50) {
+        return json(503, { status: 'not_ready', checks: { database: 'ok', schema: 'incomplete' }, required_migration: '0009_totp_replay_protection.sql' })
       }
       return json(200, { status: 'ready', checks: { database: 'ok', schema: 'complete' }, latest_migration: schema.latest_migration })
     } catch {

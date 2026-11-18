@@ -81,6 +81,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0006_stock_adjustment_marker.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0007_tenant_restore_guard.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0008_native_auth_foundation.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0009_totp_replay_protection.sql', 'utf8'))
   db.exec('CREATE TABLE d1_migrations (name TEXT PRIMARY KEY)')
   db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(
     '0001_platform_core.sql'
@@ -93,6 +94,7 @@ beforeEach(() => {
     '0006_stock_adjustment_marker.sql',
     '0007_tenant_restore_guard.sql',
     '0008_native_auth_foundation.sql',
+    '0009_totp_replay_protection.sql',
   ]) db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(name)
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
@@ -197,13 +199,22 @@ test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session
   assert.equal(mfa.mfa_required, true)
   const stored = db.prepare('SELECT totp_secret_ciphertext FROM platform_user_credentials').get()
   const secret = await decryptTotpSecret(stored.totp_secret_ciphertext, env.AUTH_ENCRYPTION_KEY)
-  const otp = await generateTotpCode(secret)
+  const otp = await generateTotpCode(secret, Date.now() + 30_000)
   const verified = await call('/auth/totp/verify', {
     method: 'POST', body: { challenge_token: mfa.challenge_token, code: otp },
   })
   assert.equal(verified.status, 200)
   const secondCookie = verified.headers.get('Set-Cookie').split(';')[0]
   assert.equal((await call('/admin/session', { cookie: secondCookie })).status, 200)
+
+  const replayLogin = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
+  })
+  const replayChallenge = await replayLogin.json()
+  const replayedOtp = await call('/auth/totp/verify', {
+    method: 'POST', body: { challenge_token: replayChallenge.challenge_token, code: otp },
+  })
+  assert.equal(replayedOtp.status, 401, 'a TOTP counter must not be accepted twice')
 
   const recoveryLogin = await call('/auth/login', {
     method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
@@ -257,7 +268,7 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
   assert.equal(ready.status, 200)
   const readiness = await ready.json()
   assert.equal(readiness.checks.schema, 'complete')
-  assert.equal(readiness.latest_migration, '0008_native_auth_foundation.sql')
+  assert.equal(readiness.latest_migration, '0009_totp_replay_protection.sql')
 
   const unauthorized = await call('/admin/session')
   assert.equal(unauthorized.status, 401)
@@ -312,7 +323,7 @@ test('release manifest preflight validates metadata without storing or deploying
   const unsafe=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.4',files:[{...manifest.files[0],path:'../tenant-data/private.json'}]}}})
   assert.equal(unsafe.status,400)
   assert.equal((await unsafe.json()).errors[0].code,'unsafe_file_path')
-  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:9}}})
+  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:10}}})
   assert.equal(future.status,409)
   assert.equal((await future.json()).error,'database_migration_not_available')
   const unauthorized=await call('/admin/releases/validate-manifest',{method:'POST',body:{manifest}})
