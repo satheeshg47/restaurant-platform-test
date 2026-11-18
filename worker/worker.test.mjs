@@ -141,6 +141,86 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
   assert.equal(db.prepare('SELECT count(*) AS count FROM platform_audit_events').get().count, 1)
 })
 
+test('Super Admin manages subscription plans, manual payments and subscription lifecycle', async () => {
+  const adminToken = await token(adminSubject,audience)
+  const application = db.prepare("SELECT id FROM applications WHERE app_key='restaurant'").get()
+  assert.ok(application)
+  const planResponse = await call('/admin/subscription-plans',{method:'POST',accessToken:adminToken,body:{
+    application_id:application.id,plan_code:'starter-monthly',display_name:'Starter Monthly',billing_interval:'monthly',amount_minor:50000,currency:'INR',trial_days:7,
+  }})
+  assert.equal(planResponse.status,201)
+  const plan=(await planResponse.json()).plan
+  const plans=await call('/admin/subscription-plans',{accessToken:adminToken})
+  assert.equal(plans.status,200)
+  assert.ok((await plans.json()).plans.some(item=>item.id===plan.id))
+  const subscriptionResponse=await call('/admin/subscriptions',{method:'POST',accessToken:adminToken,body:{tenant_id:tenantId,application_id:application.id,plan_id:plan.id}})
+  assert.equal(subscriptionResponse.status,201)
+  const subscription=(await subscriptionResponse.json()).subscription
+  assert.equal(subscription.status,'trial')
+  const duplicate=await call('/admin/subscriptions',{method:'POST',accessToken:adminToken,body:{tenant_id:tenantId,application_id:application.id,plan_id:plan.id}})
+  assert.equal(duplicate.status,409)
+  const cardPayment=await call(`/admin/subscriptions/${subscription.id}/payments`,{method:'POST',accessToken:adminToken,body:{amount_minor:50000,payment_method:'card'}})
+  assert.equal(cardPayment.status,400)
+  const paymentResponse=await call(`/admin/subscriptions/${subscription.id}/payments`,{method:'POST',accessToken:adminToken,body:{amount_minor:50000,payment_method:'upi',provider_reference:'UTR-12345'}})
+  assert.equal(paymentResponse.status,201)
+  const payment=(await paymentResponse.json()).payment
+  assert.equal(payment.status,'submitted')
+  const confirmed=await call(`/admin/subscription-payments/${payment.id}/confirm`,{method:'POST',accessToken:adminToken})
+  assert.equal(confirmed.status,200)
+  assert.equal((await confirmed.json()).subscription.status,'active')
+  const paymentList=await call(`/admin/subscriptions/${subscription.id}/payments`,{accessToken:adminToken})
+  assert.equal((await paymentList.json()).payments[0].status,'confirmed')
+  const subscriptions=await call('/admin/subscriptions',{accessToken:adminToken})
+  assert.equal((await subscriptions.json()).subscriptions[0].status,'active')
+  const cancelled=await call(`/admin/subscriptions/${subscription.id}`,{method:'PATCH',accessToken:adminToken,body:{status:'cancelled'}})
+  assert.equal(cancelled.status,200)
+  const afterCancel=await call(`/admin/subscriptions/${subscription.id}/payments`,{method:'POST',accessToken:adminToken,body:{amount_minor:50000,payment_method:'cash'}})
+  assert.equal(afterCancel.status,409)
+  const archived=await call(`/admin/subscription-plans/${plan.id}`,{method:'PATCH',accessToken:adminToken,body:{is_active:false}})
+  assert.equal(archived.status,200)
+  assert.equal((await archived.json()).plan.is_active,0)
+})
+
+test('Super Admin manages subscription plans, manual payments and subscription lifecycle', async () => {
+  const adminToken = await token(adminSubject,audience)
+  const application = db.prepare("SELECT id FROM applications WHERE app_key='restaurant'").get()
+  assert.ok(application)
+  const planResponse = await call('/admin/subscription-plans',{method:'POST',accessToken:adminToken,body:{
+    application_id:application.id,plan_code:'starter-monthly',display_name:'Starter Monthly',billing_interval:'monthly',amount_minor:50000,currency:'INR',trial_days:7,
+  }})
+  assert.equal(planResponse.status,201)
+  const plan=(await planResponse.json()).plan
+  const plans=await call('/admin/subscription-plans',{accessToken:adminToken})
+  assert.equal(plans.status,200)
+  assert.ok((await plans.json()).plans.some(item=>item.id===plan.id))
+  const subscriptionResponse=await call('/admin/subscriptions',{method:'POST',accessToken:adminToken,body:{tenant_id:tenantId,application_id:application.id,plan_id:plan.id}})
+  assert.equal(subscriptionResponse.status,201)
+  const subscription=(await subscriptionResponse.json()).subscription
+  assert.equal(subscription.status,'trial')
+  const duplicate=await call('/admin/subscriptions',{method:'POST',accessToken:adminToken,body:{tenant_id:tenantId,application_id:application.id,plan_id:plan.id}})
+  assert.equal(duplicate.status,409)
+  const cardPayment=await call(`/admin/subscriptions/${subscription.id}/payments`,{method:'POST',accessToken:adminToken,body:{amount_minor:50000,payment_method:'card'}})
+  assert.equal(cardPayment.status,400)
+  const paymentResponse=await call(`/admin/subscriptions/${subscription.id}/payments`,{method:'POST',accessToken:adminToken,body:{amount_minor:50000,payment_method:'upi',provider_reference:'UTR-12345'}})
+  assert.equal(paymentResponse.status,201)
+  const payment=(await paymentResponse.json()).payment
+  assert.equal(payment.status,'submitted')
+  const confirmed=await call(`/admin/subscription-payments/${payment.id}/confirm`,{method:'POST',accessToken:adminToken})
+  assert.equal(confirmed.status,200)
+  assert.equal((await confirmed.json()).subscription.status,'active')
+  const paymentList=await call(`/admin/subscriptions/${subscription.id}/payments`,{accessToken:adminToken})
+  assert.equal((await paymentList.json()).payments[0].status,'confirmed')
+  const subscriptions=await call('/admin/subscriptions',{accessToken:adminToken})
+  assert.equal((await subscriptions.json()).subscriptions[0].status,'active')
+  const cancelled=await call(`/admin/subscriptions/${subscription.id}`,{method:'PATCH',accessToken:adminToken,body:{status:'cancelled'}})
+  assert.equal(cancelled.status,200)
+  const afterCancel=await call(`/admin/subscriptions/${subscription.id}/payments`,{method:'POST',accessToken:adminToken,body:{amount_minor:50000,payment_method:'cash'}})
+  assert.equal(afterCancel.status,409)
+  const archived=await call(`/admin/subscription-plans/${plan.id}`,{method:'PATCH',accessToken:adminToken,body:{is_active:false}})
+  assert.equal(archived.status,200)
+  assert.equal((await archived.json()).plan.is_active,0)
+})
+
 test('owner invitation requires matching verified identity and creates one active owner', async () => {
   const adminToken = await token(adminSubject, audience)
   const created = await call('/admin/owner-invitations', {
