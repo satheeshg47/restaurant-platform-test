@@ -9,6 +9,7 @@ import {
 import AuditLog from './AuditLog'
 import Applications from './Applications'
 import Owners from './Owners'
+import Subscriptions from './Subscriptions'
 import Communications from './Communications'
 import RestaurantMenu from './RestaurantMenu'
 import RestaurantOperations from './RestaurantOperations'
@@ -148,7 +149,7 @@ function App() {
           {section === 'Customer Reviews' && <RestaurantReviews />}
           {section === 'Restaurant Data Export' && <RestaurantDataExport />}
           {section === 'Communications' && <Communications />}
-          {section === 'Subscriptions' && <Placeholder icon={CreditCard} title="Subscription management" description="Configure plans, trials, billing cycles and payment confirmation." items={['Monthly, quarterly and yearly plans','Manual payment verification','Online payment provider integration','Expiry reminders and subscription history']}/>}
+          {section === 'Subscriptions' && <Subscriptions />}
           {section === 'Update Centre' && <Placeholder icon={FileArchive} title="Safe application updates" description="Upload a release package, validate it, review changes and approve deployment." items={['ZIP upload and manifest validation','Compatibility and migration checks','Pre-deployment backup','Approval, health check and rollback']}/>}
           {section === 'Data & Backups' && <Placeholder icon={Database} title="Data & backups" description="Keep application data portable, protected and recoverable." items={['Per-application data overview','Encrypted backup exports','Restore drills and recovery history','PostgreSQL and S3-compatible migration']}/>}
           {section === 'Monitoring' && <Placeholder icon={Activity} title="Platform monitoring" description="Monitor service health and identify issues before customers do." items={['API latency and error rates','Database and storage health','Capacity and usage alerts','Audit-ready incident history']}/>}
