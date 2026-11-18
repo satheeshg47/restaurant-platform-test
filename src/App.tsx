@@ -254,7 +254,8 @@ const projectMilestones: { title: string; state: MilestoneState }[] = [
   { title: 'Reports, daily closing & customer reviews', state: 'complete' },
   { title: 'Tenant backup export, validation & restore preflight', state: 'complete' },
   { title: 'Safe owner-only restore & atomic recovery tests', state: 'complete' },
-  { title: 'Owner management, subscriptions & approved updates', state: 'next' },
+  { title: 'Owner management & subscription controls', state: 'complete' },
+  { title: 'Update Centre upload, approval, deployment & rollback workflow', state: 'next' },
   { title: 'Production hosting, identity, storage & monitoring', state: 'complete' },
   { title: 'Automated backups and end-to-end recovery drills', state: 'planned' },
 ]
