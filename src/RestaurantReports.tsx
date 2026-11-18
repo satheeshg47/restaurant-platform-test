@@ -1,5 +1,5 @@
 import { apiFetch } from './auth'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertCircle, BarChart3, Download, FileCheck2, RefreshCw } from 'lucide-react'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
@@ -15,8 +15,8 @@ type Report = {
 const today = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date())
 const money = (minor:string|number) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(Number(minor)/100)
 function csvCell(value:unknown){const s=String(value??'');return '"'+s.replace(/"/g,'""')+'"'}
-export default function RestaurantReports(){
- const [slug,setSlug]=useState('')
+export default function RestaurantReports({initialSlug=''}:{initialSlug?:string}={}){
+ const [slug,setSlug]=useState(initialSlug)
  const [from,setFrom]=useState(today())
  const [to,setTo]=useState(today())
  const [report,setReport]=useState<Report|null>(null)
@@ -48,6 +48,7 @@ export default function RestaurantReports(){
   }catch(e){setReport(null);setError(e instanceof Error?e.message:'Could not load reports')}
   finally{setBusy(false)}
  }
+ useEffect(()=>{if(initialSlug) void load()},[initialSlug])
  function exportCsv(){
   if(!report)return
   const rows=[['Section','Date / Name','Orders / Quantity','Amount (INR)'],
@@ -64,7 +65,7 @@ export default function RestaurantReports(){
  return <section className="restaurant-menu">
   <div className="restaurant-menu-heading"><div className="restaurant-menu-title"><div className="restaurant-menu-icon"><BarChart3 size={20}/></div><div><span className="eyebrow">RESTAURANT SUITE</span><h2>Sales reports</h2><p>Daily sales, orders, payment mix, refunds and best-selling menu items.</p></div></div></div>
   <div className="restaurant-report-filters">
-   <label>Restaurant slug<input value={slug} onChange={e=>setSlug(e.target.value)} placeholder="e.g. my-restaurant" autoCapitalize="none"/></label>
+   {!initialSlug && <label>Restaurant slug<input value={slug} onChange={e=>setSlug(e.target.value)} placeholder="e.g. my-restaurant" autoCapitalize="none"/></label>}
    <label>From<input type="date" value={from} max={to||undefined} onChange={e=>setFrom(e.target.value)}/></label>
    <label>To<input type="date" value={to} min={from||undefined} onChange={e=>setTo(e.target.value)}/></label>
    <button className="button primary" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/>{busy?'Loading…':'Load report'}</button>
