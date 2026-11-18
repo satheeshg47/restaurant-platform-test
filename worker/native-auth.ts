@@ -169,6 +169,7 @@ async function recordBadChallenge(env: Env, id: string): Promise<void> {
 
 async function completeLogin(env: Env, userId: string, request: Request): Promise<Response> {
   const session = await createSession(env, userId, request)
+  await env.DB.prepare('UPDATE restaurant_staff SET last_login_at=? WHERE user_id=? AND active=1').bind(new Date().toISOString(), userId).run()
   return json(200, { authenticated: true, expires_in: SESSION_SECONDS }, { 'Set-Cookie': session.cookie })
 }
 
