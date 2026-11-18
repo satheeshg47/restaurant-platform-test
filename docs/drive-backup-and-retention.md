@@ -20,7 +20,7 @@ The script is in `google-apps-script/drive-backup/Code.gs`.
 - Drive storage is finite. No automatic deletion is implemented.
 - A backup is not considered recoverable until a separate isolated restore drill succeeds.
 
-## Phase 2 — verify archive and recovery
+## Security note\n\nThe first bridge version does not apply client-side encryption to the SQL dump. Drive access is controlled by the Google account and folder permissions. Keep the backup folder unshared, restrict Apps Script project editors, and complete Google account MFA before using it for real customer data. Client-side encryption is a separate hardening item; do not describe the current bridge as end-to-end encrypted.\n\n## Phase 2 — verify archive and recovery
 
 Before any D1 cleanup:
 1. Configure the Apps Script properties and authorize Drive access.

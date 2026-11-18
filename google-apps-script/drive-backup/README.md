@@ -34,6 +34,6 @@ This Google Apps Script runs in Google's cloud and writes compressed D1 SQL expo
 - The checksum is calculated before upload and stored in the manifest and Drive file description; file-size equality is verified after upload. A separate restore drill is still required to prove recoverability.
 - This is a full database snapshot each day, not an incremental archive. Retention/compaction and the seven-day D1 cleanup policy are deliberately not enabled in this first stage.
 
-## Current safety boundary
+## Security note\n\nThis first version does not apply client-side encryption to the SQL dump. The Drive folder is private by default, but access still depends on the Google account and Drive sharing settings. Keep the folder unshared, restrict Apps Script project editors, enable Google account MFA before production customer data is backed up, and do not treat this bridge as production-ready until the security and restore gates are passed.\n\n## Current safety boundary
 
 **No data retention cleanup is performed.** D1 remains the system of record. Do not delete or archive old transactional rows until the backup has been configured, at least one backup has completed, a restore has been tested in an isolated database, and table-by-table retention rules have been reviewed for foreign-key and reporting dependencies.
