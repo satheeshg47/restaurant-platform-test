@@ -1,4 +1,5 @@
 import { authenticateAdmin } from './auth.ts'
+import { handleNativeAuth } from './native-auth.ts'
 import { handleCommunications } from './communications.ts'
 import { handleOwnerInvitations } from './owner-invitations.ts'
 import { handleAdminTenants } from './tenants.ts'
@@ -204,6 +205,8 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
 async function handleApi(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const path = url.pathname.replace(/^\/api/, '') || '/'
+  const nativeAuthResponse = await handleNativeAuth(request, env, path)
+  if (nativeAuthResponse) return nativeAuthResponse
   if (path === '/health' && request.method === 'GET') {
     return json(200, { status: 'ok', service: 'platform-core-api', environment: env.ENVIRONMENT || 'production', checks: { process: 'ok', database: 'configured' } })
   }
