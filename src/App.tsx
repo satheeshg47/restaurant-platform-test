@@ -133,7 +133,7 @@ function App() {
         <div className="content">
           <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}</div><h1>{pageTitle}{section === 'Overview' ? ', Admin' : ''}</h1><p>{pageSubtitle}</p></div><div className="welcome-actions"><button className="button secondary" onClick={() => notify('Reports will be available after connecting live data.')}><Download size={16}/> Export</button><button className="button primary" onClick={() => setSection('Applications')}><Plus size={17}/> Add application</button></div></div>
 
-          {section === 'Overview' && <Overview setSection={setSection} notify={notify}/>}
+          {section === 'Overview' && <Overview setSection={setSection}/>}
           {section === 'Applications' && <Applications />}
           {section === 'Owners' && <Owners />}
           {section === 'Restaurant Suite' && <RestaurantMenu />}
@@ -285,7 +285,7 @@ function ProjectProgress() {
   )
 }
 
-function Overview({ setSection, notify }: { setSection: (s: Section)=>void; notify: (s:string)=>void }) {
+function Overview({ setSection }: { setSection: (s: Section)=>void }) {
   const [apps, setApps] = useState<AppRecord[]>([])
   const [ownerCount, setOwnerCount] = useState<number | null>(null)
   const [activeSubscriptions, setActiveSubscriptions] = useState<number | null>(null)
