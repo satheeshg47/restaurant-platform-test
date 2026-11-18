@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Building2, CheckCircle2, RefreshCw, Store } from 'lucide-react'
+import { AlertCircle, Building2, CheckCircle2, LogOut, RefreshCw, Store } from 'lucide-react'
 import OwnerCommunications from './OwnerCommunications'
 import { apiFetch } from './auth'
 import RestaurantMenu from './RestaurantMenu'
@@ -24,7 +24,7 @@ type Restaurant = {
   accepting_orders: boolean | null
 }
 
-type Props = { accessToken: string; apiBaseUrl?: string }
+type Props = { accessToken: string; apiBaseUrl?: string; onSignOut?: () => void }
 type OwnerTool = 'menu' | 'tables' | 'operations' | 'settings' | 'reports' | 'reviews' | 'staff'
 const ownerTools: { id: OwnerTool; label: string }[] = [
   { id: 'menu', label: 'Menu' }, { id: 'tables', label: 'Tables & QR' },
@@ -32,7 +32,7 @@ const ownerTools: { id: OwnerTool; label: string }[] = [
   { id: 'reports', label: 'Reports' }, { id: 'reviews', label: 'Reviews' }, { id: 'staff', label: 'Staff access' },
 ]
 
-export default function OwnerPortal({ accessToken, apiBaseUrl = '/api' }: Props) {
+export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOut }: Props) {
   const base = apiBaseUrl.replace(/\/$/, '')
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,7 +70,7 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api' }: Props)
     <section className="owner-home panel" aria-live="polite">
       <div className="owner-home-heading">
         <div><span className="owner-comms-kicker">OWNER WORKSPACE</span><h1>Your restaurants</h1><p>Active restaurants connected to your owner account.</p></div>
-        <button type="button" onClick={() => void load()} disabled={refreshing} aria-label="Refresh restaurants"><RefreshCw size={17} className={refreshing ? 'owner-comms-spin' : ''}/></button>
+        <div className="owner-home-heading-actions"><button type="button" onClick={() => void load()} disabled={refreshing} aria-label="Refresh restaurants"><RefreshCw size={17} className={refreshing ? 'owner-comms-spin' : ''}/></button>{onSignOut && <button type="button" onClick={onSignOut} aria-label="Sign out"><LogOut size={16}/></button>}</div>
       </div>
       {loading ? <div className="owner-home-state">Loading your restaurant memberships…</div> :
       error ? <div className="owner-home-error"><AlertCircle size={17}/><span>{error}</span></div> :
