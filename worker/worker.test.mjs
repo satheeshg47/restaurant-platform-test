@@ -453,6 +453,15 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   })
   assert.equal(accepted.status, 200)
 
+  const ownerRestaurants = await call('/owner/restaurants', { accessToken: ownerAccess })
+  assert.equal(ownerRestaurants.status, 200)
+  const ownerDirectory = await ownerRestaurants.json()
+  assert.equal(ownerDirectory.restaurants.length, 1)
+  assert.equal(ownerDirectory.restaurants[0].tenant_slug, 'green-leaf-kitchen')
+  assert.equal(ownerDirectory.restaurants[0].display_name, 'Green Leaf Kitchen')
+  const anonymousDirectory = await call('/owner/restaurants')
+  assert.equal(anonymousDirectory.status, 401)
+
   const settings = await call('/restaurant/green-leaf-kitchen/settings', { accessToken: ownerAccess })
   assert.equal(settings.status, 200)
   assert.equal((await settings.json()).settings.display_name, 'Green Leaf Kitchen')
