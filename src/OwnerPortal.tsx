@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Building2, CheckCircle2, RefreshCw, Store } from 'lucide-react'
 import OwnerCommunications from './OwnerCommunications'
+import { apiFetch } from './auth'
 import RestaurantMenu from './RestaurantMenu'
 import RestaurantTables from './RestaurantTables'
 import RestaurantOperations from './RestaurantOperations'
@@ -45,8 +46,9 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api' }: Props)
     setRefreshing(true)
     setError('')
     try {
-      const response = await fetch(base + '/owner/restaurants', {
-        headers: { Accept: 'application/json', Authorization: 'Bearer ' + accessToken },
+      const response = await apiFetch(base + '/owner/restaurants', {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
         cache: 'no-store',
       })
       const payload = await response.json().catch(() => ({}))
