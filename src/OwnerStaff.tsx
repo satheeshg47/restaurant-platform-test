@@ -107,7 +107,7 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
   const copyCreatedCredentials = async () => {
     if (!createdCredentials) return
     try {
-      await navigator.clipboard.writeText('Login ID: ' + createdCredentials.loginId + '\\nPassword: ' + createdCredentials.password)
+      await navigator.clipboard.writeText(['Login ID: ' + createdCredentials.loginId, 'Password: ' + createdCredentials.password].join(String.fromCharCode(10)))
       setNotice('Credentials copied. Share them through a private channel.')
     } catch { setNotice('Clipboard unavailable. Copy the login ID and password shown above manually.') }
   }
