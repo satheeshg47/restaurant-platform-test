@@ -1,0 +1,43 @@
+name: Publish deployment bundle
+
+on:
+  workflow_run:
+    workflows: ["Build and test"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: restaurant-platform-deployment
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ./bundle
+
+      - name: Publish bundle to deployment branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -d ./bundle/.wrangler-dry-run
+          test -d ./bundle/dist
+          mkdir -p /tmp/restaurant-platform-bundle
+          cp -a ./bundle/. /tmp/restaurant-platform-bundle/
+          git checkout --orphan deploy-artifacts
+          git rm -rf . >/dev/null 2>&1 || true
+          mkdir -p release
+          cp -a /tmp/restaurant-platform-bundle/. release/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release
+          git commit -m "build: publish verified Worker deployment bundle"
+          git push --force origin HEAD:refs/heads/deploy-artifacts
