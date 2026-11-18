@@ -175,6 +175,7 @@ async function completeLogin(env: Env, userId: string, request: Request): Promis
 
 async function bootstrapAdmin(request: Request, env: Env): Promise<Response> {
   if (!env.AUTH_BOOTSTRAP_SECRET) return json(503, { error: 'bootstrap_not_configured' })
+  if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
   if (!await consumeRateLimit(env, `bootstrap:${ip}`)) return json(429, { error: 'too_many_attempts' })
   const body = await readBody(request)
