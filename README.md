@@ -18,7 +18,7 @@ The dashboard is in **pre-launch mode**. Production hosting, OIDC sign-in, D1 sc
 ## Current launch gates
 
 1. **Administrator MFA:** Auth0 sign-in works, but MFA/passkey enforcement has not been configured and verified.
-2. **Offsite backups:** D1 Time Travel provides 7-day recovery. It is not an independent offsite backup. Google Drive connection is unavailable under the current account policy; Cloudflare R2 is not enabled because it would require a paid billing flow.
+2. **Offsite backups:** D1 Time Travel provides limited recovery, not an independent offsite backup. A Google Apps Script → Google Drive daily D1 export bridge has been added to the repository, but it is not active until its one-time secure setup, first successful backup and isolated restore drill are completed. Cloudflare R2 remains disabled.
 3. **Recovery drills:** tenant export, validation, restore preflight and guarded restore are implemented, but scheduled offsite backup and end-to-end recovery drills remain outstanding.
 4. **Update Centre:** release-manifest validation exists, but the full upload, approval, deployment and rollback workflow is not complete.
 5. **First tenant:** no real restaurant or owner has been onboarded. Do not seed dummy customers or owners.
@@ -76,5 +76,5 @@ The repository contains bounded ZIP/manifest inspection and release validation f
 ## Documentation
 
 - [OIDC PKCE setup](docs/authentication-setup.md)
-- [Cloudflare D1 migration and operating limits](docs/cloudflare-d1-migration.md)
+- [Cloudflare D1 migration and operating limits](docs/cloudflare-d1-migration.md)\n- [Google Drive backup and seven-day hot-data plan](docs/drive-backup-and-retention.md)
 - [Security implementation notes](SECURITY.md)
