@@ -199,7 +199,7 @@ export default function SignIn({
     <section className="signin-card">
       <div className="signin-brand"><div className="signin-mark">{isAdmin ? <ShieldCheck size={23}/> : <Store size={23}/>}</div><div><b>platform<span>core</span></b><small>{isAdmin ? 'CONTROL PLANE' : isOwner ? 'RESTAURANT OWNER' : 'STAFF ACCOUNT'}</small></div></div>
       <div className="signin-icon">{phase === 'recovery' ? <KeyRound size={22}/> : <LockKeyhole size={22}/>}</div>
-      <span className="signin-eyebrow">{phase === 'recovery' ? 'SAVE YOUR RECOVERY CODES' : isAdmin ? 'SUPER ADMIN ACCESS' : 'OWNER ACCOUNT ACCESS'}</span>
+      <span className="signin-eyebrow">{phase === 'recovery' ? 'SAVE YOUR RECOVERY CODES' : isAdmin ? 'SUPER ADMIN ACCESS' : isOwner ? 'OWNER ACCOUNT ACCESS' : 'STAFF ACCOUNT ACCESS'}</span>
       <h1>{phase === 'bootstrap' ? 'Set up the first administrator' : phase === 'enroll' ? 'Secure your account' : phase === 'mfa' ? 'Verify your identity' : phase === 'recovery' ? 'Keep these codes safe' : isAdmin ? 'Sign in to Platform Core' : isOwner ? 'Welcome back' : 'Staff sign in'}</h1>
       <p>{phase === 'bootstrap'
         ? 'Create the first Super Admin account. This one-time setup requires the two Worker secrets configured by the platform operator.'
@@ -211,7 +211,7 @@ export default function SignIn({
               ? 'These recovery codes are shown only once. Save them privately before continuing.'
               : isAdmin
                 ? 'Sign in with your individual administrator login ID and password.'
-                : 'Sign in with your individual owner login ID and password.'}
+                : isOwner ? 'Sign in with your individual owner login ID and password.' : 'Sign in with the individual login ID and password assigned by your restaurant owner.'}
       </p>
 
       {phase === 'credentials' && <form className="signin-form" onSubmit={submitCredentials}>
