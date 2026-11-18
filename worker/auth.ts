@@ -5,7 +5,7 @@ function authError(message: string, status: number): Error & { status: number } 
   return Object.assign(new Error(message), { status })
 }
 
-async function verifyToken(token: string, env: Env, audience: string): Promise<Identity> {
+async function verifyToken(token: string, env: Env, audience: string, authorizedParty = env.OIDC_CLIENT_ID): Promise<Identity> {
   if (!env.OIDC_ISSUER || !env.OIDC_JWKS_URL || !audience) throw authError('identity_provider_not_configured', 503)
   try {
     const { payload } = await jwtVerify(
@@ -14,7 +14,7 @@ async function verifyToken(token: string, env: Env, audience: string): Promise<I
       { issuer: env.OIDC_ISSUER, audience, algorithms: ['RS256', 'ES256'], clockTolerance: 60 },
     )
     if (typeof payload.sub !== 'string' || !payload.sub) throw authError('invalid_identity', 401)
-    if (Array.isArray(payload.aud) && payload.aud.length > 1 && payload.azp !== audience) {
+    if (Array.isArray(payload.aud) && payload.aud.length > 1 && (!authorizedParty || payload.azp !== authorizedParty)) {
       throw authError('invalid_authorized_party', 401)
     }
     return {
