@@ -487,3 +487,34 @@
 .tenant-create-form>.button{align-self:end;justify-self:start}
 .tenant-create-form .registry-error{grid-column:1/-1;margin:0;color:#b42318;font-size:11px}
 @media(max-width:560px){.tenant-create-form{grid-template-columns:1fr}.tenant-create-form>div{grid-column:auto}.tenant-create-form .registry-error{grid-column:auto}}
+
+.subscription-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0 24px}
+.subscription-admin-grid>.panel{min-width:0;padding:16px;border:1px solid #e6e9f0;border-radius:14px;background:#fff}
+.subscription-admin-grid .panel-heading{margin-bottom:14px}
+.subscription-admin-grid h3,.subscription-section-heading h3{font-size:14px;margin:0;color:#202a3a}
+.subscription-admin-grid .panel-heading p,.subscription-section-heading p{font-size:10px;color:#818b9b;margin:4px 0 0}
+.subscription-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.subscription-form label{display:grid;gap:6px;font-size:10px;font-weight:700;color:#4c5668}
+.subscription-form input,.subscription-form select{width:100%;min-width:0;border:1px solid #d9deea;border-radius:9px;padding:10px;background:#fff;color:#202a3a;font:inherit;font-weight:500}
+.subscription-form>.button{align-self:end;justify-self:start}
+.subscription-section-heading{margin:18px 0 10px}
+.subscription-plan-list,.subscription-list{display:grid;gap:9px}
+.subscription-plan-row,.subscription-row{border:1px solid #e6e9f0;border-radius:12px;background:#fff;padding:13px}
+.subscription-plan-row{display:flex;align-items:center;gap:12px}
+.subscription-plan-row>div,.subscription-main>div,.subscription-payment-row>div:first-child{display:grid;gap:4px;min-width:0;flex:1}
+.subscription-plan-row b,.subscription-main b,.subscription-payment-row b{font-size:12px;color:#273244}
+.subscription-plan-row small,.subscription-main small,.subscription-payment-row small{font-size:10px;color:#818b9b}
+.subscription-plan-row>strong,.subscription-main>strong{font-size:12px;color:#273244;white-space:nowrap}
+.subscription-main{display:flex;align-items:center;gap:12px}
+.subscription-meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:9px;color:#818b9b;font-size:10px}
+.subscription-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.subscription-payments{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #edf0f5}
+.subscription-payment-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.subscription-payment-row>div:first-child{flex:1}
+.subscription-payment-row>div:last-child{display:flex;gap:6px}
+.subscription-payment-row .button{padding:7px 9px}
+.subscription-row .status,.subscription-plan-row .status{white-space:nowrap}
+.subscription-admin-grid .panel-heading{display:flex;align-items:center;justify-content:space-between}
+.subscription-section-heading{display:flex;align-items:center;justify-content:space-between}
+@media(max-width:760px){.subscription-admin-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.subscription-form{grid-template-columns:1fr}.subscription-plan-row{align-items:flex-start;flex-wrap:wrap}.subscription-main{align-items:flex-start;flex-wrap:wrap}.subscription-meta{display:grid;gap:5px}.subscription-actions .button{flex:1}.subscription-payment-row{align-items:flex-start}}
