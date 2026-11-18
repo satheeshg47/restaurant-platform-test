@@ -202,7 +202,12 @@ async function bootstrapAdmin(request: Request, env: Env): Promise<Response> {
     if (!results[2]?.results?.length) return json(409, { error: 'bootstrap_already_used' })
     return json(201, { created: true, login_id: loginId })
   } catch (error) {
-    const message = error instanceof Error ? error.message : ''
+    const message = error instanceof Error ? error.message : 'unknown_error'
+    // Keep sensitive request data out of logs; this records only the server-side failure class.
+    console.error('native_auth_bootstrap_failed', {
+      name: error instanceof Error ? error.name : 'UnknownError',
+      message: message.slice(0, 240),
+    })
     return json(/UNIQUE|constraint/i.test(message) ? 409 : 500, { error: /UNIQUE|constraint/i.test(message) ? 'login_id_unavailable' : 'bootstrap_failed' })
   }
 }
