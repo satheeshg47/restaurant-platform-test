@@ -160,10 +160,10 @@ test('Super Admin release registry is authenticated and hides artifact storage k
   const unauthorized = await call('/admin/releases')
   assert.equal(unauthorized.status, 401)
 
-  const application = db.prepare("SELECT id FROM applications WHERE app_key='restaurant-suite'").get()
+  const application = db.prepare("SELECT id FROM applications WHERE app_key='restaurant'").get()
   assert.ok(application)
   const releaseId = crypto.randomUUID()
-  const manifest = { schema_version: 1, app_key: 'restaurant-suite', version: '1.2.3', database_migration_version: 7, files: [{ path: 'index.html', sha256: 'a'.repeat(64), size_bytes: 12 }] }
+  const manifest = { schema_version: 1, app_key: 'restaurant', version: '1.2.3', database_migration_version: 7, files: [{ path: 'index.html', sha256: 'a'.repeat(64), size_bytes: 12 }] }
   db.prepare(`INSERT INTO application_releases (id,application_id,version,package_object_key,package_sha256,manifest,status)
     VALUES (?,?,?,?,?,?,?)`).run(releaseId, application.id, '1.2.3', 'private/internal/object-key', 'a'.repeat(64), JSON.stringify(manifest), 'uploaded')
   db.prepare(`INSERT INTO application_deployments (id,application_id,release_id,environment,status,health_report)
