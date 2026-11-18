@@ -19,8 +19,9 @@ export default function RestaurantDataExport(){
  const [checkingRestore,setCheckingRestore]=useState(false)
  const [restoring,setRestoring]=useState(false)
  const [restoreConfirmation,setRestoreConfirmation]=useState('')
- const [restoreCheck,setRestoreCheck]=useState<{restore_allowed:boolean;target_tables:number;backup_row_count:number;non_empty_tables:string[];message:string}|null>(null)
- const [validation,setValidation]=useState<{table_count:number;row_count:number;tables:string[]}|null>(null)
+ const [restoreCheck,setRestoreCheck]=useState<{restore_allowed:boolean;blocked_tables:string[];row_count:number;backup_bytes:number;restore_row_limit:number;private_fields_to_regenerate:string[];private_fields_not_restored:string[]}|null>(null)
+ const [validation,setValidation]=useState<{table_count:number;row_count:number;backup_bytes:number}|null>(null)
+ const [restoredQrTokens,setRestoredQrTokens]=useState<{table_id:string;qr_token:string}[]>([])
  const [error,setError]=useState('')
  const [notice,setNotice]=useState('')
  async function load(){
@@ -31,7 +32,7 @@ export default function RestaurantDataExport(){
    const res=await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(clean)}/data-export`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Could not load export tables')
-   const names=(data.tables||[]) as string[]
+   const names=((data.tables||[]) as ({name?:string}|string)[]).map(item=>typeof item==='string'?item:String(item.name||'')).filter(Boolean)
    setTables(names);setSelected(names[0]||'')
    setNotice(`${names.length} tenant data tables are available for export.`)
   }catch(e){setTables([]);setSelected('');setError(e instanceof Error?e.message:'Could not load export tables')}
@@ -54,7 +55,7 @@ export default function RestaurantDataExport(){
   const clean=slug.trim().toLowerCase()
   if(!SLUG.test(clean)){setError('Enter a valid restaurant slug.');return}
   if(!backupFile){setError('Choose a restaurant backup JSON file first.');return}
-  if(backupFile.size>50*1024*1024){setError('Backup file exceeds the 50 MB validation limit.');return}
+  if(backupFile.size>5*1024*1024){setError('Backup file exceeds the 5 MiB validation limit.');return}
   setValidating(true);setError('');setNotice('');setValidation(null)
   try{
    const contents=await backupFile.text()
@@ -69,7 +70,7 @@ export default function RestaurantDataExport(){
   const clean=slug.trim().toLowerCase()
   if(!SLUG.test(clean)){setError('Enter a valid restaurant slug.');return}
   if(!backupFile){setError('Choose a restaurant backup JSON file first.');return}
-  if(backupFile.size>50*1024*1024){setError('Backup file exceeds the 50 MB preflight limit.');return}
+  if(backupFile.size>50*1024*1024){setError('Backup file exceeds the 5 MiB preflight limit.');return}
   setCheckingRestore(true);setError('');setNotice('');setRestoreCheck(null)
   try{
    const contents=await backupFile.text()
@@ -92,7 +93,8 @@ export default function RestaurantDataExport(){
    const res=await apiFetch(API_BASE+'/restaurant/'+encodeURIComponent(clean)+'/data-export/restore',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({...parsed,confirmation:restoreConfirmation.trim()})})
    const data=await res.json().catch(()=>({}))
    if(!res.ok)throw new Error(data.error||'Restaurant restore failed')
-   setNotice('Restore completed: '+data.row_count+' records across '+data.table_count+' tables. '+(data.security_note||''))
+   setNotice('Restore completed: '+data.row_count+' records. New QR tokens are shown below; save them securely. Staff passwords must be reset and menu photos re-uploaded.')
+   setRestoredQrTokens(Array.isArray(data.regenerated_qr_tokens)?data.regenerated_qr_tokens:[])
    setRestoreCheck(null);setRestoreConfirmation('')
   }catch(e){setError(e instanceof Error?e.message:'Restaurant restore failed')}
   finally{setRestoring(false)}
@@ -127,20 +129,21 @@ export default function RestaurantDataExport(){
   <div className="restaurant-report-panel restaurant-report-wide">
    <h3><ShieldCheck size={17}/> Validate an existing backup</h3>
    <p className="restaurant-settings-note">Choose a previously downloaded JSON backup. Validation checks its format, table names, columns, row tenant IDs and manifest counts. It does not restore or modify records.</p>
-   <label>Backup JSON file<input type="file" accept="application/json,.json" onChange={e=>{setBackupFile(e.target.files?.[0]||null);setValidation(null);setRestoreCheck(null);setRestoreConfirmation('');setError("");setNotice("")}}/></label>
+   <label>Backup JSON file<input type="file" accept="application/json,.json" onChange={e=>{setBackupFile(e.target.files?.[0]||null);setValidation(null);setRestoreCheck(null);setRestoreConfirmation('');setRestoredQrTokens([]);setError("");setNotice("")}}/></label>
    <button className="button secondary" onClick={()=>void validateBackup()} disabled={validating||!backupFile}>{validating?"Validating backup…":"Validate backup file"}</button>
    <button className="button secondary" onClick={()=>void checkRestoreReadiness()} disabled={checkingRestore||!backupFile}>{checkingRestore?"Checking target…":"Check restore readiness"}</button>
-   {restoreCheck&&<div className={restoreCheck.restore_allowed?"restaurant-settings-success":"restaurant-menu-alert"}><strong>{restoreCheck.restore_allowed?"Target tables are empty":"Restore blocked"}</strong><p>{restoreCheck.target_tables} target tables · {restoreCheck.backup_row_count} backup records</p>{restoreCheck.non_empty_tables.length>0&&<p>Existing data: {restoreCheck.non_empty_tables.map(title).join(", ")}</p>}<p>{restoreCheck.message}</p>
-    {restoreCheck.restore_allowed&&<><p><strong>Important:</strong> Restore is allowed only into an empty tenant. Existing records are never overwritten. Staff password hashes, QR token hashes and menu photo object keys are excluded; reissue table QR codes and re-upload menu photos after restore.</p>
+   {restoreCheck&&<div className={restoreCheck.restore_allowed?"restaurant-settings-success":"restaurant-menu-alert"}><strong>{restoreCheck.restore_allowed?"Target is empty and within restore limits":"Restore blocked"}</strong><p>{restoreCheck.row_count} backup records · {restoreCheck.backup_bytes} bytes · maximum {restoreCheck.restore_row_limit} rows per restore</p>{restoreCheck.blocked_tables.length>0&&<p>Tables containing existing data: {restoreCheck.blocked_tables.map(title).join(", ")}</p>}
+    {restoreCheck.restore_allowed&&<><p><strong>Important:</strong> Restore is limited to the same tenant ID and an empty tenant. It regenerates table QR tokens and order idempotency keys. Staff password hashes and menu photo object keys are not restored; staff passwords must be reset and photos re-uploaded.</p>
      <label>Type <strong>RESTORE {slug.trim().toLowerCase()}</strong> to confirm<input value={restoreConfirmation} onChange={e=>setRestoreConfirmation(e.target.value)} placeholder={"RESTORE "+slug.trim().toLowerCase()} autoCapitalize="characters"/></label>
      <button className="button primary" onClick={()=>void restoreBackup()} disabled={restoring||restoreConfirmation.trim()!=="RESTORE "+slug.trim().toLowerCase()}>{restoring?"Restoring…":"Restore backup into empty restaurant"}</button></>}
    </div>}
-   {validation&&<div className="restaurant-settings-success"><strong>Backup valid</strong><p>{validation.table_count} tables · {validation.row_count} records</p><p>{validation.tables.map(title).join(", ")}</p></div>}
+   {validation&&<div className="restaurant-settings-success"><strong>Backup valid</strong><p>{validation.table_count} tables · {validation.row_count} records · {validation.backup_bytes} bytes</p></div>}
+   {restoredQrTokens.length>0&&<div className="restaurant-report-panel restaurant-report-wide"><h3>New table QR tokens</h3><p className="restaurant-settings-note">These tokens are shown only in this restore response. Save them securely and regenerate QR printouts for the restored tables.</p>{restoredQrTokens.map(item=><div key={item.table_id}><small>{item.table_id}</small><p><code>{item.qr_token}</code></p></div>)}</div>}
   </div>
   <div className="restaurant-report-panel restaurant-report-wide">
    <h3><ShieldCheck size={17}/> Export protection</h3>
-   <ul><li>Only the restaurant owner can export.</li><li>Every row is filtered to the selected restaurant tenant.</li><li>Password hashes, QR-token hashes, storage object keys and idempotency keys are excluded.</li><li>Exports are read-only and do not change live records.</li></ul>
-   <p className="restaurant-settings-note">Full backup downloads a versioned JSON snapshot of tenant-owned restaurant tables. Credentials, token/secret fields and private storage keys are excluded. Restore is owner-only, requires an empty target and typed confirmation, and runs as one transaction. Automatic backup scheduling remains unimplemented; store backup files securely.</p>
+   <ul><li>Restaurant owners and managers can export; restore is owner-only.</li><li>Every row is filtered to the selected restaurant tenant.</li><li>Password hashes, QR-token hashes, storage object keys and idempotency keys are excluded.</li><li>Exports are read-only and do not change live records.</li></ul>
+   <p className="restaurant-settings-note">Full backup downloads a versioned JSON snapshot of tenant-owned restaurant tables. Credentials, token/secret fields and private storage keys are excluded. Restore is owner-only, limited to 500 rows, requires an empty same-tenant target and typed confirmation, and runs as one atomic D1 batch. Automatic backup scheduling remains unimplemented; store backup files securely.</p>
   </div>
  </section>
 }
