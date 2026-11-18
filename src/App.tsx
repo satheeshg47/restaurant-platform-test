@@ -26,13 +26,8 @@ import SignIn from './SignIn'
 import { apiFetch, completeOidcLogin, setSessionToken as setApiSessionToken } from './auth'
 
 type Section = 'Overview' | 'Applications' | 'Restaurant Suite' | 'Tables & QR' | 'Kitchen & Service' | 'Restaurant Settings' | 'Restaurant Reports' | 'Customer Reviews' | 'Restaurant Data Export' | 'Owners' | 'Communications' | 'Subscriptions' | 'Update Centre' | 'Data & Backups' | 'Monitoring' | 'Security' | 'Audit Log'
-type AppRecord = { name: string; category: string; status: 'Active' | 'Draft' | 'Paused'; version: string; owners: number; initials: string; tone: string }
-
-const initialApps: AppRecord[] = [
-  { name: 'Restaurant Suite', category: 'Food & hospitality', status: 'Draft', version: '0.1.0', owners: 0, initials: 'RS', tone: 'violet' },
-  { name: 'Inventory Desk', category: 'Operations', status: 'Draft', version: '—', owners: 0, initials: 'ID', tone: 'blue' },
-  { name: 'Workforce Hub', category: 'People & teams', status: 'Draft', version: '—', owners: 0, initials: 'WH', tone: 'orange' },
-]
+type AppRecord = { id: string; name: string; category: string; status: 'Active' | 'Draft' | 'Paused'; initials: string; tone: string }
+type OverviewEvent = { id: string; action: string; resource_type: string; created_at: string }
 
 const nav: { label: Section; icon: typeof LayoutDashboard }[] = [
   { label: 'Overview', icon: LayoutDashboard },
@@ -56,7 +51,6 @@ const nav: { label: Section; icon: typeof LayoutDashboard }[] = [
 
 function App() {
   const [section, setSection] = useState<Section>('Overview')
-  const [apps] = useState(initialApps)
   const [menuOpen, setMenuOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [sessionToken, setSessionToken] = useState<string | null>(null)
@@ -137,9 +131,9 @@ function App() {
       <main className="main">
         <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="breadcrumb">Platform <span>/</span> <b>{section}</b></div><div className="top-actions"><div className="environment"><i/> Development mode</div><button className="icon-button notification" onClick={() => notify('You’re all caught up.')} aria-label="Notifications"><Bell size={18}/><i/></button><button className="button secondary small" onClick={signOut}>Sign out</button></div></header>
         <div className="content">
-          <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}</div><h1>{pageTitle}{section === 'Overview' ? ', Admin' : ''}</h1><p>{pageSubtitle}</p></div><div className="welcome-actions"><button className="button secondary" onClick={() => notify('Reports will be available after connecting live data.')}><Download size={16}/> Export</button><button className="button primary" onClick={() => { setSection('Applications'); notify('Application creation is not connected yet. No data was saved.') }}><Plus size={17}/> Add application</button></div></div>
+          <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}</div><h1>{pageTitle}{section === 'Overview' ? ', Admin' : ''}</h1><p>{pageSubtitle}</p></div><div className="welcome-actions"><button className="button secondary" onClick={() => notify('Reports will be available after connecting live data.')}><Download size={16}/> Export</button><button className="button primary" onClick={() => setSection('Applications')}><Plus size={17}/> Add application</button></div></div>
 
-          {section === 'Overview' && <Overview apps={apps} setSection={setSection} notify={notify}/>}
+          {section === 'Overview' && <Overview setSection={setSection}/>}
           {section === 'Applications' && <Applications />}
           {section === 'Owners' && <Owners />}
           {section === 'Restaurant Suite' && <RestaurantMenu />}
@@ -156,7 +150,7 @@ function App() {
           {section === 'Monitoring' && <Monitoring />}
           {section === 'Security' && <Placeholder icon={LockKeyhole} title="Security & access" description="Protect the control plane with owner-only access and traceable actions." items={['Owner-only administrator access','MFA and passkey sign-in','Role and permission policies','Immutable security audit events']}/>}
           {section === 'Audit Log' && <AuditLog />}
-          <footer className="footer"><span>Platform Core <b>·</b> v0.1.0 preview</span><span><i className="footer-dot"/> Development workspace · Sample data only</span></footer>
+          <footer className="footer"><span>Platform Core <b>·</b> v0.1.0 preview</span><span><i className="footer-dot"/> Preview workspace · Live registry pending database migration</span></footer>
         </div>
       </main>
 
@@ -286,26 +280,77 @@ function ProjectProgress() {
         ))}
       </div>
       <div className="project-next"><span>UP NEXT</span><b>{nextMilestone?.title || "No pending milestone"}</b><small>{nextMilestone ? "In progress" : "All milestones complete"}</small></div>
-      <p className="project-progress-note">Progress tracks implemented development milestones, not production readiness. Live identity configuration, hosted database, storage and deployment still require setup.</p>
+      <p className="project-progress-note">Progress tracks implemented development milestones, not production readiness. Production D1 schema, complete feature parity, storage and recovery verification remain pending.</p>
     </section>
   )
 }
 
-function Overview({ apps, setSection, notify }: { apps: AppRecord[]; setSection: (s: Section)=>void; notify: (s:string)=>void }) {
+function Overview({ setSection }: { setSection: (s: Section)=>void }) {
+  const [apps, setApps] = useState<AppRecord[]>([])
+  const [ownerCount, setOwnerCount] = useState<number | null>(null)
+  const [activeSubscriptions, setActiveSubscriptions] = useState<number | null>(null)
+  const [pendingUpdates, setPendingUpdates] = useState<number | null>(null)
+  const [events, setEvents] = useState<OverviewEvent[]>([])
+  const [registryState, setRegistryState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
+
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      apiFetch(`${API_BASE}/admin/applications`, { headers: { Accept: 'application/json' }, cache: 'no-store' }),
+      apiFetch(`${API_BASE}/admin/owners`, { headers: { Accept: 'application/json' }, cache: 'no-store' }),
+      apiFetch(`${API_BASE}/admin/monitoring`, { headers: { Accept: 'application/json' }, cache: 'no-store' }),
+      apiFetch(`${API_BASE}/admin/audit-events?limit=5`, { headers: { Accept: 'application/json' }, cache: 'no-store' }),
+    ]).then(async ([appsResponse, ownersResponse, monitoringResponse, eventsResponse]) => {
+      if (![appsResponse, ownersResponse, monitoringResponse, eventsResponse].every(response => response.ok)) throw new Error('Live workspace data is not ready.')
+      const [appsData, ownersData, monitoringData, eventsData] = await Promise.all([
+        appsResponse.json(), ownersResponse.json(), monitoringResponse.json(), eventsResponse.json(),
+      ])
+      if (!active) return
+      if (!Array.isArray(appsData.applications) || !Array.isArray(ownersData.owners) || !monitoringData.counts || !Array.isArray(eventsData.events)) {
+        throw new Error('The platform API returned an incomplete workspace response.')
+      }
+      const categories: Record<string, string> = { restaurant: 'Food & hospitality', inventory: 'Operations', workforce: 'People & teams' }
+      const tones = ['violet', 'blue', 'orange']
+      setApps(appsData.applications.map((app: { id: string; app_key: string; name: string; status: string }, index: number) => ({
+        id: app.id,
+        name: app.name,
+        category: categories[app.app_key] || 'Platform application',
+        status: app.status === 'active' ? 'Active' : app.status === 'paused' ? 'Paused' : 'Draft',
+        initials: app.name.slice(0, 2).toUpperCase(),
+        tone: tones[index % tones.length],
+      })))
+      setOwnerCount(ownersData.owners.filter((owner: { owner_present: boolean }) => owner.owner_present).length)
+      setActiveSubscriptions(Number(monitoringData.counts.active_subscriptions || 0))
+      setPendingUpdates(Number(monitoringData.counts.releases_awaiting_review || 0))
+      setEvents(eventsData.events)
+      setRegistryState('ready')
+    }).catch(() => {
+      if (active) setRegistryState('unavailable')
+    })
+    return () => { active = false }
+  }, [])
+
+  const liveValue = (value: number | null) => registryState === 'ready' && value !== null ? String(value).padStart(2, '0') : '—'
   const stats = [
-    { label: 'Applications', value: String(apps.length).padStart(2,'0'), detail: 'Registered in workspace', icon: AppWindow, tint: 'purple' },
-    { label: 'Owners', value: '00', detail: 'No owners onboarded', icon: Users, tint: 'blue' },
-    { label: 'Active subscriptions', value: '00', detail: 'Billing not connected', icon: CreditCard, tint: 'green' },
-    { label: 'Pending updates', value: '00', detail: 'No releases awaiting review', icon: FileCheck2, tint: 'orange' },
+    { label: 'Applications', value: liveValue(apps.length), detail: registryState === 'ready' ? 'Live application registry' : 'Awaiting live database schema', icon: AppWindow, tint: 'purple' },
+    { label: 'Owners', value: liveValue(ownerCount), detail: registryState === 'ready' ? 'Active tenant owners' : 'Awaiting live database schema', icon: Users, tint: 'blue' },
+    { label: 'Active subscriptions', value: liveValue(activeSubscriptions), detail: 'Live subscription records', icon: CreditCard, tint: 'green' },
+    { label: 'Pending updates', value: liveValue(pendingUpdates), detail: 'Releases awaiting review', icon: FileCheck2, tint: 'orange' },
   ]
   return <>
     <ServiceHealth />
     <ProjectProgress />
     <div className="stat-grid">{stats.map(s=>{const Icon=s.icon;return <div className="stat-card" key={s.label}><div className="stat-top"><span>{s.label}</span><div className={`stat-icon ${s.tint}`}><Icon size={17}/></div></div><strong>{s.value}</strong><small>{s.detail}</small></div>})}</div>
-    <div className="overview-grid"><section className="panel apps-panel"><div className="panel-heading"><div><h2>Applications</h2><p>Products in your platform workspace.</p></div><button className="text-button" onClick={()=>setSection('Applications')}>View all <ArrowUpRight size={14}/></button></div><div className="app-list">{apps.slice(0,4).map(app=><div className="app-row" key={app.name}><div className={`app-icon ${app.tone}`}>{app.initials}</div><div className="app-info"><b>{app.name}</b><small>{app.category}</small></div><span className={`status ${app.status.toLowerCase()}`}>{app.status}</span><button className="icon-button" onClick={()=>notify(`${app.name} details will be added next.`)} aria-label="Application options"><MoreHorizontal size={18}/></button></div>)}</div><button className="add-row" onClick={()=>setSection('Applications')}><Plus size={16}/> Manage applications</button></section>
-      <section className="panel activity-panel"><div className="panel-heading"><div><h2>Platform activity</h2><p>Recent events across your workspace.</p></div><button className="icon-button" onClick={()=>notify('No additional events yet.')} aria-label="More activity"><MoreHorizontal size={18}/></button></div><div className="empty-activity"><div className="empty-icon"><Activity size={21}/></div><b>No activity yet</b><p>When you add applications, owners or releases, events will appear here.</p></div></section></div>
+    <div className="overview-grid"><section className="panel apps-panel"><div className="panel-heading"><div><h2>Applications</h2><p>Products registered in the live workspace.</p></div><button className="text-button" onClick={()=>setSection('Applications')}>View all <ArrowUpRight size={14}/></button></div>
+      {registryState === 'loading' && <div className="empty-activity"><b>Loading live workspace data…</b></div>}
+      {registryState === 'unavailable' && <div className="empty-activity"><b>Live registry not ready</b><p>The production D1 schema must be migrated and verified before real application data can be displayed.</p></div>}
+      {registryState === 'ready' && (apps.length === 0 ? <div className="empty-activity"><b>No applications registered</b><p>Register an application to populate this workspace.</p></div> : <div className="app-list">{apps.slice(0,4).map(app=><div className="app-row" key={app.id}><div className={`app-icon ${app.tone}`}>{app.initials}</div><div className="app-info"><b>{app.name}</b><small>{app.category}</small></div><span className={`status ${app.status.toLowerCase()}`}>{app.status}</span></div>)}</div>)}
+      <button className="add-row" onClick={()=>setSection('Applications')}><Plus size={16}/> Manage applications</button></section>
+      <section className="panel activity-panel"><div className="panel-heading"><div><h2>Platform activity</h2><p>Recent audited events from your workspace.</p></div><button className="icon-button" onClick={()=>setSection('Audit Log')} aria-label="View audit log"><MoreHorizontal size={18}/></button></div>
+        {registryState === 'ready' && events.length > 0 ? <div className="monitoring-event-list">{events.map(event=><div className="monitoring-event" key={event.id}><div><b>{event.action}</b><small>{event.resource_type} · {new Date(event.created_at).toLocaleString('en-IN')}</small></div></div>)}</div> : <div className="empty-activity"><div className="empty-icon"><Activity size={21}/></div><b>{registryState === 'ready' ? 'No activity yet' : 'Activity data unavailable'}</b><p>{registryState === 'ready' ? 'Audited platform actions will appear here.' : 'Activity will appear after the production database schema is installed.'}</p></div>}
+      </section></div>
     <section className="panel setup-panel"><div className="setup-title"><div><span className="eyebrow">GETTING STARTED</span><h2>Set up your platform</h2><p>Complete these foundations before onboarding customers.</p></div><div className="setup-progress"><strong>1/5</strong><small>steps started</small></div></div><div className="setup-steps"><div className="setup-step done"><div className="step-check"><Check size={14}/></div><div><b>Workspace created</b><small>Your private control plane is ready to configure.</small></div><span>Done</span></div>{[['Secure administrator sign-in','Protect your Super Admin account with MFA.','Security'],['Register your first application','Start with Restaurant Suite.','Applications'],['Connect the platform database','Set up isolated tenant data.','Data & Backups'],['Configure backup and recovery','Choose a portable backup destination.','Data & Backups']].map(([title,desc,target])=><button className="setup-step" key={title} onClick={()=>setSection(target as Section)}><div className="step-number"/><div><b>{title}</b><small>{desc}</small></div><ArrowUpRight size={15}/></button>)}</div></section>
-    <div className="notice-strip"><div className="notice-symbol"><Zap size={17}/></div><div><b>Development mode is active</b><p>Application and owner lists use sample data. Authentication, payments, backups and deployment are not connected yet.</p></div><button onClick={()=>notify('Development mode remains enabled until deployment is configured.')}>Learn more <ArrowUpRight size={13}/></button></div>
+    <div className="notice-strip"><div className="notice-symbol"><Zap size={17}/></div><div><b>Preview workspace is active</b><p>Administrator sign-in and API health are connected. Live application, owner, subscription and activity records will appear after the production D1 schema and recovery checks are complete.</p></div><button onClick={()=>setSection('Data & Backups')}>View setup <ArrowUpRight size={13}/></button></div>
   </>
 }
 
