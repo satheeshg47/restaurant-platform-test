@@ -24,6 +24,8 @@ export interface Env {
   OIDC_CLIENT_ID?: string
   OIDC_JWKS_URL?: string
   PLATFORM_ADMIN_SUBJECT?: string
+  AUTH_ENCRYPTION_KEY?: string
+  AUTH_BOOTSTRAP_SECRET?: string
   ENVIRONMENT?: string
 }
 
