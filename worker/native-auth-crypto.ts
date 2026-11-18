@@ -116,6 +116,11 @@ async function totpAt(secret: string, counter: number): Promise<string> {
   return String(binary % 1_000_000).padStart(6, '0')
 }
 
+export async function generateTotpCode(secret: string, now = Date.now()): Promise<string> {
+  if (!Number.isFinite(now)) throw new Error('invalid_timestamp')
+  return totpAt(secret, Math.floor(now / 30_000))
+}
+
 export async function verifyTotp(secret: string, code: string, now = Date.now(), window = 1): Promise<boolean> {
   if (!/^\d{6}$/.test(code) || !Number.isFinite(now) || !Number.isInteger(window) || window < 0 || window > 2) return false
   const counter = Math.floor(now / 30_000)
