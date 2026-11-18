@@ -223,11 +223,13 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
             'restaurant_reviews','restaurant_service_requests','restaurant_settings','restaurant_staff',
             'restaurant_staff_assignments','restaurant_stock_events','restaurant_table_sessions','restaurant_tables',
             'restaurant_tenant_controls','subscription_payments','subscription_plans','subscriptions',
-            'tenant_applications','tenant_memberships','tenants'
+            'tenant_applications','tenant_memberships','tenants',
+            'platform_user_credentials','platform_auth_sessions','platform_auth_challenges','platform_auth_recovery_codes',
+            'platform_admin_accounts','platform_auth_rate_limits','tenant_membership_permissions'
           )) AS required_tables`,
       ).first<{ latest_migration: string | null; required_tables: number }>()
-      if (schema?.latest_migration !== '0007_tenant_restore_guard.sql' || Number(schema.required_tables) !== 43) {
-        return json(503, { status: 'not_ready', checks: { database: 'ok', schema: 'incomplete' }, required_migration: '0007_tenant_restore_guard.sql' })
+      if (schema?.latest_migration !== '0008_native_auth_foundation.sql' || Number(schema.required_tables) !== 50) {
+        return json(503, { status: 'not_ready', checks: { database: 'ok', schema: 'incomplete' }, required_migration: '0008_native_auth_foundation.sql' })
       }
       return json(200, { status: 'ready', checks: { database: 'ok', schema: 'complete' }, latest_migration: schema.latest_migration })
     } catch {
