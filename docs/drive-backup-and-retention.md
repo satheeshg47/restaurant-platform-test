@@ -26,12 +26,12 @@ The first bridge version does not apply client-side encryption to the SQL dump. 
 
 ## Phase 2 — verify archive and recovery
 
-Recovery verification status (2026-11-18):
+Historical recovery verification status (2026-11-18; before native-auth migrations 0008–0009):
 1. Apps Script configuration test passed; the daily trigger is configured for approximately 02:20 Asia/Kolkata.
 2. A manual production backup completed and saved a compressed SQL snapshot plus JSON manifest in private Drive.
 3. The restore script validated the manifest, compressed size and SHA-256 checksum; decompression and Cloudflare D1 import completed successfully.
 4. The snapshot was restored into a separate temporary D1 database, never production.
-5. Direct read-only comparison confirmed 43 required application tables plus the D1 migration ledger, matching table definitions/schema objects and all existing rows (8 rows total). Foreign-key check returned no violations.
+5. Direct read-only comparison at that time confirmed 43 required application tables plus the D1 migration ledger, matching table definitions/schema objects and all existing rows (8 rows total). Foreign-key check returned no violations. This historical result does not cover the native-authentication tables or the current 0009 schema.
 6. This is one successful isolated restore drill. Repeat periodically, monitor scheduled executions/Drive capacity, and document measured recovery time before customer onboarding.
 
 ## Phase 3 — seven-day hot retention
@@ -49,7 +49,7 @@ Only after that matrix and restore tests pass may cleanup be implemented. Cleanu
 
 ## Live schema inventory and conservative retention classes
 
-The production D1 schema was inspected read-only on 2026-11-18. It has the 43 required application tables, plus D1's migration ledger and internal `_cf_KV` table. No restaurant tenants or owners have been onboarded. The following is a conservative classification, not authorization to delete anything.
+The production D1 schema was inspected read-only after migrations 0001–0009 on 2026-11-18. It has 50 required application/authentication tables (53 total tables including D1 metadata/internal tables). No users, tenants or sessions have been created. A fresh backup and isolated restore against this current schema is still required; do not treat the older 43-table restore drill as current-schema proof. The following is a conservative classification, not authorization to delete anything.
 
 | Class | Tables | Policy |
 |---|---|---|
@@ -60,7 +60,7 @@ The production D1 schema was inspected read-only on 2026-11-18. It has the 43 re
 | Platform communications and release control | `communication_conversations`, `communication_messages`, `communication_participants`, `application_releases`, `application_deployments`, `applications`, `subscription_plans` | Keep until a separate support-history and platform-release retention policy is approved. |
 | Schema metadata | `d1_migrations` | Never prune as part of tenant data retention. |
 
-Some operational tables do not have a simple `created_at` field (for example, batch allocations, addon links, staff assignments and invoice counters). They cannot be handled safely by a generic date-based deletion job. Use the actual event timestamps and parent/child relationships for each table.
+The current schema also includes seven native-authentication tables: `platform_user_credentials`, `platform_auth_sessions`, `platform_auth_challenges`, `platform_auth_recovery_codes`, `platform_admin_accounts`, `platform_auth_rate_limits` and `tenant_membership_permissions`. These are security/identity records and must never be included in a seven-day purge.\n\nSome operational tables do not have a simple `created_at` field (for example, batch allocations, addon links, staff assignments and invoice counters). They cannot be handled safely by a generic date-based deletion job. Use the actual event timestamps and parent/child relationships for each table.
 
 ### Required cleanup gate
 
