@@ -16,7 +16,7 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 }
 
 export async function handleAdminTenants(request: Request, env: Env, path: string): Promise<Response> {
-  const statusMatch = path.match(/^\\/admin\\/tenants\\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\\/status$/i)
+  const statusMatch = path.match(/^\/admin\/tenants\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/status$/i)
   const isCreate = path === '/admin/tenants' && request.method === 'POST'
   const isStatusChange = Boolean(statusMatch) && request.method === 'PATCH'
   if (!isCreate && !isStatusChange) return json(405, { error: 'method_not_allowed' })
