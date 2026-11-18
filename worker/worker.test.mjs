@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { generateKeyPair, exportJWK, SignJWT } from 'jose'
 import worker from './index.ts'
 import { handleRestaurantDataExport } from './restaurant-export.ts'
+import { decryptTotpSecret, generateTotpCode } from './native-auth-crypto.ts'
 
 class Statement {
   constructor(db, sql) { this.db = db; this.sql = sql; this.values = [] }
@@ -103,6 +104,8 @@ beforeEach(() => {
     OIDC_CLIENT_ID: clientId,
     OIDC_JWKS_URL: jwksUrl,
     PLATFORM_ADMIN_SUBJECT: adminSubject,
+    AUTH_ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    AUTH_BOOTSTRAP_SECRET: 'test-only-one-time-bootstrap-secret',
     ENVIRONMENT: 'test',
   }
 })
@@ -120,10 +123,12 @@ async function token(subject, aud, claims = {}) {
     .sign(privateKey)
 }
 
-async function call(path, { method = 'GET', accessToken, idToken, body } = {}) {
+async function call(path, { method = 'GET', accessToken, idToken, body, cookie, origin } = {}) {
   const headers = new Headers({ Accept: 'application/json' })
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
   if (idToken) headers.set('X-OIDC-ID-Token', idToken)
+  if (cookie) headers.set('Cookie', cookie)
+  if (origin) headers.set('Origin', origin)
   if (body !== undefined) headers.set('Content-Type', 'application/json')
   return worker.fetch(new Request(`https://platform.test/api${path}`, {
     method,
@@ -131,6 +136,92 @@ async function call(path, { method = 'GET', accessToken, idToken, body } = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
   }), env)
 }
+
+test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session revocation work', async () => {
+  const badBootstrap = await call('/auth/bootstrap-admin', {
+    method: 'POST', body: { bootstrap_secret: 'wrong', login_id: 'root-admin', password: 'a-long-password-value-123' },
+  })
+  assert.equal(badBootstrap.status, 401)
+
+  const bootstrap = await call('/auth/bootstrap-admin', {
+    method: 'POST', body: { bootstrap_secret: 'test-only-one-time-bootstrap-secret', login_id: 'root-admin', password: 'a-long-password-value-123', email: 'admin@example.test' },
+  })
+  assert.equal(bootstrap.status, 201)
+  const duplicate = await call('/auth/bootstrap-admin', {
+    method: 'POST', body: { bootstrap_secret: 'test-only-one-time-bootstrap-secret', login_id: 'other-admin', password: 'a-long-password-value-123' },
+  })
+  assert.equal(duplicate.status, 409)
+
+  const login = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'ROOT-ADMIN', password: 'a-long-password-value-123' },
+  })
+  assert.equal(login.status, 200)
+  const enrollment = await login.json()
+  assert.equal(enrollment.totp_enrollment_required, true)
+  const enrollmentSecret = new URL(enrollment.provisioning_uri).searchParams.get('secret')
+  assert.ok(enrollmentSecret)
+  const enrollmentCode = await generateTotpCode(enrollmentSecret)
+  const enrolled = await call('/auth/totp/enroll/verify', {
+    method: 'POST', body: { challenge_token: enrollment.challenge_token, code: enrollmentCode },
+  })
+  assert.equal(enrolled.status, 200)
+  const enrollmentResult = await enrolled.json()
+  assert.equal(enrollmentResult.authenticated, true)
+  assert.equal(enrollmentResult.recovery_codes.length, 10)
+  const firstCookie = enrolled.headers.get('Set-Cookie').split(';')[0]
+  assert.match(enrolled.headers.get('Set-Cookie'), /HttpOnly/)
+  assert.match(enrolled.headers.get('Set-Cookie'), /SameSite=Lax/)
+
+  const adminSession = await call('/admin/session', { cookie: firstCookie })
+  assert.equal(adminSession.status, 200)
+  assert.equal((await adminSession.json()).admin.issuer, 'native')
+
+  const secondLogin = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
+  })
+  assert.equal(secondLogin.status, 200)
+  const mfa = await secondLogin.json()
+  assert.equal(mfa.mfa_required, true)
+  const stored = db.prepare('SELECT totp_secret_ciphertext FROM platform_user_credentials').get()
+  const secret = await decryptTotpSecret(stored.totp_secret_ciphertext, env.AUTH_ENCRYPTION_KEY)
+  const otp = await generateTotpCode(secret)
+  const verified = await call('/auth/totp/verify', {
+    method: 'POST', body: { challenge_token: mfa.challenge_token, code: otp },
+  })
+  assert.equal(verified.status, 200)
+  const secondCookie = verified.headers.get('Set-Cookie').split(';')[0]
+  assert.equal((await call('/admin/session', { cookie: secondCookie })).status, 200)
+
+  const recoveryLogin = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
+  })
+  const recoveryChallenge = await recoveryLogin.json()
+  const recoveryCode = enrollmentResult.recovery_codes[0]
+  const recoveryVerified = await call('/auth/totp/verify', {
+    method: 'POST', body: { challenge_token: recoveryChallenge.challenge_token, code: recoveryCode.toLowerCase() },
+  })
+  assert.equal(recoveryVerified.status, 200)
+
+  const reuseLogin = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
+  })
+  const reuseChallenge = await reuseLogin.json()
+  const reused = await call('/auth/totp/verify', {
+    method: 'POST', body: { challenge_token: reuseChallenge.challenge_token, code: recoveryCode },
+  })
+  assert.equal(reused.status, 401)
+
+  const signedOut = await call('/auth/logout', { method: 'POST', cookie: secondCookie })
+  assert.equal(signedOut.status, 200)
+  assert.equal((await call('/admin/session', { cookie: secondCookie })).status, 401)
+})
+
+test('native authentication rejects cross-origin login requests', async () => {
+  const response = await call('/auth/login', {
+    method: 'POST', origin: 'https://attacker.example', body: { login_id: 'root-admin', password: 'not-a-real-password' },
+  })
+  assert.equal(response.status, 403)
+})
 
 test('D1 health, readiness and protected Super Admin session work', async () => {
   const health = await call('/health')
@@ -196,7 +287,7 @@ test('release manifest preflight validates metadata without storing or deploying
   const unsafe=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.4',files:[{...manifest.files[0],path:'../tenant-data/private.json'}]}}})
   assert.equal(unsafe.status,400)
   assert.equal((await unsafe.json()).errors[0].code,'unsafe_file_path')
-  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:8}}})
+  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:9}}})
   assert.equal(future.status,409)
   assert.equal((await future.json()).error,'database_migration_not_available')
   const unauthorized=await call('/admin/releases/validate-manifest',{method:'POST',body:{manifest}})
