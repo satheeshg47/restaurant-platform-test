@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { generateKeyPair, exportJWK, SignJWT } from 'jose'
 import worker from './index.ts'
 import { handleRestaurantDataExport } from './restaurant-export.ts'
-import { decryptTotpSecret, generateTotpCode } from './native-auth-crypto.ts'
+import { decryptTotpSecret, generateTotpCode, hashPassword } from './native-auth-crypto.ts'
 
 class Statement {
   constructor(db, sql) { this.db = db; this.sql = sql; this.values = [] }
@@ -498,6 +498,64 @@ test('owner invitation can create an individual native owner account and require
   const payload = await login.json()
   assert.equal(payload.totp_enrollment_required, true)
   assert.ok(payload.provisioning_uri)
+})
+
+test('owner can create, manage and suspend individual staff logins', async () => {
+  const ownerId = crypto.randomUUID()
+  const ownerPassword = 'native-owner-password-123'
+  const ownerHash = await hashPassword(ownerPassword)
+  db.prepare("INSERT INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,?)").run(ownerId, ownerId, 'staff-owner@example.test')
+  db.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) VALUES(?,?,?,?)').run(ownerId, 'restaurant-owner', 'restaurant-owner', ownerHash)
+  db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'owner','active')").run(tenantId, ownerId)
+
+  const ownerLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'restaurant-owner', password: ownerPassword } })
+  assert.equal(ownerLogin.status, 200)
+  const ownerChallenge = await ownerLogin.json()
+  const setupSecret = new URL(ownerChallenge.provisioning_uri).searchParams.get('secret')
+  const ownerCode = await generateTotpCode(setupSecret)
+  const ownerEnrolled = await call('/auth/totp/enroll/verify', {
+    method: 'POST', body: { challenge_token: ownerChallenge.challenge_token, code: ownerCode },
+  })
+  assert.equal(ownerEnrolled.status, 200)
+  const ownerCookie = ownerEnrolled.headers.get('Set-Cookie').split(';')[0]
+
+  const created = await call('/owner/staff', {
+    method: 'POST', cookie: ownerCookie,
+    body: { tenant_id: tenantId, login_id: 'cook.one', display_name: 'Kitchen Cook', password: 'cook-password-strong-123', role: 'cook' },
+  })
+  assert.equal(created.status, 201)
+  const createdPayload = await created.json()
+  assert.equal(createdPayload.staff.role, 'cook')
+  const staffRow = db.prepare("SELECT id,user_id FROM restaurant_staff WHERE tenant_id=? AND username='cook.one'").get(tenantId)
+  assert.ok(staffRow?.id)
+
+  const listed = await call('/owner/staff?tenant_id=' + tenantId, { cookie: ownerCookie })
+  assert.equal(listed.status, 200)
+  assert.equal((await listed.json()).staff.length, 1)
+
+  const staffLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'cook.one', password: 'cook-password-strong-123' } })
+  assert.equal(staffLogin.status, 200)
+  assert.equal((await staffLogin.json()).authenticated, true)
+  const staffCookie = staffLogin.headers.get('Set-Cookie').split(';')[0]
+  const staffSession = await call('/auth/session', { cookie: staffCookie })
+  const staffSessionPayload = await staffSession.json()
+  assert.equal(staffSessionPayload.user.tenant_role, 'staff')
+  assert.equal(staffSessionPayload.user.memberships[0].staff_role, 'cook')
+
+  const suspended = await call('/owner/staff/' + staffRow.id, {
+    method: 'PATCH', cookie: ownerCookie, body: { tenant_id: tenantId, active: false },
+  })
+  assert.equal(suspended.status, 200)
+  assert.equal((await call('/auth/session', { cookie: staffCookie })).status, 200)
+  const rejectedLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'cook.one', password: 'cook-password-strong-123' } })
+  assert.equal(rejectedLogin.status, 401)
+
+  const reactivated = await call('/owner/staff/' + staffRow.id, {
+    method: 'PATCH', cookie: ownerCookie, body: { tenant_id: tenantId, active: true, role: 'manager' },
+  })
+  assert.equal(reactivated.status, 200)
+  const reLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'cook.one', password: 'cook-password-strong-123' } })
+  assert.equal(reLogin.status, 200)
 })
 
 test('owner support conversations and admin replies are tenant-scoped', async () => {
