@@ -147,6 +147,9 @@ function App() {
     if (!membership) return <div className="signin-screen"><div className="signin-card">Your staff account has no active restaurant assignment. Contact the restaurant owner.</div></div>
     return <StaffPortal slug={membership.tenant_slug} role={membership.staff_role as 'cook' | 'waiter' | 'manager'} displayName={membership.display_name || nativeUser.login_id} onSignOut={signOut}/>
   }
+  if (staffRoute && sessionToken === 'native' && nativeUser?.tenant_role === 'owner' && !nativeUser.is_admin) {
+    return <OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE} onSignOut={signOut}/>
+  }
   if (staffRoute && !sessionToken) return <SignIn role="staff" error={authError} onAuthenticated={handleNativeAuthenticated}/>
   if (ownerInviteRoute) {
     return <OwnerInviteAcceptance accessToken={sessionToken || ''} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAuthenticated={handleNativeAuthenticated} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
