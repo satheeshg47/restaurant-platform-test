@@ -80,7 +80,7 @@ async function consumeRateLimit(env: Env, key: string): Promise<boolean> {
     `INSERT INTO platform_auth_rate_limits(bucket_key,window_started_at,attempt_count,updated_at)
      VALUES(?,?,1,?)
      ON CONFLICT(bucket_key) DO UPDATE SET
-       attempt_count=CASE WHEN platform_auth_rate_limits.window_started_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN 1 ELSE platform_auth_rate_limits.attempt_count+1 END,
+       attempt_count=CASE WHEN platform_auth_rate_limits.window_started_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN 1 ELSE MIN(platform_auth_rate_limits.attempt_count+1,1000) END,
        window_started_at=CASE WHEN platform_auth_rate_limits.window_started_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN excluded.window_started_at ELSE platform_auth_rate_limits.window_started_at END,
        blocked_until=CASE
          WHEN platform_auth_rate_limits.blocked_until>excluded.updated_at THEN platform_auth_rate_limits.blocked_until
