@@ -657,3 +657,8 @@
 .owner-staff-created>b{font-size:11px;color:#216b4b}
 .owner-staff-created>code{font-size:11px;color:#344256;background:#fff;border:1px solid #e6eee8;border-radius:7px;padding:8px;overflow-wrap:anywhere}
 .owner-staff-created>div{display:flex;gap:8px;flex-wrap:wrap}
+
+
+.owner-home-heading-actions{display:flex;align-items:center;gap:7px}
+.owner-home-heading-actions button{display:grid;place-items:center;width:34px;height:34px;border:1px solid #e7eaf1;border-radius:9px;background:#fff;color:#647087;cursor:pointer}
+.owner-home-heading-actions button:hover{background:#f5f4ff;color:#6556d8}
