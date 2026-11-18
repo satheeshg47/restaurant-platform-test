@@ -23,7 +23,7 @@ export default function UpdateCentre({ apiBaseUrl }: { apiBaseUrl: string }) {
     } catch { setState('unavailable') } finally { setRefreshing(false) }
   }
   useEffect(() => { void refresh() }, [])
-  const label = (value: string) => value.replaceAll('_', ' ')
+  const label = (value: string) => value.split('_').join(' ')
   return <div className="update-centre">
     <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">RELEASE CONTROL</span><h2>Application releases</h2><p>Live release and deployment history from production D1.</p></div>

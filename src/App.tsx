@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Activity, AppWindow, ArrowUpRight, Bell, Boxes, Check, QrCode, BarChart3,
-  ChevronDown, CircleHelp, CreditCard, Database, Download, FileArchive,
+  ChevronDown, CircleHelp, CreditCard, Database, Download,
   FileCheck2, LayoutDashboard, LifeBuoy, LockKeyhole,
   Menu, MoreHorizontal, Plus, Settings, ShieldCheck, Store, Utensils,
   Users, X, Zap, ScrollText, MessageCircle
