@@ -777,4 +777,26 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(otherTenant.status, 201)
   const forbidden = await call('/restaurant/other-tenant/settings', { accessToken: ownerAccess })
   assert.equal(forbidden.status, 403)
+
+  const otherOwnerInviteResponse = await call('/admin/owner-invitations', {
+    method: 'POST', accessToken: adminToken,
+    body: { tenant_id: (await otherTenant.json()).tenant.id, email: 'other-owner@example.com' },
+  })
+  assert.equal(otherOwnerInviteResponse.status, 201)
+  const otherOwnerInvite = await otherOwnerInviteResponse.json()
+  const otherOwnerSubject = 'auth0|other-tenant-owner'
+  const otherOwnerAccess = await token(otherOwnerSubject, audience)
+  const otherOwnerId = await token(otherOwnerSubject, clientId, { email: 'other-owner@example.com', email_verified: true })
+  const otherOwnerAccepted = await call('/owner/invitations/accept', {
+    method: 'POST', accessToken: otherOwnerAccess, idToken: otherOwnerId,
+    body: { token: otherOwnerInvite.token },
+  })
+  assert.equal(otherOwnerAccepted.status, 200)
+
+  const otherOwnerOwnTenant = await call('/restaurant/other-tenant/settings', { accessToken: otherOwnerAccess })
+  assert.equal(otherOwnerOwnTenant.status, 200)
+  const reverseForbidden = await call('/restaurant/green-leaf-kitchen/settings', { accessToken: otherOwnerAccess })
+  assert.equal(reverseForbidden.status, 403)
+  const unauthenticated = await call('/restaurant/green-leaf-kitchen/settings')
+  assert.equal(unauthenticated.status, 401)
 })
