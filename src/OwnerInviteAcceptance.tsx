@@ -127,7 +127,7 @@ export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl
       {state === 'setup' && <form className="signin-form" onSubmit={event => void accept(event)}>
         <label>Choose a login ID<input value={loginId} onChange={event => setLoginId(event.target.value)} required minLength={3} maxLength={64} autoComplete="username"/></label>
         <label>Create password<input value={password} onChange={event => setPassword(event.target.value)} type="password" required minLength={12} maxLength={256} autoComplete="new-password"/><small>Use at least 12 characters.</small></label>
-        <button className="signin-button" type="submit" disabled={state === 'sending'}>Create account and accept invitation <ArrowRight size={16}/></button>
+        <button className="signin-button" type="submit">Create account and accept invitation <ArrowRight size={16}/></button>
       </form>}
       {state === 'ready' && <button className="signin-button" onClick={() => void accept()}>Accept invitation <ArrowRight size={16}/></button>}
       {state === 'sending' && <div className="owner-home-state">Verifying invitation and creating your secure owner account…</div>}
