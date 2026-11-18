@@ -81,6 +81,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0006_stock_adjustment_marker.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0007_tenant_restore_guard.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0008_native_auth_foundation.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0009_totp_replay_protection.sql', 'utf8'))
   db.exec('CREATE TABLE d1_migrations (name TEXT PRIMARY KEY)')
   db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(
     '0001_platform_core.sql'
@@ -93,6 +94,7 @@ beforeEach(() => {
     '0006_stock_adjustment_marker.sql',
     '0007_tenant_restore_guard.sql',
     '0008_native_auth_foundation.sql',
+    '0009_totp_replay_protection.sql',
   ]) db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(name)
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
@@ -204,6 +206,15 @@ test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session
   assert.equal(verified.status, 200)
   const secondCookie = verified.headers.get('Set-Cookie').split(';')[0]
   assert.equal((await call('/admin/session', { cookie: secondCookie })).status, 200)
+
+  const replayLogin = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
+  })
+  const replayChallenge = await replayLogin.json()
+  const replayedOtp = await call('/auth/totp/verify', {
+    method: 'POST', body: { challenge_token: replayChallenge.challenge_token, code: otp },
+  })
+  assert.equal(replayedOtp.status, 401, 'a TOTP counter must not be accepted twice')
 
   const recoveryLogin = await call('/auth/login', {
     method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
