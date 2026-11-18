@@ -22,12 +22,13 @@ The script is in `google-apps-script/drive-backup/Code.gs`.
 
 ## Security note\n\nThe first bridge version does not apply client-side encryption to the SQL dump. Drive access is controlled by the Google account and folder permissions. Keep the backup folder unshared, restrict Apps Script project editors, and complete Google account MFA before using it for real customer data. Client-side encryption is a separate hardening item; do not describe the current bridge as end-to-end encrypted.\n\n## Phase 2 — verify archive and recovery
 
-Before any D1 cleanup:
-1. Configure the Apps Script properties and authorize Drive access.
-2. Run a manual production backup during a quiet period.
-3. Verify the SQL file and manifest are present in Drive; compare recorded size and checksum.
-4. Restore the SQL dump into a separate, isolated test D1 database (never production) and verify schema, migration ledger, foreign keys and representative tenant workflows.
-5. Document the restore procedure and measured recovery time.
+Recovery verification status (2026-11-18):
+1. Apps Script configuration test passed; the daily trigger is configured for approximately 02:20 Asia/Kolkata.
+2. A manual production backup completed and saved a compressed SQL snapshot plus JSON manifest in private Drive.
+3. The restore script validated the manifest, compressed size and SHA-256 checksum; decompression and Cloudflare D1 import completed successfully.
+4. The snapshot was restored into a separate temporary D1 database, never production.
+5. Direct read-only comparison confirmed 43 required application tables plus the D1 migration ledger, matching table definitions/schema objects and all existing rows (8 rows total). Foreign-key check returned no violations.
+6. This is one successful isolated restore drill. Repeat periodically, monitor scheduled executions/Drive capacity, and document measured recovery time before customer onboarding.
 
 ## Phase 3 — seven-day hot retention
 
@@ -74,5 +75,5 @@ The daily Drive files are full point-in-time snapshots, not incremental deltas. 
 - No D1 row deletion or pruning.
 - No Google Drive public sharing.
 - No R2, paid Cloudflare plan, or new paid storage.
-- No assumption that the Drive backup is already configured.
+- No automatic D1 row deletion or Drive backup deletion; the Drive backup bridge is configured, but ongoing scheduled success still requires monitoring.
 - No use of GitHub as a customer-data archive.
