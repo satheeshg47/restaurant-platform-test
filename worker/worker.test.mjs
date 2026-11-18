@@ -223,6 +223,16 @@ test('native authentication rejects cross-origin login requests', async () => {
   assert.equal(response.status, 403)
 })
 
+test('cookie-authenticated state changes reject cross-origin requests before authorization', async () => {
+  const response = await call('/admin/applications', {
+    method: 'POST',
+    cookie: 'platformcore_session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    origin: 'https://attacker.example',
+    body: { app_key: 'cross-site-test', name: 'Cross Site Test' },
+  })
+  assert.equal(response.status, 403)
+})
+
 test('D1 health, readiness and protected Super Admin session work', async () => {
   const health = await call('/health')
   assert.equal(health.status, 200)
