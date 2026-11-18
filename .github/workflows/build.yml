@@ -48,13 +48,4 @@ jobs:
       - name: Build frontend
         run: npm run build
       - name: Bundle Worker without deploying
-        run: npx wrangler deploy --dry-run --outdir wrangler-dry-run
-      - name: Upload deployment bundle for controlled release
-        uses: actions/upload-artifact@v4
-        with:
-          name: restaurant-platform-deployment
-          path: |
-            wrangler-dry-run/
-            dist/
-          if-no-files-found: error
-          retention-days: 1
+        run: npx wrangler deploy --dry-run --outdir .wrangler-dry-run
