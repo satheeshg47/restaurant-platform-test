@@ -38,6 +38,6 @@ Group chats and announcements created by the Super Admin appear in the owner's c
 ## Current limitations
 
 - The component is reusable but is not yet mounted in the separate Restaurant App or other customer apps; those app repositories and their auth-session integration must be connected.
-- The OIDC provider, owner provisioning/linking flow, browser sign-in experience and live PostgreSQL service still need configuration.
+- Owner provisioning/linking and the browser sign-in experience still need completion. The Platform Core API is hosted on Cloudflare Workers and uses Cloudflare D1; no separate PostgreSQL service is part of the deployed architecture.
 - No attachments, push notifications, email delivery, message editing or deletion are included.
 - Messages are limited to 5,000 characters; JSON request bodies are limited to 16 KiB.
