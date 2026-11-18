@@ -35,9 +35,10 @@ function errorMessage(code: string) {
   return messages[code] || code.replace(/_/g, ' ')
 }
 
-export default function RestaurantOperations({ initialSlug = '' }: { initialSlug?: string } = {}) {
+export default function RestaurantOperations({ initialSlug = '', initialTab = 'kitchen', allowedTabs }: { initialSlug?: string; initialTab?: Tab; allowedTabs?: Tab[] } = {}) {
   const [slug, setSlug] = useState(initialSlug)
-  const [tab, setTab] = useState<Tab>('kitchen')
+  const [tab, setTab] = useState<Tab>(initialTab)
+  const visibleTabs = allowedTabs || ['kitchen', 'waiter']
   const [queue, setQueue] = useState<QueueRow[]>([])
   const [board, setBoard] = useState<Board>({ tables: [], ready_items: [], service_requests: [] })
   const [loading, setLoading] = useState(false)
@@ -175,7 +176,7 @@ export default function RestaurantOperations({ initialSlug = '' }: { initialSlug
       <button className="button secondary small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14}/>{loading ? 'Refreshing' : 'Refresh'}</button>
     </div>
     {!initialSlug && <div className="restaurant-ops-config"><label htmlFor="ops-slug">Restaurant slug</label><input id="ops-slug" value={slug} onChange={event => setSlug(event.target.value)} placeholder="e.g. my-restaurant"/><button className="button primary small" onClick={() => void refresh()} disabled={loading || !slug.trim()}>Load workspace</button></div>}
-    <div className="restaurant-ops-tabs"><button className={tab === 'kitchen' ? 'active' : ''} onClick={() => setTab('kitchen')}><ChefHat size={15}/> Kitchen queue</button><button className={tab === 'waiter' ? 'active' : ''} onClick={() => setTab('waiter')}><Utensils size={15}/> Waiter board</button></div>
+    <div className="restaurant-ops-tabs">{visibleTabs.includes('kitchen') && <button className={tab === 'kitchen' ? 'active' : ''} onClick={() => setTab('kitchen')}><ChefHat size={15}/> Kitchen queue</button>}{visibleTabs.includes('waiter') && <button className={tab === 'waiter' ? 'active' : ''} onClick={() => setTab('waiter')}><Utensils size={15}/> Waiter board</button>}</div>
     {error && <div className="restaurant-ops-error"><AlertCircle size={15}/>{error}<button onClick={() => setError('')}><X size={14}/></button></div>}
     {notice && <div className="restaurant-table-message" role="status">{notice}<button onClick={() => setNotice('')}>Dismiss</button></div>}
     {!slug.trim() ? <div className="restaurant-ops-empty">Enter a restaurant slug to connect to its staff workspace.</div> : tab === 'kitchen' ? <>

@@ -23,12 +23,15 @@ import RestaurantDataExport from './RestaurantDataExport'
 import GuestMenu from './GuestMenu'
 import OwnerPortal from './OwnerPortal'
 import OwnerInviteAcceptance from './OwnerInviteAcceptance'
+import StaffPortal from './StaffPortal'
 import SignIn from './SignIn'
 import { apiFetch, completeOidcLogin, setSessionToken as setApiSessionToken } from './auth'
 
 type Section = 'Overview' | 'Applications' | 'Restaurant Suite' | 'Tables & QR' | 'Kitchen & Service' | 'Restaurant Settings' | 'Restaurant Reports' | 'Customer Reviews' | 'Restaurant Data Export' | 'Owners' | 'Communications' | 'Subscriptions' | 'Update Centre' | 'Data & Backups' | 'Monitoring' | 'Security' | 'Audit Log'
 type AppRecord = { id: string; name: string; category: string; status: 'Active' | 'Draft' | 'Paused'; initials: string; tone: string }
 type OverviewEvent = { id: string; action: string; resource_type: string; created_at: string }
+type NativeMembership = { tenant_id: string; tenant_name: string; tenant_slug: string; membership_role: string; staff_id: string | null; staff_role: 'cook' | 'waiter' | 'manager' | null; display_name: string | null }
+type NativeUser = { id: string; email: string | null; login_id: string; is_admin: boolean; tenant_role: string | null; memberships: NativeMembership[] }
 
 const nav: { label: Section; icon: typeof LayoutDashboard }[] = [
   { label: 'Overview', icon: LayoutDashboard },
@@ -56,6 +59,7 @@ function App() {
   const [notice, setNotice] = useState('')
   const [sessionToken, setSessionToken] = useState<string | null>(null)
   const [sessionIdToken, setSessionIdToken] = useState<string | null>(null)
+  const [nativeUser, setNativeUser] = useState<NativeUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [authError, setAuthError] = useState('')
   const [bootstrapAvailable, setBootstrapAvailable] = useState(false)
@@ -67,6 +71,7 @@ function App() {
 
   const ownerRoute = window.location.pathname === '/owner' || window.location.pathname === '/owner/'
   const ownerInviteRoute = window.location.pathname === '/owner/invitations/accept'
+  const staffRoute = window.location.pathname === '/staff' || window.location.pathname === '/staff/'
 
   useEffect(() => {
     if (window.location.pathname === '/owner/invitations/accept') {
@@ -78,12 +83,13 @@ function App() {
       let active = true
       fetch(`${API_BASE}/auth/session`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
         .then(async response => {
-          const payload = await response.json().catch(() => ({})) as { authenticated?: boolean; bootstrap_available?: boolean; encryption_ready?: boolean }
+          const payload = await response.json().catch(() => ({})) as { authenticated?: boolean; bootstrap_available?: boolean; encryption_ready?: boolean; user?: NativeUser }
           if (!active) return
           if (response.ok && payload.authenticated) {
             setApiSessionToken('native')
             setSessionToken('native')
             setSessionIdToken(null)
+            setNativeUser(payload.user || null)
           }
           setBootstrapAvailable(payload.bootstrap_available === true)
           setEncryptionReady(payload.encryption_ready === true)
@@ -96,6 +102,7 @@ function App() {
       setApiSessionToken(tokens.accessToken)
       setSessionToken(tokens.accessToken)
       setSessionIdToken(tokens.idToken)
+      setNativeUser(null)
       setAuthError('')
       setAuthReady(true)
     }).catch(cause => {
@@ -105,34 +112,51 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!authReady || !sessionToken || ownerRoute || ownerInviteRoute) return
+    if (!authReady || !sessionToken || ownerRoute || ownerInviteRoute || (staffRoute && nativeUser?.tenant_role === 'staff')) return
     let active = true
     setAdminAccess('checking')
     apiFetch(`${API_BASE}/admin/session`, { headers: { Accept: 'application/json' }, cache: 'no-store' })
       .then(response => { if (active) setAdminAccess(response.ok ? 'allowed' : response.status === 403 ? 'forbidden' : 'unavailable') })
       .catch(() => { if (active) setAdminAccess('unavailable') })
     return () => { active = false }
-  }, [authReady, sessionToken, ownerRoute, ownerInviteRoute])
+  }, [authReady, sessionToken, ownerRoute, ownerInviteRoute, staffRoute, nativeUser])
 
   const signOut = () => {
     if (sessionToken === 'native') void fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } }).catch(() => {})
-    setApiSessionToken(null); setSessionToken(null); setSessionIdToken(null); setAdminAccess('checking'); setAuthError('')
+    setApiSessionToken(null); setSessionToken(null); setSessionIdToken(null); setNativeUser(null); setAdminAccess('checking'); setAuthError('')
   }
   const handleNativeAuthenticated = () => {
     setApiSessionToken('native')
     setSessionToken('native')
     setSessionIdToken(null)
     setAuthError('')
+    void fetch(`${API_BASE}/auth/session`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(response => response.json())
+      .then(payload => {
+        if (payload?.authenticated) setNativeUser(payload.user || null)
+        setBootstrapAvailable(payload?.bootstrap_available === true)
+        setEncryptionReady(payload?.encryption_ready === true)
+      })
+      .catch(() => {})
   }
   const guestRoute = window.location.pathname.match(/^\/r\/([^/]+)\/([^/]+)\/?$/)
   if (guestRoute) return <GuestMenu slug={decodeURIComponent(guestRoute[1])} token={decodeURIComponent(guestRoute[2])} />
   if (!authReady) return <div className="signin-screen"><div className="signin-card">Completing secure sign-in…</div></div>
+  if (sessionToken === 'native' && nativeUser?.tenant_role === 'staff') {
+    const membership = nativeUser.memberships?.find(item => item.membership_role === 'staff' && item.staff_role && item.tenant_slug)
+    if (!membership) return <div className="signin-screen"><div className="signin-card">Your staff account has no active restaurant assignment. Contact the restaurant owner.</div></div>
+    return <StaffPortal slug={membership.tenant_slug} role={membership.staff_role as 'cook' | 'waiter' | 'manager'} displayName={membership.display_name || nativeUser.login_id} onSignOut={signOut}/>
+  }
+  if (staffRoute && sessionToken === 'native' && nativeUser?.tenant_role === 'owner' && !nativeUser.is_admin) {
+    return <OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE} onSignOut={signOut}/>
+  }
+  if (staffRoute && !sessionToken) return <SignIn role="staff" error={authError} onAuthenticated={handleNativeAuthenticated}/>
   if (ownerInviteRoute) {
     return <OwnerInviteAcceptance accessToken={sessionToken || ''} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAuthenticated={handleNativeAuthenticated} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
   }
   if (ownerRoute) {
     if (!sessionToken) return <SignIn role="owner" error={authError} onAuthenticated={handleNativeAuthenticated}/>
-    return <main className="owner-portal-shell"><header><div className="signin-brand"><div className="signin-mark"><Store size={22}/></div><div><b>platform<span>core</span></b><small>RESTAURANT OWNER</small></div></div><button className="button secondary small" onClick={signOut}>Sign out</button></header><OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE}/></main>
+    return <main className="owner-portal-shell"><header><div className="signin-brand"><div className="signin-mark"><Store size={22}/></div><div><b>platform<span>core</span></b><small>RESTAURANT OWNER</small></div></div><button className="button secondary small" onClick={signOut}>Sign out</button></header><OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE} onSignOut={signOut}/></main>
   }
   if (!sessionToken) return <SignIn role="admin" error={authError} bootstrapAvailable={bootstrapAvailable} encryptionReady={encryptionReady} onAuthenticated={handleNativeAuthenticated}/>
   if (adminAccess === 'checking') return <div className="signin-screen"><div className="signin-card">Verifying administrator access…</div></div>
