@@ -127,13 +127,22 @@ export async function generateTotpCode(secret: string, now = Date.now()): Promis
   return totpAt(secret, Math.floor(now / 30_000))
 }
 
-export async function verifyTotp(secret: string, code: string, now = Date.now(), window = 1): Promise<boolean> {
-  if (!/^\d{6}$/.test(code) || !Number.isFinite(now) || !Number.isInteger(window) || window < 0 || window > 2) return false
+export async function findTotpCounter(secret: string, code: string, now = Date.now(), window = 1): Promise<number | null> {
+  if (!/^\d{6}$/.test(code) || !Number.isFinite(now) || !Number.isInteger(window) || window < 0 || window > 2) return null
   const counter = Math.floor(now / 30_000)
+  let matched: number | null = null
   for (let offset = -window; offset <= window; offset++) {
-    if (constantTimeEqual(encoder.encode(await totpAt(secret, counter + offset)), encoder.encode(code))) return true
+    const candidate = counter + offset
+    if (candidate < 0) continue
+    if (constantTimeEqual(encoder.encode(await totpAt(secret, candidate)), encoder.encode(code))) {
+      matched = matched === null ? candidate : Math.max(matched, candidate)
+    }
   }
-  return false
+  return matched
+}
+
+export async function verifyTotp(secret: string, code: string, now = Date.now(), window = 1): Promise<boolean> {
+  return (await findTotpCounter(secret, code, now, window)) !== null
 }
 
 export function totpProvisioningUri(secret: string, loginId: string): string {
