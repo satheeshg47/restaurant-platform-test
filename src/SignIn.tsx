@@ -140,6 +140,7 @@ export default function SignIn({
           bootstrap_already_used: 'The first administrator has already been created. Sign in instead.',
           login_id_unavailable: 'That login ID is already in use.',
           bootstrap_not_configured: 'The AUTH_BOOTSTRAP_SECRET secret is not configured on the Worker.',
+          totp_encryption_not_configured: 'The AUTH_ENCRYPTION_KEY secret is not configured on the Worker.',
         }
         throw new Error(errors[payload.error || ''] || payload.error || 'Administrator setup failed.')
       }
