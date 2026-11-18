@@ -84,7 +84,7 @@ async function consumeRateLimit(env: Env, key: string): Promise<boolean> {
        window_started_at=CASE WHEN platform_auth_rate_limits.window_started_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN excluded.window_started_at ELSE platform_auth_rate_limits.window_started_at END,
        blocked_until=CASE
          WHEN platform_auth_rate_limits.blocked_until>excluded.updated_at THEN platform_auth_rate_limits.blocked_until
-         WHEN platform_auth_rate_limits.window_started_at>datetime('now','-15 minutes') AND platform_auth_rate_limits.attempt_count>=?
+         WHEN platform_auth_rate_limits.window_started_at>strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') AND platform_auth_rate_limits.attempt_count>=?
            THEN strftime('%Y-%m-%dT%H:%M:%fZ','now','+15 minutes')
          ELSE NULL END,
        updated_at=excluded.updated_at
@@ -238,14 +238,14 @@ async function verifyMfa(request: Request, env: Env, enrollment: boolean): Promi
   const body = await readBody(request)
   if (!body) return json(400, { error: 'invalid_request' })
   const token = typeof body.challenge_token === 'string' ? body.challenge_token : ''
-  const code = typeof body.code === 'string' ? body.code.replace(/\s/g, '') : ''
+  const code = typeof body.code === 'string' ? body.code.toUpperCase().replace(/\s/g, '') : ''
   const purpose = enrollment ? 'totp_enrollment' : 'login_totp'
   const challenge = await verifyChallenge(env, token, purpose)
   if (!challenge || challenge.attempts >= 10) return json(401, { error: 'invalid_or_expired_challenge' })
   const user = await getUserAuth(env, challenge.user_id)
   if (!user || user.credential_status !== 'active' || !user.totp_secret_ciphertext || !env.AUTH_ENCRYPTION_KEY) return json(401, { error: 'invalid_or_expired_challenge' })
   let valid = false
-  if (/^\\d{6}$/.test(code)) {
+  if (/^\d{6}$/.test(code)) {
     try {
       const secret = await decryptTotpSecret(user.totp_secret_ciphertext, env.AUTH_ENCRYPTION_KEY)
       valid = await verifyTotp(secret, code)
