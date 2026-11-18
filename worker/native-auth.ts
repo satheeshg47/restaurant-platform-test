@@ -32,7 +32,7 @@ function readCookie(request: Request, name: string): string | null {
   for (const part of raw.split(';')) {
     const index = part.indexOf('=')
     if (index < 0) continue
-    if (part.slice(0, index).trim() === name) return decodeURIComponent(part.slice(index + 1).trim())
+    if (part.slice(0, index).trim() === name) { try { return decodeURIComponent(part.slice(index + 1).trim()) } catch { return null } }
   }
   return null
 }
@@ -80,12 +80,12 @@ async function consumeRateLimit(env: Env, key: string): Promise<boolean> {
     `INSERT INTO platform_auth_rate_limits(bucket_key,window_started_at,attempt_count,updated_at)
      VALUES(?,?,1,?)
      ON CONFLICT(bucket_key) DO UPDATE SET
-       attempt_count=CASE WHEN platform_auth_rate_limits.window_started_at<=datetime('now','-15 minutes') THEN 1 ELSE platform_auth_rate_limits.attempt_count+1 END,
+       attempt_count=CASE WHEN platform_auth_rate_limits.window_started_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN 1 ELSE platform_auth_rate_limits.attempt_count+1 END,
        window_started_at=CASE WHEN platform_auth_rate_limits.window_started_at<=datetime('now','-15 minutes') THEN excluded.window_started_at ELSE platform_auth_rate_limits.window_started_at END,
        blocked_until=CASE
          WHEN platform_auth_rate_limits.blocked_until>excluded.updated_at THEN platform_auth_rate_limits.blocked_until
          WHEN platform_auth_rate_limits.window_started_at>datetime('now','-15 minutes') AND platform_auth_rate_limits.attempt_count>=?
-           THEN datetime('now','+15 minutes')
+           THEN strftime('%Y-%m-%dT%H:%M:%fZ','now','+15 minutes')
          ELSE NULL END,
        updated_at=excluded.updated_at
      RETURNING attempt_count,blocked_until`,
