@@ -153,7 +153,7 @@ function App() {
           {section === 'Subscriptions' && <Subscriptions />}
           {section === 'Update Centre' && <Placeholder icon={FileArchive} title="Safe application updates" description="Upload a release package, validate it, review changes and approve deployment." items={['ZIP upload and manifest validation','Compatibility and migration checks','Pre-deployment backup','Approval, health check and rollback']}/>}
           {section === 'Data & Backups' && <Placeholder icon={Database} title="Data & backups" description="Keep application data portable, protected and recoverable." items={['Per-application data overview','Encrypted backup exports','Restore drills and recovery history','PostgreSQL and S3-compatible migration']}/>}
-          {section === 'Monitoring' && <Placeholder icon={Activity} title="Platform monitoring" description="Monitor service health and identify issues before customers do." items={['API latency and error rates','Database and storage health','Capacity and usage alerts','Audit-ready incident history']}/>}
+          {section === 'Monitoring' && <Monitoring />}
           {section === 'Security' && <Placeholder icon={LockKeyhole} title="Security & access" description="Protect the control plane with owner-only access and traceable actions." items={['Owner-only administrator access','MFA and passkey sign-in','Role and permission policies','Immutable security audit events']}/>}
           {section === 'Audit Log' && <AuditLog />}
           <footer className="footer"><span>Platform Core <b>·</b> v0.1.0 preview</span><span><i className="footer-dot"/> Development workspace · Sample data only</span></footer>
