@@ -20,8 +20,8 @@ function messageFor(state: ViewState) {
   return ['', '']
 }
 
-export default function RestaurantMenu() {
-  const [slug, setSlug] = useState('')
+export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: string } = {}) {
+  const [slug, setSlug] = useState(initialSlug)
   const [state, setState] = useState<ViewState>('idle')
   const [menu, setMenu] = useState<MenuPayload>({ categories: [], items: [], variants: [], addon_groups: [], addons: [], item_addon_groups: [] })
   const [error, setError] = useState('')
@@ -96,6 +96,7 @@ export default function RestaurantMenu() {
   }, [endpoint, request, state])
 
   useEffect(() => { setState('idle'); setMenu({ categories: [], items: [], variants: [], addon_groups: [], addons: [], item_addon_groups: [] }) }, [endpoint])
+  useEffect(() => { if (initialSlug) void load() }, [initialSlug])
 
   async function saveCategory() {
     if (!categoryName.trim()) return
@@ -248,7 +249,7 @@ export default function RestaurantMenu() {
   return <section className="restaurant-menu-screen" aria-live="polite">
     <div className="restaurant-menu-hero panel">
       <div className="restaurant-menu-brand"><div className="restaurant-menu-mark"><Store size={21}/></div><div><span className="eyebrow">RESTAURANT SUITE</span><h2>Menu management</h2><p>Manage categories, food items, prices and availability.</p></div></div>
-      <div className="restaurant-slug-control"><label htmlFor="restaurant-slug">Restaurant workspace slug</label><div><input id="restaurant-slug" value={slug} onChange={event => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="e.g. my-restaurant" maxLength={63}/><button className="button primary" onClick={() => void load()} disabled={busy || !endpoint}><RefreshCw size={14} className={busy ? 'spin' : ''}/>{busy ? 'Loading' : 'Load menu'}</button></div><small>Uses your signed-in owner or manager session. No demo records are shown.</small></div>
+      {!initialSlug && <div className="restaurant-slug-control"><label htmlFor="restaurant-slug">Restaurant workspace slug</label><div><input id="restaurant-slug" value={slug} onChange={event => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="e.g. my-restaurant" maxLength={63}/><button className="button primary" onClick={() => void load()} disabled={busy || !endpoint}><RefreshCw size={14} className={busy ? 'spin' : ''}/>{busy ? 'Loading' : 'Load menu'}</button></div><small>Uses your signed-in owner or manager session. No demo records are shown.</small></div>}
     </div>
 
     {error && <div className="restaurant-menu-alert"><AlertCircle size={16}/><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss"><X size={15}/></button></div>}

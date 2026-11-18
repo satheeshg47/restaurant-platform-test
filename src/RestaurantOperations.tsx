@@ -35,8 +35,8 @@ function errorMessage(code: string) {
   return messages[code] || code.replace(/_/g, ' ')
 }
 
-export default function RestaurantOperations() {
-  const [slug, setSlug] = useState('')
+export default function RestaurantOperations({ initialSlug = '' }: { initialSlug?: string } = {}) {
+  const [slug, setSlug] = useState(initialSlug)
   const [tab, setTab] = useState<Tab>('kitchen')
   const [queue, setQueue] = useState<QueueRow[]>([])
   const [board, setBoard] = useState<Board>({ tables: [], ready_items: [], service_requests: [] })
@@ -174,7 +174,7 @@ export default function RestaurantOperations() {
       <div><span className="eyebrow">RESTAURANT SUITE</span><h2>Kitchen & service</h2><p>Live staff workspaces. Updates refresh automatically every 12 seconds.</p></div>
       <button className="button secondary small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14}/>{loading ? 'Refreshing' : 'Refresh'}</button>
     </div>
-    <div className="restaurant-ops-config"><label htmlFor="ops-slug">Restaurant slug</label><input id="ops-slug" value={slug} onChange={event => setSlug(event.target.value)} placeholder="e.g. my-restaurant"/><button className="button primary small" onClick={() => void refresh()} disabled={loading || !slug.trim()}>Load workspace</button></div>
+    {!initialSlug && <div className="restaurant-ops-config"><label htmlFor="ops-slug">Restaurant slug</label><input id="ops-slug" value={slug} onChange={event => setSlug(event.target.value)} placeholder="e.g. my-restaurant"/><button className="button primary small" onClick={() => void refresh()} disabled={loading || !slug.trim()}>Load workspace</button></div>}
     <div className="restaurant-ops-tabs"><button className={tab === 'kitchen' ? 'active' : ''} onClick={() => setTab('kitchen')}><ChefHat size={15}/> Kitchen queue</button><button className={tab === 'waiter' ? 'active' : ''} onClick={() => setTab('waiter')}><Utensils size={15}/> Waiter board</button></div>
     {error && <div className="restaurant-ops-error"><AlertCircle size={15}/>{error}<button onClick={() => setError('')}><X size={14}/></button></div>}
     {notice && <div className="restaurant-table-message" role="status">{notice}<button onClick={() => setNotice('')}>Dismiss</button></div>}

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Building2, CheckCircle2, RefreshCw, Store } from 'lucide-react'
 import OwnerCommunications from './OwnerCommunications'
+import RestaurantMenu from './RestaurantMenu'
+import RestaurantTables from './RestaurantTables'
+import RestaurantOperations from './RestaurantOperations'
+import RestaurantSettings from './RestaurantSettings'
+import RestaurantReports from './RestaurantReports'
+import RestaurantReviews from './RestaurantReviews'
 
 type Restaurant = {
   tenant_id: string
@@ -17,6 +23,12 @@ type Restaurant = {
 }
 
 type Props = { accessToken: string; apiBaseUrl?: string }
+type OwnerTool = 'menu' | 'tables' | 'operations' | 'settings' | 'reports' | 'reviews'
+const ownerTools: { id: OwnerTool; label: string }[] = [
+  { id: 'menu', label: 'Menu' }, { id: 'tables', label: 'Tables & QR' },
+  { id: 'operations', label: 'Kitchen & service' }, { id: 'settings', label: 'Settings' },
+  { id: 'reports', label: 'Reports' }, { id: 'reviews', label: 'Reviews' },
+]
 
 export default function OwnerPortal({ accessToken, apiBaseUrl = '/api' }: Props) {
   const base = apiBaseUrl.replace(/\/$/, '')
@@ -24,6 +36,9 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api' }: Props)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [selectedSlug, setSelectedSlug] = useState('')
+  const [activeTool, setActiveTool] = useState<OwnerTool>('menu')
+  const selectedRestaurant = restaurants.find(item => item.tenant_slug === selectedSlug)
 
   const load = useCallback(async () => {
     if (!accessToken) return
@@ -65,9 +80,20 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api' }: Props)
         <div className="owner-home-meta"><span>Ordering</span><b>{restaurant.accepting_orders === null ? 'Not configured' : restaurant.accepting_orders ? 'Accepting orders' : 'Paused'}</b></div>
         <div className="owner-home-meta"><span>Currency</span><b>{restaurant.currency_code || 'Not configured'}</b></div>
         <small className="owner-home-slug">{restaurant.tenant_slug}</small>
+        <button type="button" className="owner-home-open" onClick={() => { setSelectedSlug(restaurant.tenant_slug); setActiveTool('menu') }}>Open restaurant workspace</button>
       </article>)}</div>}
       {error && <button type="button" className="owner-home-retry" onClick={() => void load()}>Try again</button>}
     </section>
+    {selectedRestaurant && <section className="owner-workspace">
+      <div className="owner-workspace-heading"><div><span className="owner-comms-kicker">RESTAURANT WORKSPACE</span><h2>{selectedRestaurant.display_name || selectedRestaurant.tenant_name}</h2><p>Changes are saved to this restaurant's live workspace.</p></div><button type="button" className="owner-workspace-back" onClick={() => setSelectedSlug('')}>Back to restaurants</button></div>
+      <nav className="owner-workspace-tabs" aria-label="Restaurant tools">{ownerTools.map(tool => <button type="button" key={tool.id} className={activeTool === tool.id ? 'active' : ''} onClick={() => setActiveTool(tool.id)}>{tool.label}</button>)}</nav>
+      {activeTool === 'menu' && <RestaurantMenu initialSlug={selectedSlug}/>}
+      {activeTool === 'tables' && <RestaurantTables initialSlug={selectedSlug}/>}
+      {activeTool === 'operations' && <RestaurantOperations initialSlug={selectedSlug}/>}
+      {activeTool === 'settings' && <RestaurantSettings initialSlug={selectedSlug}/>}
+      {activeTool === 'reports' && <RestaurantReports initialSlug={selectedSlug}/>}
+      {activeTool === 'reviews' && <RestaurantReviews initialSlug={selectedSlug}/>}
+    </section>}
     <OwnerCommunications accessToken={accessToken} apiBaseUrl={apiBaseUrl}/>
   </div>
 }

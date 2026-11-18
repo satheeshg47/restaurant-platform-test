@@ -5,8 +5,8 @@ import { AlertCircle, Check, LoaderCircle, RefreshCw, Save, Settings } from 'luc
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 type SettingsData = { display_name:string; currency_code:string; timezone:string; default_language:'en'|'hi'|'kn'; tax_mode:'none'|'single'|'gst'; tax_rate:number|string; gst_rate:number|string; tax_inclusive:boolean; accepting_orders:boolean; legal_name:string|null; gstin:string|null; address_line1:string|null; address_line2:string|null; city:string|null; state_name:string|null; state_code:string|null; postal_code:string|null; invoice_prefix:string }
 const empty:SettingsData = {display_name:'',currency_code:'INR',timezone:'Asia/Kolkata',default_language:'en',tax_mode:'none',tax_rate:0,gst_rate:5,tax_inclusive:false,accepting_orders:true,legal_name:'',gstin:'',address_line1:'',address_line2:'',city:'',state_name:'',state_code:'',postal_code:'',invoice_prefix:'INV'}
-export default function RestaurantSettings(){
- const [slug,setSlug]=useState('')
+export default function RestaurantSettings({initialSlug=''}:{initialSlug?:string}={}){
+ const [slug,setSlug]=useState(initialSlug)
  const [settings,setSettings]=useState<SettingsData>(empty)
  const [loaded,setLoaded]=useState(false)
  const [busy,setBusy]=useState(false)
@@ -26,6 +26,7 @@ export default function RestaurantSettings(){
   finally{setBusy(false)}
  }
  useEffect(()=>{setLoaded(false);setSettings(empty)},[slug])
+ useEffect(()=>{if(initialSlug) void load()},[initialSlug])
  async function save(){
   const tax=Number(settings.tax_rate),gst=Number(settings.gst_rate)
   if(!settings.display_name.trim()||settings.display_name.trim().length>160||!Number.isFinite(tax)||tax<0||tax>100||!Number.isFinite(gst)||gst<0||gst>100){setError('Check the restaurant name and tax rates (0–100%).');return}
@@ -36,7 +37,7 @@ export default function RestaurantSettings(){
  }
  return <section className="restaurant-menu">
   <div className="restaurant-menu-heading"><div className="restaurant-menu-title"><div className="restaurant-menu-icon"><Settings size={20}/></div><div><span className="eyebrow">RESTAURANT SUITE</span><h2>Restaurant settings</h2><p>Business identity, order availability, language and tax calculation defaults.</p></div></div></div>
-  <div className="restaurant-settings-lookup"><label>Restaurant slug<input value={slug} onChange={e=>setSlug(e.target.value)} placeholder="e.g. my-restaurant" autoCapitalize="none"/></label><button className="button secondary" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/>Load settings</button></div>
+  {!initialSlug && <div className="restaurant-settings-lookup"><label>Restaurant slug<input value={slug} onChange={e=>setSlug(e.target.value)} placeholder="e.g. my-restaurant" autoCapitalize="none"/></label><button className="button secondary" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/>Load settings</button></div>}
   {error&&<div className="restaurant-menu-alert"><AlertCircle size={16}/>{error}</div>}
   {notice&&<div className="restaurant-settings-success"><Check size={16}/>{notice}</div>}
   {!loaded?<div className="restaurant-menu-empty">{busy?<><LoaderCircle size={18}/> Loading restaurant settings…</>:'Enter the restaurant slug and load its saved settings.'}</div>:<>
