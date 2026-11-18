@@ -17,7 +17,13 @@ function fromBase64url(value: string): Uint8Array {
   return Uint8Array.from(binary, char => char.charCodeAt(0))
 }
 
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {\n  const copy = new Uint8Array(bytes.byteLength)\n  copy.set(bytes)\n  return copy.buffer\n}\n\nfunction constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy.buffer
+}
+
+function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   let difference = a.length ^ b.length
   const length = Math.max(a.length, b.length)
   for (let i = 0; i < length; i++) difference |= (a[i % (a.length || 1)] || 0) ^ (b[i % (b.length || 1)] || 0)
@@ -153,7 +159,7 @@ export async function encryptTotpSecret(secret: string, keyValue: string): Promi
 export async function decryptTotpSecret(encrypted: string, keyValue: string): Promise<string> {
   const [version, ivPart, dataPart, extra] = encrypted.split('.')
   if (version !== 'v1' || !ivPart || !dataPart || extra !== undefined) throw new Error('totp_ciphertext_invalid')
-  const key = await crypto.subtle.importKey('raw', encryptionKeyBytes(keyValue), 'AES-GCM', false, ['decrypt'])
+  const key = await crypto.subtle.importKey('raw', toArrayBuffer(encryptionKeyBytes(keyValue)), 'AES-GCM', false, ['decrypt'])
   const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(fromBase64url(ivPart)) }, key, toArrayBuffer(fromBase64url(dataPart)))
   return new TextDecoder().decode(plaintext)
 }
