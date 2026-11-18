@@ -228,7 +228,7 @@ async function login(request: Request, env: Env): Promise<Response> {
      FROM platform_user_credentials c JOIN platform_users pu ON pu.id=c.user_id
      WHERE c.login_id_normalized=? LIMIT 1`,
   ).bind(loginId.toLowerCase()).first<UserAuthRow>()
-  const dummyHash = 'pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+  const dummyHash = 'pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
   const valid = await verifyPassword(password, user && user.credential_status === 'active' ? user.password_hash : dummyHash)
   if (!user || user.credential_status !== 'active' || !valid || (!Number(user.is_admin) && !Number(user.is_owner) && !Number(user.is_member_active))) return json(401, { error: 'invalid_credentials' })
   if (Number(user.is_admin) || Number(user.is_owner)) {
