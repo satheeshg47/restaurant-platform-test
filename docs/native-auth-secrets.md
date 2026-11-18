@@ -2,7 +2,7 @@
 
 The native authentication code is deployed and both required Worker secrets are configured on the production Worker. Secret values are not stored in this repository. Do not rotate or replace `AUTH_ENCRYPTION_KEY` after authenticator enrollment without a planned key migration and re-enrollment.
 
-## If the secrets ever need to be provisioned again\n\nThe following steps are only for a new deployment or recovery where the Worker secrets are missing. They are already configured for the current production deployment.\n\n## 1. Generate two independent values
+## If the secrets ever need to be provisioned again\n\nThe following steps are only for a new deployment or recovery where the Worker secrets are missing. They are already configured for the current production deployment.\n\n## If the secrets ever need to be provisioned again\n\nThe following steps are only for a new deployment or recovery where the Worker secrets are missing. They are already configured for the current production deployment.\n\n## 1. Generate two independent values
 
 Generate a fresh 32-byte base64url value for each secret. The output is 43 characters and contains only letters, digits, underscore and hyphen.
 
