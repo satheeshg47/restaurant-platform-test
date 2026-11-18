@@ -171,6 +171,8 @@ async function completeLogin(env: Env, userId: string, request: Request): Promis
 
 async function bootstrapAdmin(request: Request, env: Env): Promise<Response> {
   if (!env.AUTH_BOOTSTRAP_SECRET) return json(503, { error: 'bootstrap_not_configured' })
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+  if (!await consumeRateLimit(env, `bootstrap:${ip}`)) return json(429, { error: 'too_many_attempts' })
   const body = await readBody(request)
   if (!body) return json(400, { error: 'invalid_request' })
   const supplied = typeof body.bootstrap_secret === 'string' ? body.bootstrap_secret : ''
@@ -213,9 +215,8 @@ async function login(request: Request, env: Env): Promise<Response> {
      FROM platform_user_credentials c JOIN platform_users pu ON pu.id=c.user_id
      WHERE c.login_id_normalized=? LIMIT 1`,
   ).bind(loginId.toLowerCase()).first<UserAuthRow>()
-  const valid = user && user.credential_status === 'active'
-    ? await verifyPassword(password, user.password_hash)
-    : (await hashPassword('timing-equalization-placeholder-password')).length > 0 && false
+  const dummyHash = 'pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+  const valid = await verifyPassword(password, user && user.credential_status === 'active' ? user.password_hash : dummyHash)
   if (!user || user.credential_status !== 'active' || !valid) return json(401, { error: 'invalid_credentials' })
   if (Number(user.is_admin) || Number(user.is_owner)) {
     if (!user.totp_enabled) {
@@ -244,10 +245,17 @@ async function verifyMfa(request: Request, env: Env, enrollment: boolean): Promi
   const user = await getUserAuth(env, challenge.user_id)
   if (!user || user.credential_status !== 'active' || !user.totp_secret_ciphertext || !env.AUTH_ENCRYPTION_KEY) return json(401, { error: 'invalid_or_expired_challenge' })
   let valid = false
-  try {
-    const secret = await decryptTotpSecret(user.totp_secret_ciphertext, env.AUTH_ENCRYPTION_KEY)
-    valid = await verifyTotp(secret, code)
-  } catch { valid = false }
+  if (/^\\d{6}$/.test(code)) {
+    try {
+      const secret = await decryptTotpSecret(user.totp_secret_ciphertext, env.AUTH_ENCRYPTION_KEY)
+      valid = await verifyTotp(secret, code)
+    } catch { valid = false }
+  } else if (!enrollment && /^[A-Z0-9_-]{12}$/.test(code)) {
+    const used = await env.DB.prepare(
+      'UPDATE platform_auth_recovery_codes SET used_at=? WHERE user_id=? AND code_hash=? AND used_at IS NULL RETURNING id',
+    ).bind(new Date().toISOString(), user.id, await sha256Hex(code)).first<{ id: string }>()
+    valid = Boolean(used)
+  }
   if (!valid) {
     await recordBadChallenge(env, challenge.id)
     return json(401, { error: 'invalid_code' })
