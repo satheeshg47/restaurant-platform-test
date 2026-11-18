@@ -1,6 +1,6 @@
 import { apiFetch } from './auth'
 import { useCallback,useEffect,useState } from 'react'
-import { AlertCircle,CheckCircle2,Clock,CreditCard,Plus,RefreshCw,ShieldCheck,XCircle } from 'lucide-react'
+import { AlertCircle,CheckCircle2,CreditCard,Plus,RefreshCw,ShieldCheck,XCircle } from 'lucide-react'
 
 const API_BASE=(import.meta.env.VITE_API_BASE_URL||'/api').replace(/\/$/,'')
 type Application={id:string;name:string;status:string}
