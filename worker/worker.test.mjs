@@ -809,3 +809,35 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   const unauthenticated = await call('/restaurant/green-leaf-kitchen/settings')
   assert.equal(unauthenticated.status, 401)
 })
+
+test('Super Admin can suspend and reactivate a tenant with an audit trail', async () => {
+  const adminToken = await token(adminSubject, audience)
+  const unauthorized = await call(`/admin/tenants/${tenantId}/status`, { method: 'PATCH', body: { status: 'suspended' } })
+  assert.equal(unauthorized.status, 401)
+
+  const invalid = await call(`/admin/tenants/${tenantId}/status`, {
+    method: 'PATCH', accessToken: adminToken, body: { status: 'closed' },
+  })
+  assert.equal(invalid.status, 400)
+  assert.equal((await invalid.json()).error, 'invalid_tenant_status')
+
+  const suspended = await call(`/admin/tenants/${tenantId}/status`, {
+    method: 'PATCH', accessToken: adminToken, body: { status: 'suspended' },
+  })
+  assert.equal(suspended.status, 200)
+  assert.equal((await suspended.json()).tenant.status, 'suspended')
+  assert.equal(db.prepare('SELECT status FROM tenants WHERE id=?').get(tenantId).status, 'suspended')
+
+  const unchanged = await call(`/admin/tenants/${tenantId}/status`, {
+    method: 'PATCH', accessToken: adminToken, body: { status: 'suspended' },
+  })
+  assert.equal(unchanged.status, 200)
+  assert.equal((await unchanged.json()).changed, false)
+
+  const reactivated = await call(`/admin/tenants/${tenantId}/status`, {
+    method: 'PATCH', accessToken: adminToken, body: { status: 'active' },
+  })
+  assert.equal(reactivated.status, 200)
+  assert.equal((await reactivated.json()).tenant.status, 'active')
+  assert.equal(db.prepare("SELECT count(*) AS count FROM platform_audit_events WHERE action='tenant.status_changed' AND resource_id=?").get(tenantId).count, 2)
+})
