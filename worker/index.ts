@@ -7,6 +7,7 @@ import { handleAdminMonitoring } from './admin-monitoring.ts'
 import { handleRestaurantRoutes } from './restaurant.ts'
 import { handleOwnerRestaurants } from './owner-portal.ts'
 import type { Env, Identity } from './types.ts'
+import { validateReleaseManifest } from './release-manifest.ts'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
 const APP_KEY = /^[a-z][a-z0-9-]{1,62}$/
@@ -69,6 +70,29 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
     } catch {
       return json(500, { error: 'application_list_failed' })
     }
+  }
+
+  if (path === '/admin/releases/validate-manifest' && request.method === 'POST') {
+    let body: Record<string, unknown>
+    try { body = await readJson(request, 256 * 1024) }
+    catch (error) {
+      const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 400
+      return json(status, { error: status === 413 ? 'payload_too_large' : 'invalid_json' })
+    }
+    const validation = validateReleaseManifest(body.manifest)
+    if (!validation.valid) return json(400, { valid: false, errors: validation.errors })
+    const manifest = validation.manifest as { app_key: string; version: string; database_migration_version: number }
+    try {
+      const application = await env.DB.prepare('SELECT id,name,status FROM applications WHERE app_key=?').bind(manifest.app_key).first<{id:string;name:string;status:string}>()
+      if (!application) return json(404, { valid:false,error:'application_not_found' })
+      if (application.status !== 'active') return json(409, { valid:false,error:'application_not_active' })
+      const duplicate = await env.DB.prepare('SELECT id FROM application_releases WHERE application_id=? AND version=?').bind(application.id,manifest.version).first()
+      if (duplicate) return json(409, { valid:false,error:'release_version_exists' })
+      const migration = await env.DB.prepare('SELECT name FROM d1_migrations ORDER BY name DESC LIMIT 1').first<{name:string}>()
+      const currentMigration = Number(/^([0-9]+)/.exec(migration?.name || '')?.[1] || 0)
+      if (manifest.database_migration_version > currentMigration) return json(409,{valid:false,error:'database_migration_not_available',current_migration_version:currentMigration,requested_migration_version:manifest.database_migration_version})
+      return json(200,{valid:true,application:{id:application.id,name:application.name,app_key:manifest.app_key},manifest:validation.manifest,total_bytes:validation.total_bytes,checks:{application_active:true,version_available:true,migration_compatible:true,metadata_valid:true},limitations:['This validates manifest metadata only.','It does not receive or inspect a ZIP archive, verify package file hashes, store artifacts, or authorize deployment.']})
+    } catch { return json(500,{error:'release_manifest_preflight_failed'}) }
   }
 
   if (path === '/admin/releases' && request.method === 'GET') {

@@ -11,6 +11,19 @@ export default function UpdateCentre({ apiBaseUrl }: { apiBaseUrl: string }) {
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [refreshing, setRefreshing] = useState(false)
   const [checkedAt, setCheckedAt] = useState('')
+  const [manifestText, setManifestText] = useState('')
+  const [manifestResult, setManifestResult] = useState<{valid?:boolean;errors?:Array<{code:string;path:string;message:string}>;error?:string;checks?:Record<string,boolean>;limitations?:string[]}|null>(null)
+  const [validatingManifest, setValidatingManifest] = useState(false)
+  async function validateManifest() {
+    setValidatingManifest(true); setManifestResult(null)
+    try {
+      const manifest=JSON.parse(manifestText)
+      const response=await apiFetch(`${apiBaseUrl}/admin/releases/validate-manifest`,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json'},body:JSON.stringify({manifest}),cache:'no-store'})
+      setManifestResult(await response.json())
+    } catch(error) { setManifestResult({error:error instanceof SyntaxError?'Manifest is not valid JSON.':'Preflight request failed.'}) }
+    finally { setValidatingManifest(false) }
+  }
+
   async function refresh() {
     setRefreshing(true)
     try {
@@ -25,6 +38,19 @@ export default function UpdateCentre({ apiBaseUrl }: { apiBaseUrl: string }) {
   useEffect(() => { void refresh() }, [])
   const label = (value: string) => value.split('_').join(' ')
   return <div className="update-centre">
+    <section className="panel">
+      <div className="panel-heading"><div><span className="eyebrow">RELEASE PREFLIGHT</span><h2>Validate release manifest</h2><p>Check manifest structure and compatibility before package handling is enabled.</p></div></div>
+      <textarea aria-label="Release manifest JSON" value={manifestText} onChange={event=>setManifestText(event.target.value)} placeholder="Paste release manifest JSON here…" style={{width:'100%',minHeight:180,boxSizing:'border-box',border:'1px solid #e1e5ed',borderRadius:9,padding:12,font:'11px ui-monospace, monospace',resize:'vertical'}} />
+      <div style={{display:'flex',justifyContent:'flex-end',marginTop:10}}><button className="button primary" onClick={()=>void validateManifest()} disabled={validatingManifest||!manifestText.trim()}>{validatingManifest?'Validating…':'Validate manifest'}</button></div>
+      {manifestResult&&<div className="empty-activity" style={{minHeight:0,alignItems:'flex-start',textAlign:'left',padding:'12px 0'}}>
+        <b>{manifestResult.valid?'Manifest metadata passed preflight':'Manifest preflight did not pass'}</b>
+        {manifestResult.error&&<p>{manifestResult.error}</p>}
+        {manifestResult.errors?.map((issue,index)=><p key={index}>{issue.path||'Manifest'} · {issue.code}: {issue.message}</p>)}
+        {manifestResult.checks&&<p>{Object.entries(manifestResult.checks).map(([key,value])=>`${key.split('_').join(' ')}: ${value?'passed':'failed'}`).join(' · ')}</p>}
+        {manifestResult.limitations?.map((item,index)=><p key={index}>{item}</p>)}
+      </div>}
+      <div className="feature-note"><AlertTriangle size={16}/> Preflight checks metadata only. ZIP inspection, file-hash verification, private artifact storage, backup and deployment remain disabled.</div>
+    </section>
     <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">RELEASE CONTROL</span><h2>Application releases</h2><p>Live release and deployment history from production D1.</p></div>
         <button className="button secondary small" onClick={() => void refresh()} disabled={refreshing}><RefreshCw size={14}/>{refreshing ? 'Refreshing' : 'Refresh'}</button>

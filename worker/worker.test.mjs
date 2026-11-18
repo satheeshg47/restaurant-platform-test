@@ -181,6 +181,25 @@ test('Super Admin release registry is authenticated and hides artifact storage k
   assert.equal(payload.deployments[0].health_report.readiness, 'passed')
 })
 
+test('release manifest preflight validates metadata without storing or deploying a package', async () => {
+  const adminToken = await token(adminSubject,audience)
+  const manifest = {schema_version:1,app_key:'restaurant',version:'1.2.3',database_migration_version:7,files:[{path:'index.html',sha256:'a'.repeat(64),size_bytes:12}]}
+  const valid = await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest}})
+  assert.equal(valid.status,200)
+  const result=await valid.json()
+  assert.equal(result.valid,true)
+  assert.equal(result.checks.migration_compatible,true)
+  assert.equal(result.total_bytes,12)
+  assert.equal(db.prepare('SELECT count(*) AS count FROM application_releases').get().count,0)
+  const unsafe=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.4',files:[{...manifest.files[0],path:'../tenant-data/private.json'}]}}})
+  assert.equal(unsafe.status,400)
+  assert.equal((await unsafe.json()).errors[0].code,'unsafe_file_path')
+  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:8}}})
+  assert.equal(future.status,409)
+  assert.equal((await future.json()).error,'database_migration_not_available')
+  const unauthorized=await call('/admin/releases/validate-manifest',{method:'POST',body:{manifest}})
+  assert.equal(unauthorized.status,401)
+})
 test('D1 readiness fails closed when production schema migrations are absent', async () => {
   db.exec('DROP TABLE d1_migrations')
   const ready = await call('/ready')
