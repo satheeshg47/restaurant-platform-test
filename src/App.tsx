@@ -148,7 +148,7 @@ function App() {
     return <StaffPortal slug={membership.tenant_slug} role={membership.staff_role as 'cook' | 'waiter' | 'manager'} displayName={membership.display_name || nativeUser.login_id} onSignOut={signOut}/>
   }
   if (staffRoute && sessionToken === 'native' && nativeUser?.tenant_role === 'owner' && !nativeUser.is_admin) {
-    return <OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE} onSignOut={signOut}/>
+    return <OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE}/>
   }
   if (staffRoute && !sessionToken) return <SignIn role="staff" error={authError} onAuthenticated={handleNativeAuthenticated}/>
   if (ownerInviteRoute) {
