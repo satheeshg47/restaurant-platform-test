@@ -11,7 +11,7 @@ async function verifyToken(token: string, env: Env, audience: string): Promise<I
     const { payload } = await jwtVerify(
       token,
       createRemoteJWKSet(new URL(env.OIDC_JWKS_URL)),
-      { issuer: env.OIDC_ISSUER, audience, algorithms: ['RS256', 'ES256'] },
+      { issuer: env.OIDC_ISSUER, audience, algorithms: ['RS256', 'ES256'], clockTolerance: 60 },
     )
     if (typeof payload.sub !== 'string' || !payload.sub) throw authError('invalid_identity', 401)
     if (Array.isArray(payload.aud) && payload.aud.length > 1 && payload.azp !== audience) {
