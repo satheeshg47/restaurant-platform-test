@@ -1,8 +1,10 @@
 const encoder = new TextEncoder()
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-const PBKDF2_ITERATIONS = 600_000
-const PBKDF2_MIN_ITERATIONS = 600_000
-const PBKDF2_MAX_ITERATIONS = 1_000_000
+// Cloudflare Workers WebCrypto rejects PBKDF2 iteration counts above 100,000.
+// Keep the encoded work factor explicit so verification never requests an unsupported value.
+const PBKDF2_ITERATIONS = 100_000
+const PBKDF2_MIN_ITERATIONS = 100_000
+const PBKDF2_MAX_ITERATIONS = 100_000
 
 function base64url(bytes: Uint8Array): string {
   let binary = ''
