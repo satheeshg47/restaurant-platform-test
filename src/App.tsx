@@ -228,7 +228,7 @@ function ServiceHealth() {
         </div>
         <div className="service-health-item">
           <div className="service-health-icon"><Database size={17}/></div>
-          <div><b>Cloudflare D1</b><small>Readiness probe: SELECT 1</small></div>
+          <div><b>Cloudflare D1</b><small>Readiness probe: schema + migrations</small></div>
           <span className={`service-status ${tone(databaseStatus)}`}><i/>{label(databaseStatus)}</span>
         </div>
       </div>
@@ -244,7 +244,7 @@ function ServiceHealth() {
 type MilestoneState = 'complete' | 'next' | 'planned'
 const projectMilestones: { title: string; state: MilestoneState }[] = [
   { title: 'Platform foundation & API health checks', state: 'complete' },
-  { title: 'Shared PostgreSQL schema & tenant isolation', state: 'complete' },
+  { title: 'Shared tenant schema & tenant isolation', state: 'complete' },
   { title: 'Owner identity verification & protected APIs', state: 'complete' },
   { title: 'Audit log and application registry screens', state: 'complete' },
   { title: 'Release manifest validation foundation', state: 'complete' },
@@ -255,7 +255,7 @@ const projectMilestones: { title: string; state: MilestoneState }[] = [
   { title: 'Tenant backup export, validation & restore preflight', state: 'complete' },
   { title: 'Safe owner-only restore & atomic recovery tests', state: 'complete' },
   { title: 'Owner management, subscriptions & approved updates', state: 'next' },
-  { title: 'Production hosting, identity, storage & monitoring', state: 'planned' },
+  { title: 'Production hosting, identity, storage & monitoring', state: 'complete' },
   { title: 'Automated backups and end-to-end recovery drills', state: 'planned' },
 ]
 
@@ -280,7 +280,7 @@ function ProjectProgress() {
         ))}
       </div>
       <div className="project-next"><span>UP NEXT</span><b>{nextMilestone?.title || "No pending milestone"}</b><small>{nextMilestone ? "In progress" : "All milestones complete"}</small></div>
-      <p className="project-progress-note">Progress tracks implemented development milestones, not production readiness. Production D1 schema, complete feature parity, storage and recovery verification remain pending.</p>
+      <p className="project-progress-note">Progress tracks implemented development milestones, not production readiness. Production hosting, identity, D1 schema and live readiness are verified. Approved updates, MFA, offsite backups and end-to-end recovery drills remain launch gates.</p>
     </section>
   )
 }
