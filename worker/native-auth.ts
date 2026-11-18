@@ -187,12 +187,13 @@ async function bootstrapAdmin(request: Request, env: Env): Promise<Response> {
   const id = crypto.randomUUID()
   try {
     const passwordHash = await hashPassword(password)
-    await env.DB.batch([
-      env.DB.prepare('INSERT INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,?,?,?)').bind(id, 'native', id, email || null),
-      env.DB.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) VALUES(?,?,?,?)').bind(id, loginId, loginId.toLowerCase(), passwordHash),
-      env.DB.prepare("INSERT INTO platform_admin_accounts(user_id,status) VALUES(?,'active')").bind(id),
-      env.DB.prepare("INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) VALUES('bootstrap','one-time-secret','platform.admin.bootstrap','platform_admin',?,'{}')").bind(id),
+    const results = await env.DB.batch([
+      env.DB.prepare("INSERT INTO platform_users(id,auth_provider,auth_subject,email) SELECT ?,'native',?,? WHERE NOT EXISTS (SELECT 1 FROM platform_admin_accounts)").bind(id, id, email || null),
+      env.DB.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM platform_users WHERE id=?) AND NOT EXISTS (SELECT 1 FROM platform_admin_accounts)').bind(id, loginId, loginId.toLowerCase(), passwordHash, id),
+      env.DB.prepare("INSERT INTO platform_admin_accounts(user_id,status) SELECT ?,'active' WHERE EXISTS (SELECT 1 FROM platform_user_credentials WHERE user_id=?) AND NOT EXISTS (SELECT 1 FROM platform_admin_accounts) RETURNING user_id").bind(id, id),
+      env.DB.prepare("INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) SELECT 'bootstrap','one-time-secret','platform.admin.bootstrap','platform_admin',?,'{}' WHERE EXISTS (SELECT 1 FROM platform_admin_accounts WHERE user_id=?)").bind(id, id),
     ])
+    if (!results[2]?.results?.length) return json(409, { error: 'bootstrap_already_used' })
     return json(201, { created: true, login_id: loginId })
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
