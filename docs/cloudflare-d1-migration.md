@@ -10,13 +10,13 @@ The current PostgreSQL implementation is retained as a reference during the migr
 - Migration directory: `database/d1/migrations`
 - Worker entry point: `worker/index.ts`
 
-The preview database was initialized and the first platform schema migration was applied there. Production D1 remains empty until the migration has passed CI and is explicitly prepared for cutover.
+The preview database contains migrations 0001-0007 and the seeded Restaurant Suite application. Production D1 was initially empty, backed up at a D1 Time Travel bookmark, then initialized with migrations 0001-0007 after CI and preview validation. It now contains 43 application tables, the migration ledger and the Restaurant Suite registry record; no tenant or owner records have been created.
 
 ## Security model
 
 D1 uses SQLite semantics and does not provide PostgreSQL row-level security policies. The old PostgreSQL RLS policies are not copied as if they still protect D1. Every tenant-facing Worker route must derive tenant identity from a verified token and enforce tenant ownership in every query. Do not trust a tenant ID from a URL, query parameter, header, or JSON body as authorization. Tenant-scoped routes remain unavailable until they are ported with explicit tenant checks and tests.
 
-The Worker currently exposes platform health/readiness, Super Admin, owner invitation and communications endpoints, plus Super Admin tenant creation, tenant-scoped restaurant settings, table management, table-session lifecycle and public QR menu reads. Restaurant menu CRUD, guest ordering, kitchen/waiter workflows, payments/refunds, invoices and reports remain explicitly unavailable until their feature-by-feature D1 ports and parity tests are merged. Do not use this stage to manage live restaurant operations.
+The deployed Worker uses D1 for platform administration, owner invitations and communications, tenant onboarding, restaurant settings, tables and sessions, menu/catalogue CRUD, stock adjustments, QR guest menu reads and ordering, guest order tracking/cancellation and service requests, kitchen batching and item status, waiter boards and service requests, payment/refund ledgers, GST invoices, reports/daily summaries, reviews, CSV/JSON exports, backup validation and guarded tenant restore. Tenant-facing routes derive the tenant from verified identity and active membership; public guest routes require a high-entropy table token whose hash is stored in D1. The Worker test suite exercises the end-to-end owner, menu, QR order, kitchen/waiter, finance, GST invoice, reports, reviews, export and restore-preflight paths. External offsite backup scheduling and a production customer onboarding drill remain outstanding; do not treat schema deployment alone as production launch approval.
 
 ## Migration sequence
 
@@ -48,10 +48,10 @@ The app must never initiate a paid-plan upgrade, add a payment method, or enable
 - [x] Add Super Admin tenant onboarding and restaurant application activation.
 - [x] Port restaurant settings, table management, table sessions and hashed QR menu reads with tenant-isolation tests.
 - [x] Add D1 migration, Worker type-check and bundle checks to CI.
-- [ ] Configure the verified Super Admin subject in Worker environment.
-- [ ] Port menu CRUD, guest ordering, kitchen/waiter, payments/refunds, invoices and reporting.
-- [ ] Complete backup/restore migration and security tests.
-- [ ] Apply schema to production D1 and deploy after all checks pass.
-- [ ] Remove PostgreSQL dependencies only after parity and rollback checks.
+- [x] Configure the verified Super Admin subject as a Worker secret and verify the binding name is present.
+- [x] Port menu CRUD, guest ordering, kitchen/waiter, payments/refunds, invoices, reports and reviews; exercise the integrated workflows in Worker tests.
+- [x] Implement tenant JSON export, backup validation, restore preflight, empty-target/maintenance guards and atomic restore tests.\n- [ ] Configure an offsite backup destination and scheduled backup/restore drills.
+- [x] Apply migrations 0001-0007 to the empty production D1 database after CI and preview validation; verify 43 application tables and zero foreign-key violations.\n- [x] Deploy the Worker with schema-aware readiness; verify the latest deployment receives 100% traffic.\n- [ ] Perform a live authenticated production smoke test and first-tenant onboarding drill.
+- [ ] Remove PostgreSQL dependencies and legacy runtime code only after remaining parity, backup and rollback checks.
 
 This is an in-progress migration, not a production-ready system.
