@@ -1,4 +1,4 @@
-import { authenticateIdentity } from './auth.ts'
+import { authenticateAdmin, authenticateIdentity } from './auth.ts'
 import { handleRestaurantMenuRoutes } from './menu.ts'
 import { handleOrderOperations } from './order-operations.ts'
 import { handleRestaurantFinance } from './restaurant-finance.ts'
@@ -330,6 +330,36 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
   if (parts[2] === 'guest' && parts[4] === 'requests' && parts.length === 5) return handleGuestLifecycle(request, env, tenantId, parts[3], parts)
   if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'reviews') return handleGuestReviewRoutes(request, env, tenantId, parts[3])
   if (parts[2] === 'guest') return json(501, { error: 'guest_ordering_not_migrated_to_d1' })
+
+  // Super Admins may export and validate any tenant's data. Restore remains
+  // guarded by the export module's empty-target, explicit-confirmation checks.
+  if (parts[2] === 'data-export') {
+    let admin: Identity | null = null
+    try { admin = await authenticateAdmin(request, env) } catch { /* fall through to owner authentication */ }
+    if (admin) {
+      const exported = await handleRestaurantDataExport(
+        request, env, { tenantId, userId: '', staffId: null, role: 'super_admin' }, parts,
+      )
+      if (exported) {
+        if (exported.ok) {
+          const operation = parts[3] || 'catalog'
+          const action = operation === 'restore' ? 'tenant.restore.completed'
+            : operation === 'validate-backup' ? 'tenant.backup.validated'
+            : operation === 'restore-preflight' ? 'tenant.restore.preflighted'
+            : operation === 'backup' ? 'tenant.backup.downloaded'
+            : 'tenant.data_export.accessed'
+          try {
+            await env.DB.prepare(
+              'INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) VALUES(?,?,?,?,?,?)',
+            ).bind(admin.issuer, admin.subject, action, 'tenant', tenantId, JSON.stringify({ operation, method: request.method })).run()
+          } catch {
+            return json(500, { error: 'tenant_data_export_audit_failed' })
+          }
+        }
+        return exported
+      }
+    }
+  }
 
   let identity: Identity
   try { identity = await authenticateIdentity(request, env) }

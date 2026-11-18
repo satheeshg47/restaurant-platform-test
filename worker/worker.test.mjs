@@ -728,6 +728,28 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.ok(backup.row_count > 0)
   assert.equal(backup.tables.restaurant_tables[0].public_token_hash, undefined)
   assert.equal(backup.tables.restaurant_orders[0].idempotency_key, undefined)
+  const adminCatalog = await call('/restaurant/green-leaf-kitchen/data-export', { accessToken: adminToken })
+  assert.equal(adminCatalog.status, 200)
+  const adminBackupResponse = await call('/restaurant/green-leaf-kitchen/data-export/backup', { accessToken: adminToken })
+  assert.equal(adminBackupResponse.status, 200)
+  const adminBackup = await adminBackupResponse.json()
+  assert.equal(adminBackup.tenant_id, tenant.id)
+  const adminPreflight = await call('/restaurant/green-leaf-kitchen/data-export/restore-preflight', {
+    method: 'POST', accessToken: adminToken, body: adminBackup,
+  })
+  assert.equal(adminPreflight.status, 200)
+  assert.equal((await adminPreflight.json()).restore_allowed, false)
+  const adminBlockedRestore = await call('/restaurant/green-leaf-kitchen/data-export/restore', {
+    method: 'POST', accessToken: adminToken,
+    body: { ...adminBackup, confirmation: 'RESTORE green-leaf-kitchen' },
+  })
+  assert.equal(adminBlockedRestore.status, 409)
+  assert.equal((await adminBlockedRestore.json()).error, 'restore_target_not_empty')
+  const adminCsv = await call('/restaurant/green-leaf-kitchen/data-export/restaurant_orders', { accessToken: adminToken })
+  assert.equal(adminCsv.status, 200)
+  assert.match(adminCsv.headers.get('content-type'), /text\/csv/)
+  assert.ok(db.prepare("SELECT count(*) AS count FROM platform_audit_events WHERE action IN ('tenant.data_export.accessed','tenant.backup.downloaded','tenant.restore.preflighted') AND resource_id=?").get(tenant.id).count >= 4)
+
   const backupValidation = await call('/restaurant/green-leaf-kitchen/data-export/validate-backup', {
     method: 'POST', accessToken: ownerAccess, body: backup,
   })

@@ -70,7 +70,7 @@ export default function RestaurantDataExport(){
   const clean=slug.trim().toLowerCase()
   if(!SLUG.test(clean)){setError('Enter a valid restaurant slug.');return}
   if(!backupFile){setError('Choose a restaurant backup JSON file first.');return}
-  if(backupFile.size>50*1024*1024){setError('Backup file exceeds the 5 MiB preflight limit.');return}
+  if(backupFile.size>5*1024*1024){setError('Backup file exceeds the 5 MiB preflight limit.');return}
   setCheckingRestore(true);setError('');setNotice('');setRestoreCheck(null)
   try{
    const contents=await backupFile.text()
