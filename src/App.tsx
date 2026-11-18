@@ -132,7 +132,11 @@ function App() {
     setAuthError('')
     void fetch(`${API_BASE}/auth/session`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
       .then(response => response.json())
-      .then(payload => { if (payload?.authenticated) setNativeUser(payload.user || null) })
+      .then(payload => {
+        if (payload?.authenticated) setNativeUser(payload.user || null)
+        setBootstrapAvailable(payload?.bootstrap_available === true)
+        setEncryptionReady(payload?.encryption_ready === true)
+      })
       .catch(() => {})
   }
   const guestRoute = window.location.pathname.match(/^\/r\/([^/]+)\/([^/]+)\/?$/)
