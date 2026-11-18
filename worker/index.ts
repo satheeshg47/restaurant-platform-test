@@ -71,6 +71,24 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
     }
   }
 
+  if (path === '/admin/releases' && request.method === 'GET') {
+    try {
+      const [releaseResult, deploymentResult] = await Promise.all([
+        env.DB.prepare(`SELECT r.id,r.application_id,a.name AS application_name,a.app_key,r.version,r.package_sha256,r.status,r.uploaded_by,r.reviewed_by,r.reviewed_at,r.created_at,r.manifest FROM application_releases r JOIN applications a ON a.id=r.application_id ORDER BY r.created_at DESC,r.id DESC LIMIT 100`).all<Record<string, unknown>>(),
+        env.DB.prepare(`SELECT d.id,d.application_id,a.name AS application_name,d.release_id,r.version,d.environment,d.status,d.started_at,d.finished_at,d.created_at,d.health_report FROM application_deployments d JOIN applications a ON a.id=d.application_id JOIN application_releases r ON r.id=d.release_id ORDER BY d.created_at DESC,d.id DESC LIMIT 100`).all<Record<string, unknown>>(),
+      ])
+      const parseJson = (value: unknown) => {
+        if (typeof value !== 'string') return value ?? {}
+        try { return JSON.parse(value) } catch { return { invalid_json: true } }
+      }
+      const releases = releaseResult.results.map(({ manifest, ...release }) => ({ ...release, manifest: parseJson(manifest) }))
+      const deployments = deploymentResult.results.map(({ health_report, ...deployment }) => ({ ...deployment, health_report: parseJson(health_report) }))
+      return json(200, { releases, deployments, generated_at: new Date().toISOString() })
+    } catch {
+      return json(500, { error: 'release_registry_unavailable' })
+    }
+  }
+
   if (path === '/admin/applications' && request.method === 'POST') {
     let body: Record<string, unknown>
     try { body = await readJson(request) }
