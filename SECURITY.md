@@ -1,31 +1,55 @@
-# Security implementation notes
+# Security implementation and launch gates
 
-## Identity and access boundary
+## Identity and administrator authorization
 
-- The initial platform owner is the only Super Admin. Do not create a default password or seed an account from a public email address.
-- Authentication must be provided by a vetted OIDC identity provider with MFA/passkey enforcement.
-- The API must validate issuer, audience, signature, expiry and nonce/state through the provider's supported SDK or a reviewed OIDC implementation.
-- The allowlist of platform administrators is server-side configuration or a protected database record changed only through an audited owner recovery procedure.
-- Never trust user, role, tenant, or email headers supplied directly by a browser. If a trusted identity proxy is used, accept its identity headers only from a verified private origin and validate its signed assertion.
-- Sessions must use Secure, HttpOnly, SameSite cookies, CSRF protection for state-changing requests, rotation, expiry and revocation.
-- Do not log bearer tokens, session cookies, passwords, payment secrets or full payment proofs.
+- The platform has one configured Super Admin identity.
+- Browser sign-in uses Auth0 OpenID Connect Authorization Code flow with PKCE.
+- The Worker validates signed JWTs against the configured issuer/JWKS and API audience, including expiry and allowed signing algorithms.
+- Super Admin authorization is based on the exact configured issuer + stable subject pair. Email address alone is never an administrator identity.
+- The Auth0 tenant and SPA/API configuration are provisioned and administrator sign-in has been verified.
+- **MFA/passkey enforcement is not yet configured and verified.** This is a mandatory launch gate; do not describe the platform as production-ready.
 
-## Tenant boundary
+## Tenant authorization boundary
 
-- Resolve tenant membership from the authenticated identity on the server.
-- Do not authorize a tenant based on a request body, URL parameter or browser storage value alone.
-- Use withTenantTransaction for every tenant-scoped database operation. It sets the PostgreSQL tenant context transaction-locally and rolls back failed operations.
-- Runtime DB role must be separate from the migration owner and must not have BYPASSRLS.
-- Keep tenant identifiers in composite foreign keys wherever a child row belongs to a tenant-owned parent.
+- Cloudflare D1 uses SQLite semantics and does not provide PostgreSQL row-level security. Do not rely on the legacy PostgreSQL RLS code to protect D1.
+- Tenant-facing routes must derive the actor from a verified OIDC token and resolve active tenant membership server-side.
+- Enforce tenant ownership in every query and mutation. A tenant ID from a URL, query parameter, header, local storage or JSON body is only a requested resource identifier, never authorization.
+- Public guest QR access uses high-entropy table tokens; store only token hashes and validate the token against the active table/session.
+- Keep tenant-owned child records linked to their tenant and parent; reject cross-tenant references.
+- Add regression tests for owner, staff, guest and cross-tenant access whenever a route is added or changed.
 
-## Operational safeguards
+## API and data handling
 
-- Keep secrets out of Git and frontend bundles. Use the hosting provider's secret manager.
-- Enforce rate limits, request size limits, origin policy and security headers at the API boundary.
-- Require explicit review before release deployment. Verify package hashes and manifests; keep customer data and schema migrations separate from app code.
-- Encrypt backups and test restoration before relying on them.
-- Treat this repository as development scaffolding until identity, authorization, secrets, database connectivity, deployment and security tests are implemented.
+- Apply request-size limits and strict input validation at the Worker boundary.
+- Return generic authentication/authorization errors; do not disclose token contents or secrets.
+- Do not log bearer tokens, authorization headers, invitation secrets, payment credentials or full payment proofs.
+- Administrative exports and restore operations require authorization and are audited.
+- Restore must validate the backup, pass preflight, use the guarded target rules and must not overwrite a populated tenant target.
+- Keep application release artifacts separate from tenant/customer data.
 
-## Current limitation
+## Secrets and deployment
 
-No login endpoint or identity provider is configured yet. The API health endpoint is public and reports the database as not_configured; it must not be exposed as a production admin API.
+- Store private keys, administrator subject configuration and other credentials in Cloudflare Worker secrets or the provider's secret store.
+- Never commit secrets or place private values in frontend environment variables.
+- GitHub Actions must run build and test checks before deployment; the post-deployment smoke workflow checks `/api/health` and `/api/ready`.
+- A successful health/readiness smoke test confirms service/schema availability only. It does not prove MFA, tenant isolation, offsite backups or disaster recovery.
+
+## Backup and recovery
+
+- D1 Time Travel currently provides 7-day recovery; it is not an independent offsite backup.
+- Google Drive offsite integration is not configured because the connected Drive capability is unavailable under the account's administrator policy.
+- Cloudflare R2 is intentionally not enabled because it requires a paid billing path and the project has a strict ₹0/month constraint.
+- Tenant JSON/CSV export, validation, restore preflight and guarded restore foundations are available.
+- Scheduled offsite backups and end-to-end restore drills remain mandatory launch gates.
+
+## Current launch status
+
+The Worker, Auth0 sign-in, production D1 schema, schema-aware readiness, tenant export/restore safeguards and live health/readiness smoke test have been verified. The platform remains **pre-launch** until all of the following are complete:
+
+1. Enforce and verify administrator MFA/passkeys.
+2. Configure a genuinely independent offsite backup destination without violating the zero-cost rule.
+3. Run and document backup restoration drills.
+4. Complete the Update Centre release approval/deployment/rollback workflow.
+5. Onboard and verify the first real restaurant and owner; do not create dummy tenant records.
+
+Do not represent the system as production-ready or approved for customer operations before these gates pass.
