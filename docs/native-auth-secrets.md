@@ -1,8 +1,8 @@
 # Native authentication secrets and first administrator setup
 
-The native authentication code is deployed, but the first Super Admin cannot be created until two Worker secrets are configured. These values must stay in Cloudflare; do not commit them to Git or send them in chat.
+The native authentication code is deployed and both required Worker secrets are configured on the production Worker. Secret values are not stored in this repository. Do not rotate or replace `AUTH_ENCRYPTION_KEY` after authenticator enrollment without a planned key migration and re-enrollment.
 
-## 1. Generate two independent values
+## If the secrets ever need to be provisioned again\n\nThe following steps are only for a new deployment or recovery where the Worker secrets are missing. They are already configured for the current production deployment.\n\n## If the secrets ever need to be provisioned again\n\nThe following steps are only for a new deployment or recovery where the Worker secrets are missing. They are already configured for the current production deployment.\n\n## 1. Generate two independent values
 
 Generate a fresh 32-byte base64url value for each secret. The output is 43 characters and contains only letters, digits, underscore and hyphen.
 
@@ -43,7 +43,7 @@ The application will then:
 - Require Google Authenticator-compatible TOTP enrollment.
 - Show one-time recovery codes. Save them somewhere private before continuing.
 
-After the first administrator is created, the bootstrap endpoint cannot create another administrator. The `AUTH_BOOTSTRAP_SECRET` can then be removed from Worker secrets; keep `AUTH_ENCRYPTION_KEY`.
+After the first administrator is created, the bootstrap endpoint cannot create another administrator. Remove `AUTH_BOOTSTRAP_SECRET` from Worker secrets after confirming the first Super Admin can sign in; keep `AUTH_ENCRYPTION_KEY` stable.
 
 ## 4. Owner and staff accounts
 
