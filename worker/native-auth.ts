@@ -185,8 +185,9 @@ async function bootstrapAdmin(request: Request, env: Env): Promise<Response> {
   const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body.password === 'string' ? body.password : ''
-  if (!/^[A-Za-z0-9._-]{3,64}$/.test(loginId) || password.length < 12 || password.length > 256 ||
-      (email && (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))) return json(400, { error: 'invalid_account_details' })
+  if (!/^[A-Za-z0-9._-]{3,64}$/.test(loginId)) return json(400, { error: 'invalid_login_id_format' })
+  if (password.length < 12 || password.length > 256) return json(400, { error: 'invalid_password_length' })
+  if (email && (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return json(400, { error: 'invalid_email_format' })
   const existing = await env.DB.prepare('SELECT count(*) AS count FROM platform_admin_accounts').first<{ count: number }>()
   if (Number(existing?.count || 0) !== 0) return json(409, { error: 'bootstrap_already_used' })
   const id = crypto.randomUUID()
