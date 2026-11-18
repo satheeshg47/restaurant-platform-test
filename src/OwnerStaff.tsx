@@ -33,6 +33,7 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
   const [role, setRole] = useState<'cook' | 'waiter' | 'manager'>('waiter')
   const [resetFor, setResetFor] = useState('')
   const [resetPassword, setResetPassword] = useState('')
+  const [createdCredentials, setCreatedCredentials] = useState<{ loginId: string; password: string } | null>(null)
 
   const request = useCallback(async (path: string, init?: RequestInit) => {
     const headers = new Headers(init?.headers)
@@ -70,6 +71,7 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
         method: 'POST',
         body: JSON.stringify({ tenant_id: tenantId, login_id: loginId.trim(), display_name: displayName.trim(), password, role }),
       })
+      setCreatedCredentials({ loginId: loginId.trim(), password })
       setLoginId(''); setDisplayName(''); setPassword(''); setShowCreate(false)
       setNotice('Staff account created. Share the login ID and password with the staff member through a private channel.')
       await load()
@@ -141,6 +143,12 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
     </form>}
     {error && <div className="owner-staff-error"><AlertCircle size={15}/>{error}</div>}
     {notice && <div className="owner-staff-notice"><Check size={15}/>{notice}</div>}
+    {createdCredentials && <div className="owner-staff-created">
+      <b>New staff credentials — copy and share privately</b>
+      <code>Login ID: {createdCredentials.loginId}</code>
+      <code>Password: {createdCredentials.password}</code>
+      <div><button type="button" className="owner-staff-primary" onClick={() => void navigator.clipboard.writeText('Login ID: ' + createdCredentials.loginId + '\\nPassword: ' + createdCredentials.password)}>Copy credentials</button><button type="button" className="owner-staff-secondary" onClick={() => setCreatedCredentials(null)}>Dismiss</button></div>
+    </div>}
     {loading ? <div className="owner-home-state">Loading staff accounts…</div> :
       staff.length === 0 ? <div className="owner-home-state"><UserRound size={22}/><b>No staff accounts yet</b><p>Add each team member with their own login ID and role.</p></div> :
       <div className="owner-staff-list">{staff.map(person => <article className="owner-staff-row" key={person.staff_id}>
