@@ -4,7 +4,7 @@ import QRCode from 'qrcode'
 import { beginOidcLogin, getOidcSettings } from './auth'
 
 type Props = {
-  role: 'admin' | 'owner'
+  role: 'admin' | 'owner' | 'staff'
   error?: string
   returnPath?: string
   bootstrapAvailable?: boolean
@@ -38,6 +38,7 @@ export default function SignIn({
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([])
   const configured = Boolean(getOidcSettings())
   const isAdmin = role === 'admin'
+  const isOwner = role === 'owner'
   const totpSecret = (() => {
     try { return provisioningUri ? new URL(provisioningUri).searchParams.get('secret') || '' : '' }
     catch { return '' }
@@ -59,7 +60,7 @@ export default function SignIn({
   const signInOidc = async () => {
     setBusy(true)
     setError('')
-    try { await beginOidcLogin(returnPath || (isAdmin ? '/' : '/owner')) }
+    try { await beginOidcLogin(returnPath || (isAdmin ? '/' : role === 'staff' ? '/staff' : '/owner')) }
     catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Sign-in could not be started.')
       setBusy(false)
@@ -196,10 +197,10 @@ export default function SignIn({
 
   return <main className="signin-screen">
     <section className="signin-card">
-      <div className="signin-brand"><div className="signin-mark">{isAdmin ? <ShieldCheck size={23}/> : <Store size={23}/>}</div><div><b>platform<span>core</span></b><small>{isAdmin ? 'CONTROL PLANE' : 'RESTAURANT OWNER'}</small></div></div>
+      <div className="signin-brand"><div className="signin-mark">{isAdmin ? <ShieldCheck size={23}/> : <Store size={23}/>}</div><div><b>platform<span>core</span></b><small>{isAdmin ? 'CONTROL PLANE' : isOwner ? 'RESTAURANT OWNER' : 'STAFF ACCOUNT'}</small></div></div>
       <div className="signin-icon">{phase === 'recovery' ? <KeyRound size={22}/> : <LockKeyhole size={22}/>}</div>
       <span className="signin-eyebrow">{phase === 'recovery' ? 'SAVE YOUR RECOVERY CODES' : isAdmin ? 'SUPER ADMIN ACCESS' : 'OWNER ACCOUNT ACCESS'}</span>
-      <h1>{phase === 'bootstrap' ? 'Set up the first administrator' : phase === 'enroll' ? 'Secure your account' : phase === 'mfa' ? 'Verify your identity' : phase === 'recovery' ? 'Keep these codes safe' : isAdmin ? 'Sign in to Platform Core' : 'Welcome back'}</h1>
+      <h1>{phase === 'bootstrap' ? 'Set up the first administrator' : phase === 'enroll' ? 'Secure your account' : phase === 'mfa' ? 'Verify your identity' : phase === 'recovery' ? 'Keep these codes safe' : isAdmin ? 'Sign in to Platform Core' : isOwner ? 'Welcome back' : 'Staff sign in'}</h1>
       <p>{phase === 'bootstrap'
         ? 'Create the first Super Admin account. This one-time setup requires the two Worker secrets configured by the platform operator.'
         : phase === 'enroll'
