@@ -81,7 +81,7 @@ async function preflight(env:Env,tenantId:string,backup:unknown){
 }
 export async function handleRestaurantDataExport(request:Request,env:Env,actor:Actor,parts:string[]):Promise<Response|null>{
  try{
-  if(!['owner','manager'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
+  if(!['owner','manager','super_admin'].includes(actor.role)) fail(403,'restaurant_role_forbidden')
   if(parts.length===3&&request.method==='GET'){
    const tables=await schema(env)
    return json(200,{tables:tables.map(t=>({name:t.name,exportable_columns:t.columns.length,private_columns_excluded:t.privateColumns})),backup_format_version:1,limits:{max_rows:MAX_BACKUP_ROWS,max_bytes:MAX_BACKUP_BYTES}})
@@ -106,7 +106,7 @@ export async function handleRestaurantDataExport(request:Request,env:Env,actor:A
    return json(200,publicResult)
   }
   if(parts.length===4&&parts[3]==='restore'&&request.method==='POST'){
-   if(actor.role!=='owner')fail(403,'restaurant_role_forbidden')
+   if(actor.role!=='owner'&&actor.role!=='super_admin')fail(403,'restaurant_role_forbidden')
    const raw=await request.text()
    if(new TextEncoder().encode(raw).byteLength>MAX_BACKUP_BYTES)fail(413,'backup_size_limit_exceeded')
    let value:unknown;try{value=JSON.parse(raw)}catch{fail(400,'invalid_backup_json')}
