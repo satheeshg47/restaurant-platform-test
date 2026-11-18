@@ -8,6 +8,7 @@ import RestaurantOperations from './RestaurantOperations'
 import RestaurantSettings from './RestaurantSettings'
 import RestaurantReports from './RestaurantReports'
 import RestaurantReviews from './RestaurantReviews'
+import OwnerStaff from './OwnerStaff'
 
 type Restaurant = {
   tenant_id: string
@@ -24,11 +25,11 @@ type Restaurant = {
 }
 
 type Props = { accessToken: string; apiBaseUrl?: string }
-type OwnerTool = 'menu' | 'tables' | 'operations' | 'settings' | 'reports' | 'reviews'
+type OwnerTool = 'menu' | 'tables' | 'operations' | 'settings' | 'reports' | 'reviews' | 'staff'
 const ownerTools: { id: OwnerTool; label: string }[] = [
   { id: 'menu', label: 'Menu' }, { id: 'tables', label: 'Tables & QR' },
   { id: 'operations', label: 'Kitchen & service' }, { id: 'settings', label: 'Settings' },
-  { id: 'reports', label: 'Reports' }, { id: 'reviews', label: 'Reviews' },
+  { id: 'reports', label: 'Reports' }, { id: 'reviews', label: 'Reviews' }, { id: 'staff', label: 'Staff access' },
 ]
 
 export default function OwnerPortal({ accessToken, apiBaseUrl = '/api' }: Props) {
@@ -95,6 +96,7 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api' }: Props)
       {activeTool === 'settings' && <RestaurantSettings initialSlug={selectedSlug}/>}
       {activeTool === 'reports' && <RestaurantReports initialSlug={selectedSlug}/>}
       {activeTool === 'reviews' && <RestaurantReviews initialSlug={selectedSlug}/>}
+      {activeTool === 'staff' && <OwnerStaff tenantId={selectedRestaurant.tenant_id} apiBaseUrl={apiBaseUrl}/>} 
     </section>}
     <OwnerCommunications accessToken={accessToken} apiBaseUrl={apiBaseUrl}/>
   </div>
