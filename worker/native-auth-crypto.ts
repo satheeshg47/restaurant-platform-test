@@ -17,7 +17,7 @@ function fromBase64url(value: string): Uint8Array {
   return Uint8Array.from(binary, char => char.charCodeAt(0))
 }
 
-function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {\n  const copy = new Uint8Array(bytes.byteLength)\n  copy.set(bytes)\n  return copy.buffer\n}\n\nfunction constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   let difference = a.length ^ b.length
   const length = Math.max(a.length, b.length)
   for (let i = 0; i < length; i++) difference |= (a[i % (a.length || 1)] || 0) ^ (b[i % (b.length || 1)] || 0)
@@ -39,7 +39,7 @@ export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITERATIONS },
+    { name: 'PBKDF2', hash: 'SHA-256', salt: toArrayBuffer(salt), iterations: PBKDF2_ITERATIONS },
     material,
     256,
   )
@@ -106,7 +106,7 @@ export function createTotpSecret(): string {
 }
 
 async function totpAt(secret: string, counter: number): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', decodeBase32(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign'])
+  const key = await crypto.subtle.importKey('raw', toArrayBuffer(decodeBase32(secret)), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign'])
   const message = new Uint8Array(8)
   let value = BigInt(counter)
   for (let i = 7; i >= 0; i--) { message[i] = Number(value & 255n); value >>= 8n }
@@ -144,9 +144,9 @@ function encryptionKeyBytes(value: string): Uint8Array {
 }
 
 export async function encryptTotpSecret(secret: string, keyValue: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', encryptionKeyBytes(keyValue), 'AES-GCM', false, ['encrypt'])
+  const key = await crypto.subtle.importKey('raw', toArrayBuffer(encryptionKeyBytes(keyValue)), 'AES-GCM', false, ['encrypt'])
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoder.encode(secret))
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, encoder.encode(secret))
   return `v1.${base64url(iv)}.${base64url(new Uint8Array(ciphertext))}`
 }
 
@@ -154,6 +154,6 @@ export async function decryptTotpSecret(encrypted: string, keyValue: string): Pr
   const [version, ivPart, dataPart, extra] = encrypted.split('.')
   if (version !== 'v1' || !ivPart || !dataPart || extra !== undefined) throw new Error('totp_ciphertext_invalid')
   const key = await crypto.subtle.importKey('raw', encryptionKeyBytes(keyValue), 'AES-GCM', false, ['decrypt'])
-  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromBase64url(ivPart) }, key, fromBase64url(dataPart))
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(fromBase64url(ivPart)) }, key, toArrayBuffer(fromBase64url(dataPart)))
   return new TextDecoder().decode(plaintext)
 }
