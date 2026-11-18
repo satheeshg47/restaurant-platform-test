@@ -118,7 +118,7 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
 
   return <section className="panel owner-staff">
     <div className="panel-heading">
-      <div><h2>Staff accounts</h2><p>Create individual logins and assign restaurant roles. Shared staff passwords are not used.</p></div>
+      <div><h2>Staff accounts</h2><p>Create individual logins and assign restaurant roles. Staff sign in at /staff; shared accounts are not used.</p></div>
       <ShieldCheck size={20}/>
     </div>
     <div className="owner-staff-toolbar">
