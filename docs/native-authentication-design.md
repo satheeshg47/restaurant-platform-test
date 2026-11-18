@@ -65,6 +65,15 @@ Keep platform_users as the canonical user record and preserve its existing ident
 - No plaintext passwords, shared staff accounts, client-authoritative tenant IDs, or destructive migration.
 - Do not claim the system is secured by MFA until TOTP enrollment and server-side enforcement are implemented and tested.
 
-## Current implementation status
+## Implementation status — 2026-11-18
 
-This document records the approved target architecture. The current application still uses OIDC/Auth0 for protected routes. No production authentication cutover is performed by this design document.
+The native authentication foundation is implemented and deployed to the production Worker:
+
+- Native bootstrap, password login, TOTP enrollment/verification, recovery-code use, cookie sessions and logout endpoints are implemented.
+- The additive D1 schema is applied through `0009_totp_replay_protection.sql` in production and preview.
+- TOTP replay protection records the last accepted time-step; MFA verification is rate-limited by account and IP.
+- Native owner invitation acceptance and owner-managed individual staff account provisioning are implemented.
+- The Super Admin, owner and staff sign-in/workspace interfaces are deployed.
+- The Cloudflare Worker secrets `AUTH_ENCRYPTION_KEY` and `AUTH_BOOTSTRAP_SECRET` are configured. Their values are intentionally not stored in this repository.
+
+**Rollout is not complete:** no first native Super Admin has been provisioned yet. The existing OIDC path remains available as a compatibility route. Do not remove OIDC configuration or onboard a real restaurant until the first Super Admin has enrolled TOTP and the complete owner/staff and tenant-isolation flows have passed production verification.
