@@ -79,6 +79,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0005_seed_restaurant_application.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0006_stock_adjustment_marker.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0007_tenant_restore_guard.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0008_native_auth_foundation.sql', 'utf8'))
   db.exec('CREATE TABLE d1_migrations (name TEXT PRIMARY KEY)')
   db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(
     '0001_platform_core.sql'
@@ -90,6 +91,7 @@ beforeEach(() => {
     '0005_seed_restaurant_application.sql',
     '0006_stock_adjustment_marker.sql',
     '0007_tenant_restore_guard.sql',
+    '0008_native_auth_foundation.sql',
   ]) db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(name)
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
@@ -139,7 +141,7 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
   assert.equal(ready.status, 200)
   const readiness = await ready.json()
   assert.equal(readiness.checks.schema, 'complete')
-  assert.equal(readiness.latest_migration, '0007_tenant_restore_guard.sql')
+  assert.equal(readiness.latest_migration, '0008_native_auth_foundation.sql')
 
   const unauthorized = await call('/admin/session')
   assert.equal(unauthorized.status, 401)
