@@ -16,12 +16,43 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 }
 
 export async function handleAdminTenants(request: Request, env: Env, path: string): Promise<Response> {
-  if (path !== '/admin/tenants' || request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+  const statusMatch = path.match(/^\/admin\/tenants\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/status$/i)
+  const isCreate = path === '/admin/tenants' && request.method === 'POST'
+  const isStatusChange = Boolean(statusMatch) && request.method === 'PATCH'
+  if (!isCreate && !isStatusChange) return json(405, { error: 'method_not_allowed' })
   let admin: Identity
   try { admin = await authenticateAdmin(request, env) }
   catch (error) {
     const status = authStatus(error, 401)
     return json(status, { error: status === 503 ? 'admin_auth_not_configured' : status === 403 ? 'forbidden' : 'unauthorized' })
+  }
+
+  if (isStatusChange && statusMatch) {
+    let body: Record<string, unknown>
+    try { body = await readBody(request) }
+    catch (error) {
+      const status = authStatus(error, 400)
+      return json(status, { error: status === 413 ? 'payload_too_large' : 'invalid_json' })
+    }
+    const nextStatus = body.status
+    if (nextStatus !== 'active' && nextStatus !== 'suspended') return json(400, { error: 'invalid_tenant_status' })
+    const tenantId = statusMatch[1]
+    try {
+      const current = await env.DB.prepare('SELECT id,name,slug,status FROM tenants WHERE id=?').bind(tenantId).first<{ id: string; name: string; slug: string; status: string }>()
+      if (!current) return json(404, { error: 'tenant_not_found' })
+      if (current.status === nextStatus) return json(200, { tenant: current, changed: false })
+      await env.DB.batch([
+        env.DB.prepare("UPDATE tenants SET status=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND status=?").bind(nextStatus, tenantId, current.status),
+        env.DB.prepare(
+          `INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata)
+           SELECT ?,?,'tenant.status_changed','tenant',?,? WHERE EXISTS (SELECT 1 FROM tenants WHERE id=? AND status=?)`,
+        ).bind(admin.issuer, admin.subject, tenantId, JSON.stringify({ from: current.status, to: nextStatus }), tenantId, nextStatus),
+      ])
+      const tenant = await env.DB.prepare('SELECT id,name,slug,status,updated_at FROM tenants WHERE id=?').bind(tenantId).first()
+      return json(200, { tenant, changed: true })
+    } catch {
+      return json(500, { error: 'tenant_status_update_failed' })
+    }
   }
 
   let body: Record<string, unknown>
