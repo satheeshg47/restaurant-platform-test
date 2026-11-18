@@ -79,7 +79,7 @@ export default function Subscriptions(){
   setBusy(subscriptionId);setError('')
   try{
    const result=await request(`/admin/subscriptions/${subscriptionId}/payments`)
-   setPayments(current=>({...current,[subscriptionId]:result.payments||[]}));setExpanded(current=>current===subscriptionId?'':subscriptionId)
+   setPayments(current=>({...current,[subscriptionId]:result.payments||[]}));setExpanded(subscriptionId)
   }catch(e){setError(e instanceof Error?e.message:'Could not load payments')}
   finally{setBusy('')}
  }
@@ -131,7 +131,7 @@ export default function Subscriptions(){
      <label>Billing interval<select value={interval} onChange={e=>setInterval(e.target.value)}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></label>
      <label>Price (INR)<input type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
      <label>Trial days<input type="number" min="0" max="365" value={trialDays} onChange={e=>setTrialDays(e.target.value)}/></label>
-     <button className="button primary" onClick={()=>void createPlan()} disabled={busy==='plan'||!appId||!planCode.trim()||!planName.trim()}><Plus size={15}/>{busy==='plan'?'Creating…':'Create plan'}</button>
+     <button className="button primary" onClick={()=>void createPlan()} disabled={busy==='plan'||!appId||!planCode.trim()||!planName.trim()||!amount||Number(amount)<0||!trialDays||Number(trialDays)<0||Number(trialDays)>365}><Plus size={15}/>{busy==='plan'?'Creating…':'Create plan'}</button>
     </div>
    </section>
    <section className="panel"><div className="panel-heading"><div><h3>Assign a plan</h3><p>Create a trial, paid-pending or free subscription.</p></div></div>
@@ -148,7 +148,7 @@ export default function Subscriptions(){
   {subscriptions.length===0?<div className="registry-empty"><div className="empty-icon"><CreditCard size={21}/></div><b>No subscriptions yet</b><p>Create a plan and assign it to an active restaurant.</p></div>:<div className="subscription-list">{subscriptions.map(sub=><article className="subscription-row" key={sub.id}>
    <div className="subscription-main"><div><b>{sub.tenant_name}</b><small>{sub.application_name} · {sub.plan_name||sub.plan_code}</small></div><strong>{money(sub.amount_minor,sub.currency)}</strong><span className={`status ${sub.effective_status}`}>{sub.effective_status}</span></div>
    <div className="subscription-meta"><span>{sub.billing_interval} · {sub.payment_mode}</span><span>Starts {date(sub.starts_at)}</span><span>Ends {date(sub.ends_at)}</span></div>
-   <div className="subscription-actions"><button className="button secondary small" onClick={()=>void loadPayments(sub.id)} disabled={busy===sub.id}><CreditCard size={14}/>Payments</button>{sub.amount_minor>0&&sub.status!=='cancelled'&&<button className="button secondary small" onClick={()=>{setPaymentFor(sub);setPaymentAmount((sub.amount_minor/100).toFixed(2))}}>Record payment</button>}{sub.status!=='cancelled'&&<button className="button secondary small" onClick={()=>void cancelSubscription(sub)} disabled={busy===sub.id}><XCircle size={14}/>Cancel</button>}</div>
+   <div className="subscription-actions"><button className="button secondary small" onClick={()=>expanded===sub.id?setExpanded(''):void loadPayments(sub.id)} disabled={busy===sub.id}><CreditCard size={14}/>Payments</button>{sub.amount_minor>0&&sub.status!=='cancelled'&&<button className="button secondary small" onClick={()=>{setPaymentFor(sub);setPaymentAmount((sub.amount_minor/100).toFixed(2))}}>Record payment</button>}{sub.status!=='cancelled'&&<button className="button secondary small" onClick={()=>void cancelSubscription(sub)} disabled={busy===sub.id}><XCircle size={14}/>Cancel</button>}</div>
    {expanded===sub.id&&<div className="subscription-payments">{(payments[sub.id]||[]).length===0?<p>No payment records.</p>:(payments[sub.id]||[]).map(payment=><div className="subscription-payment-row" key={payment.id}><div><b>{money(payment.amount_minor,payment.currency)}</b><small>{payment.payment_method} · {payment.provider_reference||'No reference'} · {date(payment.created_at)}</small></div><span className={`status ${payment.status}`}>{payment.status}</span>{payment.status==='submitted'&&<div><button className="button primary small" onClick={()=>void paymentAction(payment,'confirm')} disabled={busy===payment.id}><CheckCircle2 size={13}/>Confirm</button><button className="button secondary small" onClick={()=>void paymentAction(payment,'reject')} disabled={busy===payment.id}><XCircle size={13}/>Reject</button></div>}</div>)}</div>}
   </article>)}</div>}
   <div className="registry-footnote"><ShieldCheck size={14}/> Manual payment records only. Verify bank/UPI receipts before confirming; never enter card numbers or security codes.</div>
