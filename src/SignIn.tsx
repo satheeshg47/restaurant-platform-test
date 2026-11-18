@@ -139,6 +139,9 @@ export default function SignIn({
           unauthorized: 'The one-time bootstrap secret is incorrect.',
           bootstrap_already_used: 'The first administrator has already been created. Sign in instead.',
           login_id_unavailable: 'That login ID is already in use.',
+          invalid_login_id_format: 'Login ID must be 3–64 characters and use only English letters, numbers, dot (.), underscore (_) or hyphen (-). Do not include spaces.',
+          invalid_password_length: 'Password must contain at least 12 characters and no more than 256.',
+          invalid_email_format: 'The optional email address is not valid. Leave it blank if you do not want to add one.',
           bootstrap_not_configured: 'The AUTH_BOOTSTRAP_SECRET secret is not configured on the Worker.',
           totp_encryption_not_configured: 'The AUTH_ENCRYPTION_KEY secret is not configured on the Worker.',
         }

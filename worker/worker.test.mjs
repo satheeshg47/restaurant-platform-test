@@ -152,6 +152,24 @@ test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session
   })
   assert.equal(badBootstrap.status, 401)
 
+  const invalidLoginId = await call('/auth/bootstrap-admin', {
+    method: 'POST', body: { bootstrap_secret: 'test-only-one-time-bootstrap-secret', login_id: 'root admin', password: 'a-long-password-value-123' },
+  })
+  assert.equal(invalidLoginId.status, 400)
+  assert.equal((await invalidLoginId.json()).error, 'invalid_login_id_format')
+
+  const invalidPassword = await call('/auth/bootstrap-admin', {
+    method: 'POST', body: { bootstrap_secret: 'test-only-one-time-bootstrap-secret', login_id: 'root-admin', password: 'short' },
+  })
+  assert.equal(invalidPassword.status, 400)
+  assert.equal((await invalidPassword.json()).error, 'invalid_password_length')
+
+  const invalidEmail = await call('/auth/bootstrap-admin', {
+    method: 'POST', body: { bootstrap_secret: 'test-only-one-time-bootstrap-secret', login_id: 'root-admin', password: 'a-long-password-value-123', email: 'not-an-email' },
+  })
+  assert.equal(invalidEmail.status, 400)
+  assert.equal((await invalidEmail.json()).error, 'invalid_email_format')
+
   const bootstrap = await call('/auth/bootstrap-admin', {
     method: 'POST', body: { bootstrap_secret: 'test-only-one-time-bootstrap-secret', login_id: 'root-admin', password: 'a-long-password-value-123', email: 'admin@example.test' },
   })
