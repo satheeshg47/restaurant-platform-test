@@ -79,6 +79,18 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0005_seed_restaurant_application.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0006_stock_adjustment_marker.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0007_tenant_restore_guard.sql', 'utf8'))
+  db.exec('CREATE TABLE d1_migrations (name TEXT PRIMARY KEY)')
+  db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(
+    '0001_platform_core.sql'
+  )
+  for (const name of [
+    '0002_owner_communication_centre.sql',
+    '0003_restaurant_domain.sql',
+    '0004_restaurant_order_item_timing.sql',
+    '0005_seed_restaurant_application.sql',
+    '0006_stock_adjustment_marker.sql',
+    '0007_tenant_restore_guard.sql',
+  ]) db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(name)
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
   env = {
@@ -125,6 +137,9 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
 
   const ready = await call('/ready')
   assert.equal(ready.status, 200)
+  const readiness = await ready.json()
+  assert.equal(readiness.checks.schema, 'complete')
+  assert.equal(readiness.latest_migration, '0007_tenant_restore_guard.sql')
 
   const unauthorized = await call('/admin/session')
   assert.equal(unauthorized.status, 401)
@@ -139,6 +154,15 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
   })
   assert.equal(app.status, 201)
   assert.equal(db.prepare('SELECT count(*) AS count FROM platform_audit_events').get().count, 1)
+})
+
+test('D1 readiness fails closed when production schema migrations are absent', async () => {
+  db.exec('DROP TABLE d1_migrations')
+  const ready = await call('/ready')
+  assert.equal(ready.status, 503)
+  const payload = await ready.json()
+  assert.equal(payload.status, 'not_ready')
+  assert.equal(payload.checks.schema, 'incomplete')
 })
 
 test('Auth0 multi-audience access tokens validate azp against the SPA client ID', async () => {
