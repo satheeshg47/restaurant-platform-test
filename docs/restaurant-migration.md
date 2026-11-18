@@ -1,32 +1,47 @@
-# Restaurant App migration
+# Restaurant Suite on Platform Core
 
-The Restaurant App is being rebuilt as a native Platform Core application. The Google Apps Script runtime, Sheets database, CacheService, LockService and Drive dependencies are not part of the target architecture.
+## Runtime and data model
 
-## Source of truth
+Restaurant Suite is a native Platform Core application using Cloudflare Workers and Cloudflare D1. The D1 database is the source of truth for platform and tenant records. The previous Google Apps Script/Sheets runtime and the PostgreSQL implementation are not used by the deployed Worker.
 
-The functional reference is `RestaurantApp-Handoff.zip`, including the 23-tab schema, Apps Script server functions, four role-facing pages and browser/server tests. No production records are being migrated because the previous app was a test deployment.
+- One application registration (`restaurant`) serves multiple restaurant tenants.
+- All operational rows are tenant-scoped. Worker routes derive tenant identity from a verified Auth0 identity and active tenant membership; request-supplied tenant IDs are never treated as authorization.
+- Guest QR access uses a high-entropy table token. Only its SHA-256 hash is stored in D1.
+- Amounts use integer minor units (paise for INR); localized names and historical order/invoice snapshots are preserved as JSON.
+- Guest ordering is server-priced and idempotent. Stock reservation, kitchen batching and per-order allocations are performed in D1.
+- Payments and refunds are ledger records; payment capture is manual. No payment gateway or card-data storage is enabled.
+- GST invoices preserve seller, tax and item snapshots. Invoice numbering is tenant-scoped.
+- Tenant export strips private QR tokens and idempotency keys. Restore requires a validated backup, explicit confirmation, an empty target, and guarded atomic writes.
 
-## Target architecture
+## Implemented and tested
 
-- One Platform Core application registration (`restaurant`) can serve multiple restaurant tenants.
-- Shared PostgreSQL database with tenant-scoped rows, composite tenant foreign keys and forced row-level security.
-- Amounts are stored as integer minor units (paise for INR); menu and add-on names retain language variants as JSON objects.
-- Customer QR access uses a hash of a high-entropy table token, never a raw reusable token in the database.
-- Order item names, variants, add-ons and prices are snapshots so later menu edits do not rewrite historical bills.
-- Idempotency keys prevent duplicate order submissions.
-- Kitchen batches can group only identical item/variant/add-on/customization combinations; allocations preserve per-order and per-table readiness.
-- Payments and refunds are append-only ledger records. Payment confirmation remains a staff action; no payment gateway is assumed.
-- Existing Platform Core identity and tenant membership are the intended authentication boundary. Restaurant staff roles add cook/waiter permissions within a tenant.
+The D1 Worker currently supports:
+1. Super Admin application registry, tenant creation, owner invitations, subscriptions, manual payment review, monitoring and audit events.
+2. Owner identity verification and tenant membership checks.
+3. Restaurant profile/settings, tables, QR tokens and table sessions.
+4. Multilingual menu categories/items, variants, add-on groups, availability, stock tracking and audited stock adjustments.
+5. Guest QR menu, cart ordering, idempotency, order tracking/cancellation and service requests.
+6. Kitchen queue/batching, cook item transitions, waiter board, service-request handling and item serving.
+7. Manual payments/refunds, bill views, GST invoices and safe table closing.
+8. Reports, daily summaries, customer reviews and owner responses.
+9. Tenant CSV/JSON export, backup validation, restore preflight and guarded restore.
 
-## Delivery phases
+The Worker test suite runs the main owner-to-guest workflow against an isolated SQLite/D1-compatible test database. CI also applies all seven D1 migrations locally, validates the PostgreSQL reference migrations, builds the frontend and bundles the Worker.
 
-1. Domain schema and tenant isolation (this migration).
-2. Tenant-scoped repository and API, table/session lifecycle, menu reads and QR guest entry.
-3. Server-priced ordering, stock reservation, idempotency and customer tracking.
-4. Kitchen queue, batching, waiter service requests and table operations.
-5. Payments/refunds, reviews, settings, reports, retention/export and owner UI.
-6. End-to-end QA, deployment readiness, backups and operational documentation.
+## Production database status
 
-## Important limitations
+- Production D1: migrations 0001-0007 applied.
+- Schema: 43 application tables; migration ledger contains all seven migrations.
+- Integrity check: `PRAGMA foreign_key_check` returned zero violations.
+- Seed registry: Restaurant Suite is active.
+- Tenant and owner records: none; no demo customer data was inserted.
+- The API readiness route verifies the latest migration and all required application tables, rather than only running `SELECT 1`.
 
-This migration creates the database model only. It does not provision PostgreSQL, create a tenant, configure identity, expose restaurant endpoints or deploy a live restaurant. Those steps require a configured runtime and explicit deployment approval.
+## Remaining launch gates
+
+- Configure and verify scheduled offsite backups to the chosen free storage destination, then complete restore drills.
+- Complete a live authenticated production smoke test and first-tenant onboarding drill.
+- Verify real owner login, tenant isolation and operational workflows with a non-demo tenant.
+- Review free-tier usage and quotas. No paid plan, payment gateway or automatic billing upgrade is enabled.
+
+Schema deployment is not equivalent to a production launch. Keep customer onboarding and live restaurant operations disabled until these gates are complete.
