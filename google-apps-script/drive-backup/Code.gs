@@ -54,7 +54,8 @@ function runDailyBackup() {
     }
     const response = cloudflarePost_({ output_format: 'polling' });
     processExportResponse_(response);
-    if (props.getProperty('BACKUP_BOOKMARK')) scheduleContinuation_();
+    const activeBookmark = props.getProperty('BACKUP_BOOKMARK');
+    if (activeBookmark) pollExport_(activeBookmark);
   });
 }
 
