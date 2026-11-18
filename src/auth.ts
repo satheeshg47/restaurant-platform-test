@@ -120,7 +120,7 @@ export async function completeOidcLogin() {
     const { payload: claims } = await jwtVerify(
       payload.id_token,
       createRemoteJWKSet(new URL(metadata.jwks_uri)),
-      { issuer: settings.issuer, audience: settings.clientId, algorithms: ['RS256', 'ES256'], maxTokenAge: '10m' },
+      { issuer: settings.issuer, audience: settings.clientId, algorithms: ['RS256', 'ES256'], maxTokenAge: '10m', clockTolerance: 60 },
     )
     if (claims.nonce !== transaction.nonce || typeof claims.sub !== 'string' || !claims.sub ||
         (Array.isArray(claims.aud) && claims.aud.length > 1 && claims.azp !== settings.clientId)) {
