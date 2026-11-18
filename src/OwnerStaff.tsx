@@ -35,11 +35,14 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
   const [resetPassword, setResetPassword] = useState('')
 
   const request = useCallback(async (path: string, init?: RequestInit) => {
+    const headers = new Headers(init?.headers)
+    headers.set('Accept', 'application/json')
+    if (init?.body) headers.set('Content-Type', 'application/json')
     const response = await apiFetch(base + path, {
       ...init,
       credentials: 'same-origin',
       cache: 'no-store',
-      headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+      headers,
     })
     const payload = await response.json().catch(() => ({})) as { error?: string; staff?: Staff[]; password_reset?: boolean }
     if (!response.ok) throw new Error(payload.error || 'staff_request_failed')
