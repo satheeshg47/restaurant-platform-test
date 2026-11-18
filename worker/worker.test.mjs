@@ -138,6 +138,13 @@ async function call(path, { method = 'GET', accessToken, idToken, body, cookie, 
 }
 
 test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session revocation work', async () => {
+  const initialSession = await call('/auth/session')
+  const initialStatus = await initialSession.json()
+  assert.equal(initialSession.status, 200)
+  assert.equal(initialStatus.authenticated, false)
+  assert.equal(initialStatus.bootstrap_available, true)
+  assert.equal(initialStatus.encryption_ready, true)
+
   const badBootstrap = await call('/auth/bootstrap-admin', {
     method: 'POST', body: { bootstrap_secret: 'wrong', login_id: 'root-admin', password: 'a-long-password-value-123' },
   })
@@ -147,6 +154,8 @@ test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session
     method: 'POST', body: { bootstrap_secret: 'test-only-one-time-bootstrap-secret', login_id: 'root-admin', password: 'a-long-password-value-123', email: 'admin@example.test' },
   })
   assert.equal(bootstrap.status, 201)
+  const afterBootstrap = await call('/auth/session')
+  assert.equal((await afterBootstrap.json()).bootstrap_available, false)
   const duplicate = await call('/auth/bootstrap-admin', {
     method: 'POST', body: { bootstrap_secret: 'test-only-one-time-bootstrap-secret', login_id: 'other-admin', password: 'a-long-password-value-123' },
   })
@@ -175,6 +184,10 @@ test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session
   const adminSession = await call('/admin/session', { cookie: firstCookie })
   assert.equal(adminSession.status, 200)
   assert.equal((await adminSession.json()).admin.issuer, 'native')
+  const nativeSessionStatus = await call('/auth/session', { cookie: firstCookie })
+  const nativeSessionPayload = await nativeSessionStatus.json()
+  assert.equal(nativeSessionPayload.authenticated, true)
+  assert.equal(nativeSessionPayload.user.is_admin, true)
 
   const secondLogin = await call('/auth/login', {
     method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
@@ -214,6 +227,8 @@ test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session
   const signedOut = await call('/auth/logout', { method: 'POST', cookie: secondCookie })
   assert.equal(signedOut.status, 200)
   assert.equal((await call('/admin/session', { cookie: secondCookie })).status, 401)
+  const afterLogout = await call('/auth/session', { cookie: secondCookie })
+  assert.equal((await afterLogout.json()).authenticated, false)
 })
 
 test('native authentication rejects cross-origin login requests', async () => {
@@ -450,6 +465,39 @@ test('owner invitation requires matching verified identity and creates one activ
     body: { tenant_id: tenantId, email: 'second@example.com' },
   })
   assert.equal(duplicate.status, 409)
+})
+
+test('owner invitation can create an individual native owner account and require TOTP', async () => {
+  const adminToken = await token(adminSubject, audience)
+  const created = await call('/admin/owner-invitations', {
+    method: 'POST', accessToken: adminToken,
+    body: { tenant_id: tenantId, email: 'native-owner@example.test' },
+  })
+  assert.equal(created.status, 201)
+  const invitation = await created.json()
+
+  const accepted = await call('/owner/invitations/accept', {
+    method: 'POST',
+    body: { token: invitation.token, login_id: 'native-owner', password: 'owner-password-strong-123' },
+  })
+  assert.equal(accepted.status, 200)
+  const acceptedPayload = await accepted.json()
+  assert.equal(acceptedPayload.accepted, true)
+  assert.equal(acceptedPayload.account_created, true)
+
+  const user = db.prepare("SELECT id FROM platform_users WHERE auth_provider='native' AND email=?").get('native-owner@example.test')
+  assert.ok(user?.id)
+  const credential = db.prepare('SELECT login_id_normalized FROM platform_user_credentials WHERE user_id=?').get(user.id)
+  assert.equal(credential.login_id_normalized, 'native-owner')
+  assert.equal(db.prepare("SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=? AND status='active'").get(tenantId, user.id).role, 'owner')
+
+  const login = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'NATIVE-OWNER', password: 'owner-password-strong-123' },
+  })
+  assert.equal(login.status, 200)
+  const payload = await login.json()
+  assert.equal(payload.totp_enrollment_required, true)
+  assert.ok(payload.provisioning_uri)
 })
 
 test('owner support conversations and admin replies are tenant-scoped', async () => {

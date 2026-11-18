@@ -26,10 +26,11 @@ function isConfiguredApiRequest(input: RequestInfo | URL) {
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const headers = new Headers(input instanceof Request ? input.headers : undefined)
   new Headers(init.headers).forEach((value, key) => headers.set(key, value))
-  if (sessionToken && isConfiguredApiRequest(input) && !headers.has('Authorization')) {
+  if (sessionToken && sessionToken !== 'native' && isConfiguredApiRequest(input) && !headers.has('Authorization')) {
     headers.set('Authorization', 'Bearer ' + sessionToken)
   }
-  return fetch(input, { ...init, headers })
+  const credentials = init.credentials || (isConfiguredApiRequest(input) ? 'same-origin' : undefined)
+  return fetch(input, { ...init, headers, ...(credentials ? { credentials } : {}) })
 }
 
 export function getOidcSettings() {

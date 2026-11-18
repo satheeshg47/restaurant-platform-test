@@ -58,6 +58,8 @@ function App() {
   const [sessionIdToken, setSessionIdToken] = useState<string | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [bootstrapAvailable, setBootstrapAvailable] = useState(false)
+  const [encryptionReady, setEncryptionReady] = useState(false)
   const [adminAccess, setAdminAccess] = useState<'checking' | 'allowed' | 'forbidden' | 'unavailable'>('checking')
   const [, setRouteRefresh] = useState(0)
 
@@ -72,7 +74,24 @@ function App() {
       if (/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) sessionStorage.setItem('platformcore.owner.invitation.token', inviteToken)
       if (window.location.hash) window.history.replaceState({}, document.title, window.location.pathname)
     }
-    if (window.location.pathname !== '/auth/callback') { setAuthReady(true); return }
+    if (window.location.pathname !== '/auth/callback') {
+      let active = true
+      fetch(`${API_BASE}/auth/session`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
+        .then(async response => {
+          const payload = await response.json().catch(() => ({})) as { authenticated?: boolean; bootstrap_available?: boolean; encryption_ready?: boolean }
+          if (!active) return
+          if (response.ok && payload.authenticated) {
+            setApiSessionToken('native')
+            setSessionToken('native')
+            setSessionIdToken(null)
+          }
+          setBootstrapAvailable(payload.bootstrap_available === true)
+          setEncryptionReady(payload.encryption_ready === true)
+        })
+        .catch(() => {})
+        .finally(() => { if (active) setAuthReady(true) })
+      return () => { active = false }
+    }
     completeOidcLogin().then(tokens => {
       setApiSessionToken(tokens.accessToken)
       setSessionToken(tokens.accessToken)
@@ -95,21 +114,29 @@ function App() {
     return () => { active = false }
   }, [authReady, sessionToken, ownerRoute, ownerInviteRoute])
 
-  const signOut = () => { setApiSessionToken(null); setSessionToken(null); setSessionIdToken(null); setAdminAccess('checking'); setAuthError('') }
+  const signOut = () => {
+    if (sessionToken === 'native') void fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } }).catch(() => {})
+    setApiSessionToken(null); setSessionToken(null); setSessionIdToken(null); setAdminAccess('checking'); setAuthError('')
+  }
+  const handleNativeAuthenticated = () => {
+    setApiSessionToken('native')
+    setSessionToken('native')
+    setSessionIdToken(null)
+    setAuthError('')
+  }
   const guestRoute = window.location.pathname.match(/^\/r\/([^/]+)\/([^/]+)\/?$/)
   if (guestRoute) return <GuestMenu slug={decodeURIComponent(guestRoute[1])} token={decodeURIComponent(guestRoute[2])} />
   if (!authReady) return <div className="signin-screen"><div className="signin-card">Completing secure sign-in…</div></div>
   if (ownerInviteRoute) {
-    if (!sessionToken) return <SignIn role="owner" returnPath="/owner/invitations/accept" error={authError}/>
-    return <OwnerInviteAcceptance accessToken={sessionToken} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
+    return <OwnerInviteAcceptance accessToken={sessionToken || ''} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAuthenticated={handleNativeAuthenticated} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
   }
   if (ownerRoute) {
-    if (!sessionToken) return <SignIn role="owner" error={authError}/>
+    if (!sessionToken) return <SignIn role="owner" error={authError} onAuthenticated={handleNativeAuthenticated}/>
     return <main className="owner-portal-shell"><header><div className="signin-brand"><div className="signin-mark"><Store size={22}/></div><div><b>platform<span>core</span></b><small>RESTAURANT OWNER</small></div></div><button className="button secondary small" onClick={signOut}>Sign out</button></header><OwnerPortal accessToken={sessionToken} apiBaseUrl={API_BASE}/></main>
   }
-  if (!sessionToken) return <SignIn role="admin" error={authError}/>
+  if (!sessionToken) return <SignIn role="admin" error={authError} bootstrapAvailable={bootstrapAvailable} encryptionReady={encryptionReady} onAuthenticated={handleNativeAuthenticated}/>
   if (adminAccess === 'checking') return <div className="signin-screen"><div className="signin-card">Verifying administrator access…</div></div>
-  if (adminAccess !== 'allowed') return <SignIn role="admin" error={adminAccess === 'forbidden' ? 'This identity is not the configured Super Admin.' : 'The administrator API is unavailable or not configured.'}/>
+  if (adminAccess !== 'allowed') return <SignIn role="admin" error={adminAccess === 'forbidden' ? 'This identity is not the configured Super Admin.' : 'The administrator API is unavailable or not configured.'} bootstrapAvailable={bootstrapAvailable} encryptionReady={encryptionReady} onAuthenticated={handleNativeAuthenticated}/>
 
 
   const pageTitle = section === 'Overview' ? 'Good evening' : section
@@ -147,9 +174,9 @@ function App() {
           {section === 'Communications' && <Communications />}
           {section === 'Subscriptions' && <Subscriptions />}
           {section === 'Update Centre' && <UpdateCentre apiBaseUrl={API_BASE}/>}
-          {section === 'Data & Backups' && <Placeholder icon={Database} title="Data & backups" description="Production D1 schema is installed. Free Cloudflare D1 Time Travel provides seven-day point-in-time recovery; it is not an offsite backup." items={['Production schema: 43 application tables, migrations 0001–0007','D1 Time Travel: seven-day recovery window on Workers Free','Tenant JSON export, backup validation and guarded restore in Restaurant Data Export','Offsite backup destination and scheduled recovery drills: not configured']}/>}
+          {section === 'Data & Backups' && <Placeholder icon={Database} title="Data & backups" description="Production D1 schema is installed. Free Cloudflare D1 Time Travel provides seven-day point-in-time recovery; it is not an offsite backup." items={['Production schema: 50 application tables, migrations 0001–0008','D1 Time Travel: seven-day recovery window on Workers Free','Tenant JSON export, backup validation and guarded restore in Restaurant Data Export','Offsite backup destination and scheduled recovery drills: not configured']}/>}
           {section === 'Monitoring' && <Monitoring />}
-          {section === 'Security' && <Placeholder icon={LockKeyhole} title="Security & access" description="Administrator OIDC sign-in is working and the Super Admin identity is restricted server-side. MFA/passkey enforcement has not yet been configured or verified." items={['OIDC administrator sign-in: verified','MFA and passkey enforcement: pending','Tenant and role authorization: enforced in Worker routes','Administrative audit trail: enabled; immutability not claimed']}/>}
+          {section === 'Security' && <Placeholder icon={LockKeyhole} title="Security & access" description="Native username/password authentication, TOTP enrollment, recovery codes and server-side session validation are implemented. The initial Super Admin account and encryption secrets still need to be provisioned." items={['OIDC administrator sign-in: verified','MFA and passkey enforcement: pending','Tenant and role authorization: enforced in Worker routes','Administrative audit trail: enabled; immutability not claimed']}/>}
           {section === 'Audit Log' && <AuditLog />}
           <footer className="footer"><span>Platform Core <b>·</b> v0.1.0 preview</span><span><i className="footer-dot"/> Pre-launch workspace · Production D1 schema installed</span></footer>
         </div>

@@ -1,5 +1,6 @@
 import { authenticateAdmin, authenticateIdentity, authenticateVerifiedEmail, authStatus } from './auth.ts'
 import type { Env, Identity, D1Result } from './types.ts'
+import { hashPassword } from './native-auth-crypto.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
@@ -50,24 +51,33 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
   const isAccept = path === '/owner/invitations/accept'
   if (!isAdminList && !revokeMatch && !isAccept) return json(404, { error: 'not_found' })
 
-  let identity: Identity
-  try {
-    identity = isAccept
-      ? await authenticateIdentity(request, env)
-      : await authenticateAdmin(request, env)
-  } catch (error) { return safeAuthResponse(error, isAccept) }
-
+  let identity: Identity | null = null
   let verifiedIdentity: Identity | null = null
   if (isAccept) {
-    try { verifiedIdentity = await authenticateVerifiedEmail(request, env) }
-    catch (error) {
-      const status = authStatus(error, 401)
-      return json(status, { error: status === 503 ? 'verified_email_auth_not_configured' : status === 403 ? 'verified_email_required' : 'invalid_id_token' })
+    const hasSession = request.headers.has('Authorization') ||
+      request.headers.has('X-OIDC-ID-Token') ||
+      (request.headers.get('Cookie') || '').includes('platformcore_session=')
+    if (hasSession) {
+      try { identity = await authenticateIdentity(request, env) }
+      catch (error) { return safeAuthResponse(error, true) }
+      if (identity.issuer === 'native') {
+        verifiedIdentity = { ...identity, emailVerified: true }
+      } else {
+        try { verifiedIdentity = await authenticateVerifiedEmail(request, env) }
+        catch (error) {
+          const status = authStatus(error, 401)
+          return json(status, { error: status === 503 ? 'verified_email_auth_not_configured' : status === 403 ? 'verified_email_required' : 'invalid_id_token' })
+        }
+        if (verifiedIdentity.issuer !== identity.issuer || verifiedIdentity.subject !== identity.subject) {
+          return json(401, { error: 'identity_token_subject_mismatch' })
+        }
+      }
     }
-    if (verifiedIdentity.issuer !== identity.issuer || verifiedIdentity.subject !== identity.subject) {
-      return json(401, { error: 'identity_token_subject_mismatch' })
-    }
+  } else {
+    try { identity = await authenticateAdmin(request, env) }
+    catch (error) { return safeAuthResponse(error, false) }
   }
+  if (!isAccept && !identity) return json(401, { error: 'unauthorized' })
 
   if (isAdminList && request.method === 'GET') {
     try {
@@ -100,7 +110,7 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
            SELECT ?,?,'owner.invitation.revoked','owner_invitation',?,?
            WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=? AND status='revoked')
              AND NOT EXISTS (SELECT 1 FROM platform_audit_events WHERE action='owner.invitation.revoked' AND resource_id=?)`,
-        ).bind(identity.issuer, identity.subject, invitationId, JSON.stringify({ tenant_id: invitation.tenant_id, email: invitation.email }), invitationId, invitationId),
+        ).bind(identity!.issuer, identity!.subject, invitationId, JSON.stringify({ tenant_id: invitation.tenant_id, email: invitation.email }), invitationId, invitationId),
       ])
       const after = await env.DB.prepare('SELECT status FROM platform_owner_invitations WHERE id=?').bind(invitationId).first<{ status: string }>()
       return after?.status === 'revoked'
@@ -144,12 +154,12 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
              AND NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active')
              AND NOT EXISTS (SELECT 1 FROM platform_owner_invitations WHERE tenant_id=? AND email=? AND status='pending')
            RETURNING id,tenant_id,email,expires_at`,
-        ).bind(id, tenantId, email, tokenHash, identity.issuer, identity.subject, expiresAt, tenantId, tenantId, tenantId, email),
+        ).bind(id, tenantId, email, tokenHash, identity!.issuer, identity!.subject, expiresAt, tenantId, tenantId, tenantId, email),
         env.DB.prepare(
           `INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata)
            SELECT ?,?,'owner.invitation.created','owner_invitation',?,?
            WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=?)`,
-        ).bind(identity.issuer, identity.subject, id, JSON.stringify({ tenant_id: tenantId, email }), id),
+        ).bind(identity!.issuer, identity!.subject, id, JSON.stringify({ tenant_id: tenantId, email }), id),
       ]
       const results = await env.DB.batch<D1Result<Record<string, unknown>>>(statements)
       const row = results[0]?.results?.[0]
@@ -174,7 +184,6 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
   }
 
   if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
-  if (!verifiedIdentity?.email || verifiedIdentity.emailVerified !== true) return json(403, { error: 'verified_email_required' })
   let body: Record<string, unknown>
   try { body = await readBody(request) }
   catch (error) { const status = authStatus(error, 400); return json(status, { error: status === 413 ? 'payload_too_large' : 'invalid_json' }) }
@@ -194,22 +203,72 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
       await env.DB.prepare("UPDATE platform_owner_invitations SET status='expired' WHERE id=? AND status='pending'").bind(invitation.id).run()
       return json(410, { error: 'invitation_expired' })
     }
-    const email = verifiedIdentity.email.trim().toLowerCase()
-    if (invitation.email !== email) return json(403, { error: 'invitation_email_mismatch' })
+
+    let acceptedIdentity = identity
+    let email = ''
+    let newNativeUser = false
+    let newLoginId = ''
+    let newPasswordHash = ''
+    if (acceptedIdentity) {
+      if (!verifiedIdentity?.email) return json(403, { error: 'verified_email_required' })
+      email = verifiedIdentity.email.trim().toLowerCase()
+      if (invitation.email !== email) return json(403, { error: 'invitation_email_mismatch' })
+    } else {
+      const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
+      const password = typeof body.password === 'string' ? body.password : ''
+      if (!/^[A-Za-z0-9._-]{3,64}$/.test(loginId) || password.length < 12 || password.length > 256) {
+        return json(400, { error: 'invalid_account_details' })
+      }
+      if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'owner_auth_not_configured' })
+      const existingNative = await env.DB.prepare(
+        "SELECT 1 AS found FROM platform_users WHERE auth_provider='native' AND lower(email)=? LIMIT 1",
+      ).bind(invitation.email.toLowerCase()).first()
+      if (existingNative) return json(409, { error: 'native_account_exists_sign_in' })
+      const existingLogin = await env.DB.prepare(
+        'SELECT 1 AS found FROM platform_user_credentials WHERE login_id_normalized=? LIMIT 1',
+      ).bind(loginId.toLowerCase()).first()
+      if (existingLogin) return json(409, { error: 'login_id_unavailable' })
+      acceptedIdentity = {
+        issuer: 'native',
+        subject: crypto.randomUUID(),
+        email: invitation.email,
+        emailVerified: true,
+      }
+      email = invitation.email.toLowerCase()
+      newNativeUser = true
+      newLoginId = loginId
+      newPasswordHash = await hashPassword(password)
+    }
+
+    if (!acceptedIdentity) return json(401, { error: 'unauthorized' })
     const activeOwner = await env.DB.prepare(
       "SELECT 1 AS found FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active' LIMIT 1",
     ).bind(invitation.tenant_id).first()
     if (activeOwner) return json(409, { error: 'active_owner_already_exists' })
 
-    const metadata = JSON.stringify({ invitation_id: invitation.id })
-    await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO platform_users(auth_provider,auth_subject,email)
-         SELECT ?,?,?
-         WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=? AND status='pending' AND expires_at>?)
-           AND NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active')
-         ON CONFLICT(auth_provider,auth_subject) DO UPDATE SET email=excluded.email`,
-      ).bind(identity.issuer, identity.subject, email, invitation.id, new Date().toISOString(), invitation.tenant_id),
+    const metadata = JSON.stringify({ invitation_id: invitation.id, account_created: newNativeUser })
+    const userInsert = newNativeUser
+      ? env.DB.prepare(
+          `INSERT INTO platform_users(id,auth_provider,auth_subject,email)
+           SELECT ?,'native',?,?
+           WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=? AND status='pending' AND expires_at>?)
+             AND NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active')`,
+        ).bind(acceptedIdentity.subject, acceptedIdentity.subject, email, invitation.id, new Date().toISOString(), invitation.tenant_id)
+      : env.DB.prepare(
+          `INSERT INTO platform_users(auth_provider,auth_subject,email)
+           SELECT ?,?,?
+           WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=? AND status='pending' AND expires_at>?)
+             AND NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active')
+           ON CONFLICT(auth_provider,auth_subject) DO UPDATE SET email=excluded.email`,
+        ).bind(acceptedIdentity.issuer, acceptedIdentity.subject, email, invitation.id, new Date().toISOString(), invitation.tenant_id)
+
+    const statements = [userInsert]
+    if (newNativeUser) {
+      statements.push(env.DB.prepare(
+        'INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM platform_users WHERE id=?)',
+      ).bind(acceptedIdentity.subject, newLoginId, newLoginId.toLowerCase(), newPasswordHash, acceptedIdentity.subject))
+    }
+    statements.push(
       env.DB.prepare(
         `INSERT INTO tenant_memberships(tenant_id,user_id,role,status)
          SELECT i.tenant_id,pu.id,'owner','active'
@@ -219,7 +278,7 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
            AND i.email=? AND i.tenant_id=?
            AND NOT EXISTS (SELECT 1 FROM tenant_memberships tm WHERE tm.tenant_id=i.tenant_id AND tm.role='owner' AND tm.status='active')
          ON CONFLICT(tenant_id,user_id) DO UPDATE SET role='owner',status='active'`,
-      ).bind(identity.issuer, identity.subject, invitation.id, new Date().toISOString(), email, invitation.tenant_id),
+      ).bind(acceptedIdentity.issuer, acceptedIdentity.subject, invitation.id, new Date().toISOString(), email, invitation.tenant_id),
       env.DB.prepare(
         `UPDATE platform_owner_invitations
          SET status='accepted',accepted_by_issuer=?,accepted_by_subject=?,accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
@@ -229,14 +288,15 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
              WHERE tm.tenant_id=? AND tm.role='owner' AND tm.status='active'
                AND pu.auth_provider=? AND pu.auth_subject=?
            )`,
-      ).bind(identity.issuer, identity.subject, invitation.id, invitation.tenant_id, identity.issuer, identity.subject),
+      ).bind(acceptedIdentity.issuer, acceptedIdentity.subject, invitation.id, invitation.tenant_id, acceptedIdentity.issuer, acceptedIdentity.subject),
       env.DB.prepare(
         `INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata)
          SELECT ?,?,'owner.invitation.accepted','tenant',?,?
          WHERE EXISTS (SELECT 1 FROM platform_owner_invitations WHERE id=? AND status='accepted' AND accepted_by_issuer=? AND accepted_by_subject=?)
            AND NOT EXISTS (SELECT 1 FROM platform_audit_events WHERE action='owner.invitation.accepted' AND resource_id=? AND actor_issuer=? AND actor_subject=?)`,
-      ).bind(identity.issuer, identity.subject, invitation.tenant_id, metadata, invitation.id, identity.issuer, identity.subject, invitation.tenant_id, identity.issuer, identity.subject),
-    ])
+      ).bind(acceptedIdentity.issuer, acceptedIdentity.subject, invitation.tenant_id, metadata, invitation.id, acceptedIdentity.issuer, acceptedIdentity.subject, invitation.tenant_id, acceptedIdentity.issuer, acceptedIdentity.subject),
+    )
+    await env.DB.batch(statements)
 
     const after = await env.DB.prepare(
       'SELECT status FROM platform_owner_invitations WHERE id=?',
@@ -247,8 +307,14 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
       ).bind(invitation.tenant_id).first()
       return owner ? json(409, { error: 'active_owner_already_exists' }) : json(409, { error: 'invitation_not_pending' })
     }
-    return json(200, { accepted: true, tenant: { id: invitation.tenant_id, name: invitation.tenant_name } })
-  } catch {
+    return json(200, {
+      accepted: true,
+      account_created: newNativeUser,
+      tenant: { id: invitation.tenant_id, name: invitation.tenant_name },
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (/UNIQUE|constraint/i.test(message)) return json(409, { error: /login_id/i.test(message) ? 'login_id_unavailable' : 'invitation_not_pending' })
     return json(500, { error: 'owner_invitation_accept_failed' })
   }
 }

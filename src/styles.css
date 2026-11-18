@@ -573,3 +573,25 @@
 .owner-workspace-tabs button{white-space:nowrap;border:1px solid #e4e7ef;border-radius:8px;background:#fff;color:#667085;padding:9px 12px;font-size:10px;font-weight:700}
 .owner-workspace-tabs button.active{border-color:#6556d8;background:#efedff;color:#5b4dc9}
 @media(max-width:520px){.owner-workspace-heading{flex-direction:column}.owner-workspace-back{align-self:flex-start}}
+
+
+/* Native account sign-in, authenticator enrollment and recovery */
+.signin-form{display:grid;gap:12px;margin:18px 0 8px}
+.signin-form label{display:grid;gap:6px;font-size:11px;font-weight:750;color:#465166}
+.signin-form input{width:100%;box-sizing:border-box;border:1px solid #d9deea;border-radius:9px;padding:11px 12px;background:#fff;color:#202a3a;font:inherit;font-size:13px;font-weight:500;outline:none}
+.signin-form input:focus{border-color:#7667dc;box-shadow:0 0 0 3px rgba(118,103,220,.12)}
+.signin-form label small{font-size:9px;color:#929aaa;font-weight:500}
+.signin-link{border:0;background:transparent;color:#6556d8;font-size:10px;font-weight:750;padding:7px;cursor:pointer}
+.signin-button.secondary{background:#f1f2f8;color:#4c5668;border:1px solid #e4e6ef}
+.signin-alternative{display:grid;gap:10px;margin-top:15px}
+.signin-alternative>span{text-align:center;color:#a0a7b4;font-size:9px;font-weight:800;letter-spacing:1px}
+.signin-notice{font-size:10px;color:#16835d;line-height:1.5;margin:10px 0 0!important}
+.totp-enrollment{display:grid;justify-items:center;gap:9px;padding:14px;border:1px solid #e8eaf2;border-radius:12px;background:#fafaff}
+.totp-enrollment img{width:190px;height:190px;max-width:100%;object-fit:contain;background:#fff;border-radius:8px}
+.totp-enrollment small{font-size:10px;color:#737e91;text-align:center}
+.totp-enrollment code{max-width:100%;overflow-wrap:anywhere;text-align:center;font-size:11px;color:#344054;background:#f0efff;padding:8px 10px;border-radius:8px}
+.totp-qr-placeholder{width:190px;height:190px;display:grid;place-items:center;text-align:center;font-size:10px;color:#858fa0}
+.signin-recovery{display:grid;gap:12px;margin:16px 0}
+.recovery-code-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:13px;border:1px solid #e6e9f0;border-radius:11px;background:#fafbff}
+.recovery-code-list code{text-align:center;font-size:11px;font-weight:750;letter-spacing:.3px;color:#29364b;padding:8px 5px;background:#fff;border:1px solid #e9ebf2;border-radius:7px}
+@media(max-width:420px){.signin-card{padding:20px}.recovery-code-list{gap:6px}.recovery-code-list code{font-size:10px}}
