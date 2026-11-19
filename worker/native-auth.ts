@@ -226,8 +226,9 @@ async function login(request: Request, env: Env): Promise<Response> {
        EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner,
        EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active') AS is_member_active
      FROM platform_user_credentials c JOIN platform_users pu ON pu.id=c.user_id
-     WHERE c.login_id_normalized=? OR lower(pu.email)=? LIMIT 1`,
-  ).bind(loginId.toLowerCase(), loginId.toLowerCase()).first<UserAuthRow>()
+     WHERE lower(pu.email)=? OR c.login_id_normalized=?
+     ORDER BY CASE WHEN lower(pu.email)=? THEN 0 ELSE 1 END LIMIT 1`,
+  ).bind(loginId.toLowerCase(), loginId.toLowerCase(), loginId.toLowerCase()).first<UserAuthRow>()
   const dummyHash = 'pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
   const valid = await verifyPassword(password, user && user.credential_status === 'active' ? user.password_hash : dummyHash)
   if (!user || user.credential_status !== 'active' || !valid || (!Number(user.is_admin) && !Number(user.is_owner) && !Number(user.is_member_active))) return json(401, { error: 'invalid_credentials' })
