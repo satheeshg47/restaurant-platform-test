@@ -306,6 +306,14 @@ function digestHex_(bytes) {
 }
 
 
+
+/** Run once from the Apps Script editor to authorize MailApp for this project. */
+function authorizeEmailBridge() {
+  const remaining = MailApp.getRemainingDailyQuota();
+  Logger.log('MailApp authorization passed. Remaining recipient quota: ' + remaining);
+  return remaining;
+}
+
 /**
  * Transactional email bridge for Platform Core.
  *
