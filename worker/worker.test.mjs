@@ -496,7 +496,7 @@ test('owner invitation requires matching verified identity and creates one activ
   assert.equal(duplicate.status, 409)
 })
 
-test('owner invitation can create an individual native owner account and require TOTP', async () => {
+test('owner invitation creates an email-and-password owner account without mandatory TOTP', async () => {
   const adminToken = await token(adminSubject, audience)
   const created = await call('/admin/owner-invitations', {
     method: 'POST', accessToken: adminToken,
@@ -507,7 +507,7 @@ test('owner invitation can create an individual native owner account and require
 
   const accepted = await call('/owner/invitations/accept', {
     method: 'POST',
-    body: { token: invitation.token, login_id: 'native-owner', password: 'owner-password-strong-123' },
+    body: { token: invitation.token, password: 'owner-password-strong-123' },
   })
   assert.equal(accepted.status, 200)
   const acceptedPayload = await accepted.json()
@@ -517,16 +517,17 @@ test('owner invitation can create an individual native owner account and require
   const user = db.prepare("SELECT id FROM platform_users WHERE auth_provider='native' AND email=?").get('native-owner@example.test')
   assert.ok(user?.id)
   const credential = db.prepare('SELECT login_id_normalized FROM platform_user_credentials WHERE user_id=?').get(user.id)
-  assert.equal(credential.login_id_normalized, 'native-owner')
+  assert.match(credential.login_id_normalized, /^owner-[a-f0-9]{32}$/)
   assert.equal(db.prepare("SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=? AND status='active'").get(tenantId, user.id).role, 'owner')
 
   const login = await call('/auth/login', {
-    method: 'POST', body: { login_id: 'NATIVE-OWNER', password: 'owner-password-strong-123' },
+    method: 'POST', body: { login_id: 'NATIVE-OWNER@EXAMPLE.TEST', password: 'owner-password-strong-123' },
   })
   assert.equal(login.status, 200)
   const payload = await login.json()
-  assert.equal(payload.totp_enrollment_required, true)
-  assert.ok(payload.provisioning_uri)
+  assert.equal(payload.authenticated, true)
+  assert.equal(payload.totp_enrollment_required, undefined)
+  assert.ok(login.headers.get('Set-Cookie'))
 })
 
 test('owner can create, manage and suspend individual staff logins', async () => {
@@ -537,16 +538,10 @@ test('owner can create, manage and suspend individual staff logins', async () =>
   db.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) VALUES(?,?,?,?)').run(ownerId, 'restaurant-owner', 'restaurant-owner', ownerHash)
   db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'owner','active')").run(tenantId, ownerId)
 
-  const ownerLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'restaurant-owner', password: ownerPassword } })
+  const ownerLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'staff-owner@example.test', password: ownerPassword } })
   assert.equal(ownerLogin.status, 200)
-  const ownerChallenge = await ownerLogin.json()
-  const setupSecret = new URL(ownerChallenge.provisioning_uri).searchParams.get('secret')
-  const ownerCode = await generateTotpCode(setupSecret)
-  const ownerEnrolled = await call('/auth/totp/enroll/verify', {
-    method: 'POST', body: { challenge_token: ownerChallenge.challenge_token, code: ownerCode },
-  })
-  assert.equal(ownerEnrolled.status, 200)
-  const ownerCookie = ownerEnrolled.headers.get('Set-Cookie').split(';')[0]
+  assert.equal((await ownerLogin.json()).authenticated, true)
+  const ownerCookie = ownerLogin.headers.get('Set-Cookie').split(';')[0]
 
   const created = await call('/owner/staff', {
     method: 'POST', cookie: ownerCookie,
