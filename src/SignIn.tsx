@@ -125,7 +125,8 @@ export default function SignIn({
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginId.trim() }), cache: 'no-store',
       })
-      if (!response.ok) throw new Error('Password reset request could not be submitted. Try again later.')
+      const payload = await response.json().catch(() => ({})) as { error?: string }
+      if (!response.ok) throw new Error(payload.error === 'email_delivery_not_configured' ? 'Email recovery is not configured yet. Contact the platform administrator.' : 'Password reset request could not be submitted. Try again later.')
       setNotice('If an owner account exists for that email, a password reset link will be sent.')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Password reset request failed.')
