@@ -10,7 +10,7 @@ export default function Owners(){
  const [target,setTarget]=useState<OwnerRow|null>(null),[email,setEmail]=useState(''),[inviteBusy,setInviteBusy]=useState(false),[inviteError,setInviteError]=useState(''),[created,setCreated]=useState<{invitation:Invitation;token?:string;delivery:string}|null>(null),[copied,setCopied]=useState(false)
  const [tenantName,setTenantName]=useState(''),[tenantSlug,setTenantSlug]=useState(''),[tenantBusy,setTenantBusy]=useState(false),[tenantError,setTenantError]=useState(''),[statusBusy,setStatusBusy]=useState('');
  const [resetBusy,setResetBusy]=useState(''),[resetNotice,setResetNotice]=useState('')
- const [transferTarget,setTransferTarget]=useState<OwnerRow|null>(null),[transferEmail,setTransferEmail]=useState(''),[transferReason,setTransferReason]=useState(''),[transferType,setTransferType]=useState<'standard'|'admin_controlled'>('standard'),[transferBusy,setTransferBusy]=useState(false),[transferError,setTransferError]=useState(''),[transferCreated,setTransferCreated]=useState<{token?:string;delivery:string;expires_at:string;email:string;tenant_name:string}|null>(null),[transferCopied,setTransferCopied]=useState(false)
+ const [transferTarget,setTransferTarget]=useState<OwnerRow|null>(null),[transferEmail,setTransferEmail]=useState(''),[transferReason,setTransferReason]=useState(''),[transferType,setTransferType]=useState<'standard'|'admin_controlled'>('standard'),[transferBusy,setTransferBusy]=useState(false),[transferError,setTransferError]=useState(''),[transferCreated,setTransferCreated]=useState<{token?:string;approval_token?:string;delivery:string;expires_at:string;email:string;outgoing_owner_email?:string;tenant_name:string}|null>(null),[transferCopied,setTransferCopied]=useState(false)
  const refresh=useCallback(async()=>{setBusy(true);setError('');try{
   const session=await apiFetch(`${API_BASE}/admin/session`,{cache:'no-store'})
   if(!session.ok){setState(session.status===503?'auth_not_configured':session.status===403?'forbidden':'sign_in_required');setRows([]);return}
@@ -64,16 +64,18 @@ export default function Owners(){
  const closeTransfer=()=>{setTransferTarget(null);setTransferEmail('');setTransferReason('');setTransferError('');setTransferCreated(null);setTransferCopied(false)}
  const createTransfer=async()=>{
   if(!transferTarget||!transferEmail.trim()||transferReason.trim().length<3)return
+  if(transferType==='admin_controlled'&&!window.confirm('Admin-controlled transfer bypasses outgoing Owner approval. Confirm that you have independently verified the business transfer and recorded the evidence in the reason. Continue?'))return
   setTransferBusy(true);setTransferError('')
   try{
    const response=await apiFetch(`${API_BASE}/admin/tenants/${transferTarget.tenant_id}/owner-transfer`,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},cache:'no-store',body:JSON.stringify({email:transferEmail.trim(),reason:transferReason.trim(),transfer_type:transferType})})
    const payload=await response.json().catch(()=>({}))
    if(!response.ok)throw new Error(payload.error==='transfer_already_pending'?'A transfer is already pending for this restaurant.':payload.error||'Ownership transfer could not be started.')
-   setTransferCreated({token:typeof payload.token==='string'?payload.token:undefined,delivery:payload.delivery||'manual_link_required',expires_at:payload.transfer.expires_at,email:payload.transfer.target_email,tenant_name:payload.transfer.tenant_name})
+   setTransferCreated({token:typeof payload.token==='string'?payload.token:undefined,approval_token:typeof payload.approval_token==='string'?payload.approval_token:undefined,delivery:payload.delivery||'manual_link_required',expires_at:payload.transfer.expires_at,email:payload.transfer.target_email,outgoing_owner_email:payload.transfer.outgoing_owner_email||undefined,tenant_name:payload.transfer.tenant_name})
   }catch(e){setTransferError(e instanceof Error?e.message:'Ownership transfer could not be started.')}finally{setTransferBusy(false)}
  }
  const transferLink=transferCreated?.token?window.location.origin+'/owner/transfers/accept?token='+encodeURIComponent(transferCreated.token):''
- const copyTransferLink=async()=>{if(!transferLink)return;try{await navigator.clipboard.writeText(transferLink);setTransferCopied(true)}catch{setTransferError('Clipboard access was blocked. Select and copy the link manually.')}}
+ const approvalLink=transferCreated?.approval_token?window.location.origin+'/owner/transfers/approve?token='+encodeURIComponent(transferCreated.approval_token):''
+ const copyTransferLink=async()=>{const links=[transferLink,approvalLink].filter(Boolean).join('\\n');if(!links)return;try{await navigator.clipboard.writeText(links);setTransferCopied(true)}catch{setTransferError('Clipboard access was blocked. Select and copy the links manually.')}}
  const openInvite=(row:OwnerRow)=>{setTarget(row);setEmail('');setInviteError('');setCreated(null);setCopied(false)}
  const closeInvite=()=>{setTarget(null);setEmail('');setInviteError('');setCreated(null);setCopied(false)}
  const createInvite=async()=>{
@@ -115,10 +117,11 @@ export default function Owners(){
     <label htmlFor="transfer-type">Transfer approval type</label><select id="transfer-type" className="modal-input" value={transferType} onChange={e=>setTransferType(e.target.value as 'standard'|'admin_controlled')}><option value="standard">Standard — documented transfer</option><option value="admin_controlled">Admin-controlled — outgoing Owner unavailable</option></select>
     {transferError&&<p role="alert" className="modal-desc">{transferError}</p>}
     <div className="modal-actions"><button className="button secondary" onClick={closeTransfer}>Cancel</button><button className="button primary" onClick={()=>void createTransfer()} disabled={transferBusy||!transferEmail.trim()||transferReason.trim().length<3}><MailPlus size={14}/>{transferBusy?'Creating…':'Send transfer invitation'}</button></div>
-   </>:<><p className="modal-desc">{transferCreated.delivery==='email_sent'?<>Transfer invitation sent to <b>{transferCreated.email}</b>. It expires {new Date(transferCreated.expires_at).toLocaleString()}. The current Owner remains active until acceptance.</>:<>Email delivery is not configured. Share this one-time link securely with <b>{transferCreated.email}</b>. The current Owner remains active until acceptance.</>}</p>
-    {transferCreated.token&&<><label htmlFor="transfer-link">One-time transfer link</label><textarea id="transfer-link" className="modal-input" rows={3} readOnly value={transferLink}/></>}
+   </>:<><p className="modal-desc">{transferCreated.delivery==='email_sent'?<>Invitation emails were sent to the incoming Owner and current Owner. The current Owner remains active until both approval and acceptance are complete.</>:<>One or more invitation emails could not be delivered. Share the link or links shown below securely. The current Owner remains active until all required steps are complete.</>} Expires {new Date(transferCreated.expires_at).toLocaleString()}.</p>
+    {transferCreated.token&&<><label htmlFor="transfer-link">Incoming Owner acceptance link — {transferCreated.email}</label><textarea id="transfer-link" className="modal-input" rows={2} readOnly value={transferLink}/></>}
+    {transferCreated.approval_token&&<><label htmlFor="transfer-approval-link">Outgoing Owner approval link — {transferCreated.outgoing_owner_email||'current Owner'}</label><textarea id="transfer-approval-link" className="modal-input" rows={2} readOnly value={approvalLink}/></>}
     {transferError&&<p role="alert" className="modal-desc">{transferError}</p>}
-    <div className="modal-actions"><button className="button secondary" onClick={closeTransfer}>Close</button>{transferCreated.token&&<button className="button primary" onClick={()=>void copyTransferLink()}><Copy size={14}/>{transferCopied?'Copied':'Copy transfer link'}</button>}</div>
+    <div className="modal-actions"><button className="button secondary" onClick={closeTransfer}>Close</button>{(transferCreated.token||transferCreated.approval_token)&&<button className="button primary" onClick={()=>void copyTransferLink()}><Copy size={14}/>{transferCopied?'Copied':'Copy required link(s)'}</button>}</div>
    </>}
   </section></div>}
   {target&&<div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="invite-title">
