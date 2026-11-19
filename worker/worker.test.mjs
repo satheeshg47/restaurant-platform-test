@@ -288,7 +288,7 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
   assert.equal(ready.status, 200)
   const readiness = await ready.json()
   assert.equal(readiness.checks.schema, 'complete')
-  assert.equal(readiness.latest_migration, '0009_totp_replay_protection.sql')
+  assert.equal(readiness.latest_migration, '0010_account_recovery_and_owner_transfer.sql')
 
   const unauthorized = await call('/admin/session')
   assert.equal(unauthorized.status, 401)
@@ -343,7 +343,7 @@ test('release manifest preflight validates metadata without storing or deploying
   const unsafe=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.4',files:[{...manifest.files[0],path:'../tenant-data/private.json'}]}}})
   assert.equal(unsafe.status,400)
   assert.equal((await unsafe.json()).errors[0].code,'unsafe_file_path')
-  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:10}}})
+  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:11}}})
   assert.equal(future.status,409)
   assert.equal((await future.json()).error,'database_migration_not_available')
   const unauthorized=await call('/admin/releases/validate-manifest',{method:'POST',body:{manifest}})
