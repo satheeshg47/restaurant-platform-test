@@ -54,13 +54,17 @@ export async function handleAccountRecovery(request: Request, env: Env, path: st
     if (!EMAIL.test(email) || email.length > 320) return json(200, { ok: true })
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
     const digest = await sha256Hex(email)
+    const nowRate = new Date().toISOString()
     const rate = await env.DB.prepare(
-      "SELECT count(*) AS count FROM platform_password_reset_tokens WHERE created_at>strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') AND user_id IN (SELECT id FROM platform_users WHERE lower(email)=?)",
-    ).bind(email).first<{ count: number }>()
-    if (Number(rate?.count || 0) >= 3) return json(200, { ok: true })
-    await env.DB.prepare(
-      'INSERT INTO platform_auth_rate_limits(bucket_key,window_started_at,attempt_count,updated_at) VALUES(?,?,1,?) ON CONFLICT(bucket_key) DO UPDATE SET attempt_count=MIN(attempt_count+1,1000),updated_at=excluded.updated_at',
-    ).bind('password-reset:' + digest + ':' + ip, new Date().toISOString(), new Date().toISOString()).run()
+      `INSERT INTO platform_auth_rate_limits(bucket_key,window_started_at,attempt_count,updated_at)
+       VALUES(?,?,1,?)
+       ON CONFLICT(bucket_key) DO UPDATE SET
+         attempt_count=CASE WHEN platform_auth_rate_limits.window_started_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN 1 ELSE MIN(platform_auth_rate_limits.attempt_count+1,1000) END,
+         window_started_at=CASE WHEN platform_auth_rate_limits.window_started_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN excluded.window_started_at ELSE platform_auth_rate_limits.window_started_at END,
+         updated_at=excluded.updated_at
+       RETURNING attempt_count`,
+    ).bind('password-reset:' + digest + ':' + ip, nowRate, nowRate).first<{ attempt_count: number }>()
+    if (Number(rate?.attempt_count || 0) > 3) return json(200, { ok: true })
     const user = await env.DB.prepare(
       `SELECT pu.id,pu.email FROM platform_users pu
        JOIN platform_user_credentials c ON c.user_id=pu.id
@@ -87,8 +91,8 @@ export async function handleAccountRecovery(request: Request, env: Env, path: st
     const results = await env.DB.batch([
       env.DB.prepare('UPDATE platform_password_reset_tokens SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>? RETURNING user_id').bind(now, tokenRow.id, now),
       env.DB.prepare('UPDATE platform_user_credentials SET password_hash=?,password_changed_at=?,updated_at=? WHERE user_id=? AND EXISTS(SELECT 1 FROM platform_password_reset_tokens WHERE id=? AND used_at=? AND user_id=?)').bind(passwordHash, now, now, tokenRow.user_id, tokenRow.id, now, tokenRow.user_id),
-      env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL').bind(now, tokenRow.user_id),
-      env.DB.prepare("UPDATE platform_password_reset_tokens SET used_at=? WHERE user_id=? AND used_at IS NULL").bind(now, tokenRow.user_id),
+      env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL AND EXISTS(SELECT 1 FROM platform_password_reset_tokens WHERE id=? AND used_at=?) AND EXISTS(SELECT 1 FROM platform_user_credentials WHERE user_id=? AND password_changed_at=?)').bind(now, tokenRow.user_id, tokenRow.id, now, tokenRow.user_id, now),
+      env.DB.prepare("UPDATE platform_password_reset_tokens SET used_at=? WHERE user_id=? AND used_at IS NULL AND EXISTS(SELECT 1 FROM platform_user_credentials WHERE user_id=? AND password_changed_at=?)").bind(now, tokenRow.user_id, tokenRow.user_id, now),
       env.DB.prepare("INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) SELECT 'system','password-reset','owner.password_reset.completed','platform_user',?,'{}' WHERE EXISTS(SELECT 1 FROM platform_user_credentials WHERE user_id=? AND password_changed_at=?)").bind(tokenRow.user_id, tokenRow.user_id, now),
     ])
     if (!results[0]?.results?.length || Number(results[1]?.meta?.changes || 0) !== 1) return json(400, { error: 'invalid_or_expired_reset_link' })
