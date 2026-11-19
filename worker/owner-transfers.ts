@@ -42,9 +42,9 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     const id = crypto.randomUUID()
     const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     await env.DB.prepare(
-      `INSERT INTO owner_transfer_invitations(id,tenant_id,from_user_id,target_email,token_hash,reason,initiated_by_issuer,initiated_by_subject,expires_at)
-       VALUES(?,?,?,?,?,?,?,?,?)`,
-    ).bind(id, tenant.id, current.id, email, await sha256Hex(token), reason, actor.issuer, actor.subject, expires).run()
+      `INSERT INTO owner_transfer_invitations(id,tenant_id,from_user_id,target_email,token_hash,reason,transfer_type,initiated_by_issuer,initiated_by_subject,expires_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?)`,
+    ).bind(id, tenant.id, current.id, email, await sha256Hex(token), reason, transferType, actor.issuer, actor.subject, expires).run()
     const base = (env.APP_PUBLIC_URL || new URL(request.url).origin).replace(/\/$/, '')
     const link = base + '/owner/transfers/accept?token=' + encodeURIComponent(token)
     const safeName = escapeHtml(tenant.name)
@@ -65,9 +65,9 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     const token = typeof body?.token === 'string' ? body.token : ''
     if (!TOKEN.test(token)) return json(400, { error: 'invalid_transfer_token' })
     const invite = await env.DB.prepare(
-      `SELECT i.id,i.tenant_id,i.from_user_id,i.target_email,i.reason,i.status,i.expires_at,t.name AS tenant_name,t.status AS tenant_status
+      `SELECT i.id,i.tenant_id,i.from_user_id,i.target_email,i.reason,i.transfer_type,i.status,i.expires_at,t.name AS tenant_name,t.status AS tenant_status
        FROM owner_transfer_invitations i JOIN tenants t ON t.id=i.tenant_id WHERE i.token_hash=?`,
-    ).bind(await sha256Hex(token)).first<{id:string;tenant_id:string;from_user_id:string;target_email:string;reason:string;status:string;expires_at:string;tenant_name:string;tenant_status:string}>()
+    ).bind(await sha256Hex(token)).first<{id:string;tenant_id:string;from_user_id:string;target_email:string;reason:string;transfer_type:'standard'|'admin_controlled';status:string;expires_at:string;tenant_name:string;tenant_status:string}>()
     if (!invite || invite.status !== 'pending') return json(404, { error: 'transfer_invitation_not_found' })
     if (invite.tenant_status !== 'active') return json(409, { error: 'tenant_not_active' })
     if (new Date(invite.expires_at).getTime() <= Date.now()) {
@@ -110,7 +110,7 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
         env.DB.prepare("UPDATE tenant_memberships SET status='suspended' WHERE tenant_id=? AND user_id=? AND role='owner' AND status='active' AND EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status='pending' AND expires_at>?)").bind(invite.tenant_id, invite.from_user_id, invite.id, now),
         env.DB.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) SELECT ?,?,'owner','active' WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status='pending' AND expires_at>?) AND NOT EXISTS(SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active') ON CONFLICT(tenant_id,user_id) DO UPDATE SET role='owner',status='active'").bind(invite.tenant_id, newUser.id, invite.id, now, invite.tenant_id),
         env.DB.prepare("UPDATE owner_transfer_invitations SET status='accepted',accepted_by_user_id=?,accepted_at=? WHERE id=? AND status='pending' AND EXISTS(SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND user_id=? AND role='owner' AND status='active')").bind(newUser.id, now, invite.id, invite.tenant_id, newUser.id),
-        env.DB.prepare('INSERT INTO ownership_transfer_history(id,tenant_id,previous_owner_user_id,new_owner_user_id,initiated_by_issuer,initiated_by_subject,reason,transfer_type) SELECT ?,?,?,?,?,?,?,\'standard\' WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status=\'accepted\')').bind(historyId, invite.tenant_id, invite.from_user_id, newUser.id, 'platform-admin', 'owner-transfer', invite.reason, invite.id),
+        env.DB.prepare('INSERT INTO ownership_transfer_history(id,tenant_id,previous_owner_user_id,new_owner_user_id,initiated_by_issuer,initiated_by_subject,reason,transfer_type) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status=\'accepted\')').bind(historyId, invite.tenant_id, invite.from_user_id, newUser.id, 'platform-admin', 'owner-transfer', invite.reason, invite.transfer_type, invite.id),
         env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL AND EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status=\'accepted\')').bind(now, invite.from_user_id, invite.id),
         env.DB.prepare("INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) SELECT ?,?,'owner.transfer.completed','tenant',?,? WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status='accepted')").bind(identity.issuer, identity.subject, invite.tenant_id, JSON.stringify({ previous_owner_user_id: invite.from_user_id, new_owner_user_id: newUser.id, transfer_invitation_id: invite.id, reason: invite.reason }), invite.id),
       ])
