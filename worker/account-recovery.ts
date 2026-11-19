@@ -31,7 +31,7 @@ async function issueReset(env: Env, request: Request, user: { id: string; email:
     'INSERT INTO platform_password_reset_tokens(id,user_id,token_hash,expires_at) VALUES(?,?,?,?)',
   ).bind(id, user.id, tokenHash, expires).run()
   const base = (env.APP_PUBLIC_URL || new URL(request.url).origin).replace(/\/$/, '')
-  const link = base + '/owner/reset-password?token=' + encodeURIComponent(token)
+  const link = base + '/owner/reset-password#token=' + encodeURIComponent(token)
   const greeting = user.display_name ? 'Hello ' + user.display_name + ',' : 'Hello,'
   const sent = await sendPlatformEmail(env, {
     to: user.email,
