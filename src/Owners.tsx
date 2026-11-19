@@ -67,7 +67,7 @@ export default function Owners(){
   if(transferType==='admin_controlled'&&!window.confirm('Admin-controlled transfer bypasses outgoing Owner approval. Confirm that you have independently verified the business transfer and recorded the evidence in the reason. Continue?'))return
   setTransferBusy(true);setTransferError('')
   try{
-   const response=await apiFetch(`${API_BASE}/admin/tenants/${transferTarget.tenant_id}/owner-transfer`,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},cache:'no-store',body:JSON.stringify({email:transferEmail.trim(),reason:transferReason.trim(),transfer_type:transferType})})
+   const response=await apiFetch(`${API_BASE}/admin/tenants/${transferTarget.tenant_id}/owner-transfer`,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},cache:'no-store',body:JSON.stringify({email:transferEmail.trim(),reason:transferReason.trim(),transfer_type:transferType,confirmation:transferType==='admin_controlled'?'TRANSFER OWNERSHIP':null})})
    const payload=await response.json().catch(()=>({}))
    if(!response.ok)throw new Error(payload.error==='transfer_already_pending'?'A transfer is already pending for this restaurant.':payload.error||'Ownership transfer could not be started.')
    setTransferCreated({token:typeof payload.token==='string'?payload.token:undefined,approval_token:typeof payload.approval_token==='string'?payload.approval_token:undefined,delivery:payload.delivery||'manual_link_required',expires_at:payload.transfer.expires_at,email:payload.transfer.target_email,outgoing_owner_email:payload.transfer.outgoing_owner_email||undefined,tenant_name:payload.transfer.tenant_name})
