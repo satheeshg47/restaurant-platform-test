@@ -627,6 +627,17 @@ test('Super Admin ownership transfer keeps tenant data and revokes outgoing owne
   const transfer = await started.json()
   assert.equal(transfer.delivery, 'manual_link_required')
   assert.ok(transfer.token)
+  assert.ok(transfer.approval_token)
+  const blockedUntilOutgoingApproval = await call('/owner/transfers/accept', {
+    method: 'POST', body: { token: transfer.token, password: 'incoming-owner-password-123' },
+  })
+  assert.equal(blockedUntilOutgoingApproval.status, 409)
+  assert.equal((await blockedUntilOutgoingApproval.json()).error, 'outgoing_owner_approval_required')
+  const approved = await call('/owner/transfers/approve', {
+    method: 'POST', body: { token: transfer.approval_token },
+  })
+  assert.equal(approved.status, 200)
+  assert.equal((await approved.json()).approved, true)
   const accepted = await call('/owner/transfers/accept', {
     method: 'POST', body: { token: transfer.token, password: 'incoming-owner-password-123' },
   })
