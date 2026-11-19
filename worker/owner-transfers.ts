@@ -145,7 +145,6 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
       if (password.length < 12 || password.length > 256) return json(400, { error: 'password_required' })
       const existing = await env.DB.prepare("SELECT id FROM platform_users WHERE auth_provider='native' AND lower(email)=?").bind(invite.target_email).first()
       if (existing) return json(409, { error: 'sign_in_to_existing_account' })
-      if (!env.AUTH_ENCRYPTION_KEY) { /* Owner accounts do not require TOTP; encryption key is not needed. */ }
       const id = crypto.randomUUID()
       newLoginId = 'owner-' + crypto.randomUUID().replace(/-/g, '')
       newPasswordHash = await hashPassword(password)
