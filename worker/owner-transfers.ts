@@ -47,7 +47,7 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
        VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
     ).bind(id, tenant.id, current.id, email, await sha256Hex(token), approvalToken ? await sha256Hex(approvalToken) : null, reason, transferType, actor.issuer, actor.subject, expires).run()
     const base = (env.APP_PUBLIC_URL || new URL(request.url).origin).replace(/\/$/, '')
-    const link = base + '/owner/transfers/accept?token=' + encodeURIComponent(token)
+    const link = base + '/owner/transfers/accept#token=' + encodeURIComponent(token)
     const safeName = escapeHtml(tenant.name)
     const sent = await sendPlatformEmail(env, {
       to: email,
