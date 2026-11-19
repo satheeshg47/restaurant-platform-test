@@ -1,6 +1,7 @@
 import { authenticateAdmin, authenticateIdentity, authenticateVerifiedEmail, authStatus } from './auth.ts'
 import type { Env, Identity, D1Result } from './types.ts'
 import { hashPassword } from './native-auth-crypto.ts'
+import { sendPlatformEmail } from './platform-email.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
@@ -170,10 +171,20 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
         if (active) return json(409, { error: 'active_owner_already_exists' })
         return json(409, { error: 'pending_invitation_exists' })
       }
+      const base = (env.APP_PUBLIC_URL || new URL(request.url).origin).replace(/\\/$/, '')
+      const inviteUrl = base + '/owner/invitations/accept?token=' + encodeURIComponent(token)
+      const tenantName = await env.DB.prepare('SELECT name FROM tenants WHERE id=?').bind(tenantId).first<{ name: string }>()
+      const safeName = (tenantName?.name || 'your restaurant').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[char] || char))
+      const delivered = await sendPlatformEmail(env, {
+        to: email,
+        subject: 'You are invited to manage ' + (tenantName?.name || 'a restaurant'),
+        text: 'You have been invited to become the owner of ' + (tenantName?.name || 'a restaurant') + '. Open this one-time link within 48 hours to create your password and activate your account:\\n' + inviteUrl,
+        html: '<p>You have been invited to become the owner of ' + safeName + '.</p><p><a href="' + inviteUrl.replace(/&/g, '&amp;').replace(/\"/g, '&quot;') + '">Accept owner invitation</a></p><p>This one-time link expires in 48 hours.</p>',
+      })
       return json(201, {
         invitation: { id: row.id, tenant_id: row.tenant_id, email: row.email, expires_at: row.expires_at },
-        token,
-        delivery: 'manual_link_required',
+        ...(delivered ? {} : { token }),
+        delivery: delivered ? 'email_sent' : 'manual_link_required',
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
