@@ -1,6 +1,7 @@
 import { authenticateAdmin } from './auth.ts'
 import { handleNativeAuth } from './native-auth.ts'
 import { handleAccountRecovery } from './account-recovery.ts'
+import { handleOwnerTransfers } from './owner-transfers.ts'
 import { handleCommunications } from './communications.ts'
 import { handleOwnerInvitations } from './owner-invitations.ts'
 import { handleOwnerStaff } from './owner-staff.ts'
@@ -221,6 +222,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (nativeAuthResponse) return nativeAuthResponse
   const recoveryResponse = await handleAccountRecovery(request, env, path)
   if (recoveryResponse) return recoveryResponse
+  const transferResponse = await handleOwnerTransfers(request, env, path)
+  if (transferResponse) return transferResponse
   if (path === '/health' && request.method === 'GET') {
     return json(200, { status: 'ok', service: 'platform-core-api', environment: env.ENVIRONMENT || 'production', checks: { process: 'ok', database: 'configured' } })
   }
