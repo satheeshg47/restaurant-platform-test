@@ -584,6 +584,12 @@ test('owner can create, manage and suspend individual staff logins', async () =>
   assert.equal(reLogin.status, 200)
 })
 
+test('password recovery fails closed until a transactional email sender is configured', async () => {
+  const response = await call('/auth/password-reset/request', { method: 'POST', body: { email: 'owner@example.test' } })
+  assert.equal(response.status, 503)
+  assert.equal((await response.json()).error, 'email_delivery_not_configured')
+})
+
 test('owner password reset consumes a single-use token and revokes existing sessions', async () => {
   const ownerId = crypto.randomUUID()
   const password = 'owner-password-before-reset-123'
