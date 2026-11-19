@@ -4,7 +4,7 @@ import { ArrowRight, KeyRound } from 'lucide-react'
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 
 export default function PasswordReset() {
-  const token = new URLSearchParams(window.location.search).get('token') || ''
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('token') || new URLSearchParams(window.location.search).get('token') || ''
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
