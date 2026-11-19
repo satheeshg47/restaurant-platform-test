@@ -215,11 +215,11 @@ export default function SignIn({
               ? 'These recovery codes are shown only once. Save them privately before continuing.'
               : isAdmin
                 ? 'Sign in with your individual administrator login ID and password.'
-                : isOwner ? 'Sign in with your individual owner login ID and password.' : 'Sign in with the individual login ID and password assigned by your restaurant owner.'}
+                : isOwner ? 'Sign in with your email address and password.' : 'Sign in with the individual login ID and password assigned by your restaurant owner.'}
       </p>
 
       {phase === 'credentials' && <form className="signin-form" onSubmit={submitCredentials}>
-        <label>Login ID<input value={loginId} onChange={event => setLoginId(event.target.value)} autoComplete="username" required minLength={3} maxLength={64}/></label>
+        <label>{isOwner ? 'Email address' : 'Login ID'}<input value={loginId} onChange={event => setLoginId(event.target.value)} type={isOwner ? 'email' : 'text'} autoComplete={isOwner ? 'email' : 'username'} required minLength={isOwner ? 5 : 3} maxLength={isOwner ? 320 : 64}/></label>
         <label>Password<input value={password} onChange={event => setPassword(event.target.value)} type="password" autoComplete="current-password" required maxLength={256}/></label>
         <button className="signin-button" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}{!busy && <ArrowRight size={16}/>}</button>
         {bootstrapAvailable && isAdmin && <button className="signin-link" type="button" onClick={() => { setPhase('bootstrap'); setError('') }}>Set up the first Super Admin account</button>}
@@ -253,7 +253,7 @@ export default function SignIn({
       {error && <p className="signin-error" role="alert">{error}</p>}
       {notice && <p className="signin-notice" role="status">{notice}</p>}
       {phase === 'credentials' && configured && role !== 'staff' && <div className="signin-alternative"><span>OR</span><button className="signin-button secondary" type="button" onClick={() => void signInOidc()} disabled={busy}>{busy ? 'Connecting securely…' : 'Continue with existing identity provider'}{!busy && <ArrowRight size={16}/>}</button></div>}
-      <div className="signin-foot"><LockKeyhole size={13}/> Native sessions use secure HTTP-only cookies. Native administrator and owner accounts require authenticator verification. Legacy identity-provider sign-in remains available during migration.</div>
+      <div className="signin-foot"><LockKeyhole size={13}/> Native sessions use secure HTTP-only cookies. Super Admin accounts require authenticator verification; Owners sign in with email and password. Legacy identity-provider sign-in remains available during migration.</div>
     </section>
   </main>
 }
