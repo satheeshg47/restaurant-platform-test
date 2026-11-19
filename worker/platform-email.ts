@@ -10,7 +10,7 @@ export async function sendPlatformEmail(env: Env, message: MailMessage): Promise
   if (endpoint.protocol !== 'https:' || endpoint.hostname !== 'script.google.com' || pathParts.length !== 5 || pathParts[1] !== 'macros' || pathParts[2] !== 's' || !pathParts[3] || pathParts[4] !== 'exec') return false
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(message.to) || message.to.length > 320) return false
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000)
+  const timeout = setTimeout(() => controller.abort(), 15000)
   try {
     const response = await fetch(env.EMAIL_BRIDGE_URL, {
       method: 'POST',
