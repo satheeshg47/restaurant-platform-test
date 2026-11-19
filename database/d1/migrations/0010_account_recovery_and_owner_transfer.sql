@@ -17,6 +17,7 @@ CREATE TABLE owner_transfer_invitations (
   token_hash TEXT NOT NULL UNIQUE CHECK(length(token_hash)=64),
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','revoked','expired')),
   reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 3 AND 1000),
+  transfer_type TEXT NOT NULL DEFAULT 'standard' CHECK(transfer_type IN ('standard','admin_controlled')),
   initiated_by_issuer TEXT NOT NULL,
   initiated_by_subject TEXT NOT NULL,
   accepted_by_user_id TEXT REFERENCES platform_users(id) ON DELETE RESTRICT,
