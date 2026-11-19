@@ -63,8 +63,8 @@ If the outgoing Owner is unavailable, Super Admin may initiate an admin-controll
 
 ## Implementation blockers and rollout gates
 
-- A transactional email sender is required for invitations, password-reset links and security notifications. Current owner invitations return a manual link and do not send email. The sender/provider and verified From address must be configured before claiming email delivery works.
-- Additive D1 migrations are required for password-reset tokens and ownership-transfer requests/history if an equivalent safe schema does not already exist.
+- A transactional email sender is required for invitations, password-reset links and security notifications. An authenticated Google Apps Script MailApp bridge has been added to the existing Drive-backup script, but it is not live until the user deploys the Web App and configures matching Worker secrets. MailApp quotas and sender identity must be verified.
+- Additive D1 migration `0010_account_recovery_and_owner_transfer.sql` adds password-reset tokens, transfer invitations and ownership history. It must be applied to an isolated database and backed up/restored before production application.
 - Implement and test Owner email login, invitation acceptance, password reset, Super Admin reset initiation, ownership transfer and session revocation in an isolated environment first.
 - Test cross-application identity reuse, tenant isolation, staff permissions, suspended-tenant behavior, concurrent transfer attempts, token replay and rollback.
 - Back up production D1 and verify a current-schema restore before production schema writes.
@@ -72,4 +72,4 @@ If the outgoing Owner is unavailable, Super Admin may initiate an admin-controll
 
 ## Current code status (2026-11-19)
 
-The current Worker still enforces TOTP enrollment and TOTP login for both Super Admin and Owner roles. Owner invitation acceptance still requires a separate login ID and currently returns a manual invitation link instead of delivering an email. Password-reset endpoints and the dedicated ownership-transfer workflow are not yet implemented in the shared Worker. The requirements above are therefore a target specification, not a statement that these capabilities are live.
+As of 2026-11-19, the feature branch `feat/platform-wide-owner-access` removes mandatory Owner TOTP, changes Owner sign-in to registered email + password, removes the separate login-ID step from Owner invitation acceptance, and adds the account-recovery and ownership-transfer endpoints and screens. Automated API/build validation is still running. The Google Apps Script email bridge code is present but requires a Web App deployment and matching Worker secrets. No production migration or deployment has been performed. The requirements above are not a statement that these capabilities are live.
