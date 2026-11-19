@@ -15,6 +15,8 @@ CREATE TABLE owner_transfer_invitations (
   from_user_id TEXT NOT NULL REFERENCES platform_users(id) ON DELETE RESTRICT,
   target_email TEXT NOT NULL CHECK(length(target_email) BETWEEN 5 AND 320),
   token_hash TEXT NOT NULL UNIQUE CHECK(length(token_hash)=64),
+  outgoing_approval_token_hash TEXT UNIQUE CHECK(outgoing_approval_token_hash IS NULL OR length(outgoing_approval_token_hash)=64),
+  outgoing_approved_at TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','revoked','expired')),
   reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 3 AND 1000),
   transfer_type TEXT NOT NULL DEFAULT 'standard' CHECK(transfer_type IN ('standard','admin_controlled')),
@@ -43,3 +45,14 @@ CREATE TABLE ownership_transfer_history (
 );
 CREATE INDEX ownership_history_tenant_completed_idx
   ON ownership_transfer_history(tenant_id,completed_at DESC);
+
+CREATE TRIGGER ownership_transfer_history_no_update
+BEFORE UPDATE ON ownership_transfer_history
+BEGIN
+  SELECT RAISE(ABORT, 'ownership_transfer_history_is_immutable');
+END;
+CREATE TRIGGER ownership_transfer_history_no_delete
+BEFORE DELETE ON ownership_transfer_history
+BEGIN
+  SELECT RAISE(ABORT, 'ownership_transfer_history_is_immutable');
+END;
