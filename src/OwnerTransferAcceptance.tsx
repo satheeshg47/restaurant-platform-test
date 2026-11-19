@@ -67,7 +67,7 @@ export default function OwnerTransferAcceptance({ accessToken, idToken, apiBaseU
       }
       sessionStorage.removeItem('platformcore.owner.transfer.token')
       setToken(''); setState('done')
-      setMessage('Ownership has been transferred. The restaurant data and history remain with the business.')
+      setMessage(!accessToken && !idToken ? 'Ownership has been transferred. Your account is ready; sign in with the invited email address and password to open the Owner dashboard. The restaurant data and history remain with the business.' : 'Ownership has been transferred. You now have primary Owner access. The restaurant data and history remain with the business.')
     } catch (cause) {
       setState('error'); setMessage(cause instanceof Error ? cause.message : 'The ownership transfer could not be completed.')
     }
