@@ -172,7 +172,8 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
         env.DB.prepare('INSERT INTO ownership_transfer_history(id,tenant_id,previous_owner_user_id,new_owner_user_id,initiated_by_issuer,initiated_by_subject,reason,transfer_type) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status=\'accepted\')').bind(historyId, invite.tenant_id, invite.from_user_id, newUser.id, invite.initiated_by_issuer, invite.initiated_by_subject, invite.reason, invite.transfer_type, invite.id),
         env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL AND EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status=\'accepted\')').bind(now, invite.from_user_id, invite.id),
         env.DB.prepare("INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) SELECT ?,?,'owner.transfer.completed','tenant',?,? WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status='accepted')").bind(identity.issuer, identity.subject, invite.tenant_id, JSON.stringify({ previous_owner_user_id: invite.from_user_id, new_owner_user_id: newUser.id, transfer_invitation_id: invite.id, reason: invite.reason }), invite.id),
-      ])
+      )
+      await env.DB.batch(statements)
       const accepted = await env.DB.prepare("SELECT status FROM owner_transfer_invitations WHERE id=?").bind(invite.id).first<{status:string}>()
       if (accepted?.status !== 'accepted') return json(409, { error: 'transfer_could_not_be_completed' })
       const previous = await env.DB.prepare('SELECT email FROM platform_users WHERE id=?').bind(invite.from_user_id).first<{email:string|null}>()
