@@ -672,7 +672,7 @@ test('Super Admin ownership transfer keeps tenant data and revokes outgoing owne
   assert.equal(adminAccepted.status, 200)
   assert.equal((await adminAccepted.json()).transferred, true)
   assert.equal(db.prepare('SELECT count(*) AS count FROM ownership_transfer_history WHERE tenant_id=?').get(tenantId).count, 2)
-  assert.equal(db.prepare("SELECT transfer_type FROM ownership_transfer_history WHERE tenant_id=? ORDER BY completed_at DESC LIMIT 1").get(tenantId).transfer_type, 'admin_controlled')
+  assert.equal(db.prepare("SELECT count(*) AS count FROM ownership_transfer_history WHERE tenant_id=? AND transfer_type='admin_controlled'").get(tenantId).count, 1)
   assert.equal(db.prepare('SELECT name FROM tenants WHERE id=?').get(tenantId).name, 'Test Restaurant')
 })
 
