@@ -218,10 +218,12 @@ export default function SignIn({
   return <main className="signin-screen">
     <section className="signin-card">
       <div className="signin-brand"><div className="signin-mark">{isAdmin ? <ShieldCheck size={23}/> : <Store size={23}/>}</div><div><b>platform<span>core</span></b><small>{isAdmin ? 'CONTROL PLANE' : isOwner ? 'RESTAURANT OWNER' : 'STAFF ACCOUNT'}</small></div></div>
-      <div className="signin-icon">{phase === 'recovery' ? <KeyRound size={22}/> : <LockKeyhole size={22}/>}</div>
+      <div className="signin-icon">{phase === 'recovery' || phase === 'forgot' ? <KeyRound size={22}/> : <LockKeyhole size={22}/>}</div>
       <span className="signin-eyebrow">{phase === 'recovery' ? 'SAVE YOUR RECOVERY CODES' : isAdmin ? 'SUPER ADMIN ACCESS' : isOwner ? 'OWNER ACCOUNT ACCESS' : 'STAFF ACCOUNT ACCESS'}</span>
       <h1>{phase === 'forgot' ? 'Reset your password' : phase === 'bootstrap' ? 'Set up the first administrator' : phase === 'enroll' ? 'Secure your account' : phase === 'mfa' ? 'Verify your identity' : phase === 'recovery' ? 'Keep these codes safe' : isAdmin ? 'Sign in to Platform Core' : isOwner ? 'Welcome back' : 'Staff sign in'}</h1>
-      <p>{phase === 'bootstrap'
+      <p>{phase === 'forgot'
+        ? 'Enter your registered Owner email. We will send a one-time reset link if an account matches.'
+        : phase === 'bootstrap'
         ? 'Create the first Super Admin account. This one-time setup requires the two Worker secrets configured by the platform operator.'
         : phase === 'enroll'
           ? 'Scan this QR code with Google Authenticator or another compatible authenticator, then enter the six-digit code.'
@@ -274,7 +276,6 @@ export default function SignIn({
       </div>}
 
       {error && <p className="signin-error" role="alert">{error}</p>}
-      {notice && <p className="signin-notice" role="status">{notice}</p>}
       {notice && <p className="signin-notice" role="status">{notice}</p>}
       {phase === 'credentials' && configured && role !== 'staff' && <div className="signin-alternative"><span>OR</span><button className="signin-button secondary" type="button" onClick={() => void signInOidc()} disabled={busy}>{busy ? 'Connecting securely…' : 'Continue with existing identity provider'}{!busy && <ArrowRight size={16}/>}</button></div>}
       <div className="signin-foot"><LockKeyhole size={13}/> Native sessions use secure HTTP-only cookies. Super Admin accounts require authenticator verification; Owners sign in with email and password. Legacy identity-provider sign-in remains available during migration.</div>
