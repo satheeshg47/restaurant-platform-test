@@ -653,9 +653,26 @@ test('Super Admin ownership transfer keeps tenant data and revokes outgoing owne
   const incoming = db.prepare("SELECT pu.id FROM platform_users pu JOIN tenant_memberships tm ON tm.user_id=pu.id WHERE tm.tenant_id=? AND tm.role='owner' AND tm.status='active'").get(tenantId)
   assert.ok(incoming?.id)
   assert.equal(db.prepare('SELECT count(*) AS count FROM ownership_transfer_history WHERE tenant_id=?').get(tenantId).count, 1)
+  assert.equal(db.prepare("SELECT transfer_type FROM ownership_transfer_history WHERE tenant_id=?").get(tenantId).transfer_type, 'standard')
   assert.equal(db.prepare("SELECT count(*) AS count FROM platform_auth_sessions WHERE user_id=? AND revoked_at IS NOT NULL").get(ownerId).count, 1)
   const revokedSession = await call('/auth/session', { cookie: oldCookie })
   assert.equal((await revokedSession.json()).authenticated, false)
+
+  const adminControlled = await call('/admin/tenants/' + tenantId + '/owner-transfer', {
+    method: 'POST', accessToken: adminToken,
+    body: { email: 'admin-controlled-owner@example.test', reason: 'Outgoing Owner unavailable; business transfer verified under case XYZ-9', transfer_type: 'admin_controlled' },
+  })
+  assert.equal(adminControlled.status, 201)
+  const adminTransfer = await adminControlled.json()
+  assert.equal(adminTransfer.transfer.transfer_type, undefined)
+  assert.equal(adminTransfer.approval_token, undefined)
+  const adminAccepted = await call('/owner/transfers/accept', {
+    method: 'POST', body: { token: adminTransfer.token, password: 'admin-controlled-owner-password-123' },
+  })
+  assert.equal(adminAccepted.status, 200)
+  assert.equal((await adminAccepted.json()).transferred, true)
+  assert.equal(db.prepare('SELECT count(*) AS count FROM ownership_transfer_history WHERE tenant_id=?').get(tenantId).count, 2)
+  assert.equal(db.prepare("SELECT transfer_type FROM ownership_transfer_history WHERE tenant_id=? ORDER BY completed_at DESC LIMIT 1").get(tenantId).transfer_type, 'admin_controlled')
   assert.equal(db.prepare('SELECT name FROM tenants WHERE id=?').get(tenantId).name, 'Test Restaurant')
 })
 
