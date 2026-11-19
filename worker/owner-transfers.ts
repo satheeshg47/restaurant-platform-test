@@ -36,6 +36,8 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     ).bind(tenant.id).first<{id:string;email:string|null}>()
     if (!current) return json(409, { error: 'active_owner_not_found' })
     if (current.email?.toLowerCase() === email) return json(400, { error: 'new_owner_must_be_different' })
+    const nowForExpiry = new Date().toISOString()
+    await env.DB.prepare("UPDATE owner_transfer_invitations SET status='expired' WHERE tenant_id=? AND status='pending' AND expires_at<=?").bind(tenant.id, nowForExpiry).run()
     const existing = await env.DB.prepare("SELECT id FROM owner_transfer_invitations WHERE tenant_id=? AND status='pending'").bind(tenant.id).first()
     if (existing) return json(409, { error: 'transfer_already_pending' })
     const token = randomToken(32)
