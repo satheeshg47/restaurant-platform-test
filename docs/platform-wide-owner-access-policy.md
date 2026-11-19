@@ -22,7 +22,7 @@ These rules belong to Platform Core identity and tenant administration, not to a
 - Send a cryptographically random, single-use reset link to the registered address. Store only a hash of the token.
 - Reset links expire after 15 minutes, are rate-limited, and are invalidated after use.
 - On successful reset, update the password hash, update the password-change timestamp, revoke all existing sessions for that user, and send a password-change notification.
-- Super Admin may initiate the same reset flow or require a reset at next sign-in. Super Admin must never view, retrieve, choose, or directly set an Owner password.
+- Super Admin may initiate the same email reset flow. Super Admin must never view, retrieve, choose, or directly set an Owner password.
 - Never send a password in email.
 
 ## Ownership transfer
@@ -33,11 +33,12 @@ Provide a dedicated Transfer Ownership workflow in the Super Admin control plane
 
 1. Super Admin selects the tenant and starts a transfer request.
 2. Super Admin enters the incoming Owner's email address and records the reason/reference for the transfer.
-3. The incoming Owner receives a single-use invitation addressed to that email and accepts it by setting or using their own password.
-4. The transfer is committed atomically only after the new Owner has accepted and all preconditions are rechecked.
-5. The incoming Owner becomes the sole active primary Owner for that tenant.
-6. The outgoing Owner's owner membership is deactivated and all their active sessions are revoked. If that identity owns other tenants/apps, the security policy should explicitly decide whether to revoke all sessions (default: revoke all and require sign-in again).
-7. Notify both parties where deliverable and write an immutable audit event containing actor, tenant, old owner, new owner, timestamp and transfer reason.
+3. The outgoing Owner receives a separate single-use approval link at their registered email and explicitly approves the transfer.
+4. The incoming Owner receives a single-use invitation addressed to their email and accepts it by setting or using their own password.
+5. The transfer is committed atomically only after both approval and acceptance, and all preconditions are rechecked.
+6. The incoming Owner becomes the sole active primary Owner for that tenant.
+7. The outgoing Owner's owner membership is deactivated and all their active sessions are revoked. If that identity owns other tenants/apps, the security policy should explicitly decide whether to revoke all sessions (default: revoke all and require sign-in again).
+8. Notify both parties where deliverable and write an immutable audit event containing actor, tenant, old owner, new owner, timestamp and transfer reason.
 
 ### Admin-controlled transfer
 
