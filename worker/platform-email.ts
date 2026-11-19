@@ -3,7 +3,7 @@ import type { Env } from './types.ts'
 type MailMessage = { to: string; subject: string; text: string; html: string }
 
 export async function sendPlatformEmail(env: Env, message: MailMessage): Promise<boolean> {
-  if (!env.EMAIL_BRIDGE_URL || !env.EMAIL_BRIDGE_SECRET) return false
+  if (!env.EMAIL_BRIDGE_URL || !env.EMAIL_BRIDGE_SECRET || env.EMAIL_BRIDGE_SECRET.length < 32) return false
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(message.to) || message.to.length > 320) return false
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
