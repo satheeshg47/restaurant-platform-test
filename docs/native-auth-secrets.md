@@ -47,6 +47,6 @@ After the first administrator is created, the bootstrap endpoint cannot create a
 
 ## 4. Owner and staff accounts
 
-Platform administrators create owner invitations. Invitees create their individual owner login from the one-time invitation link and enroll TOTP on first sign-in.
+Platform administrators create owner invitations. Invitees create their password from the one-time invitation link and sign in with the invited email address. Owner TOTP is not mandatory; Super Admin TOTP remains required.
 
 Owners create individual staff login IDs and passwords in **Owner workspace → Staff access**. Staff sign in at `/staff` with the role assigned by the owner (manager, cook or waiter).

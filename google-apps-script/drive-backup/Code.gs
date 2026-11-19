@@ -304,3 +304,68 @@ function digestHex_(bytes) {
     .map(function (value) { return (value < 0 ? value + 256 : value).toString(16).padStart(2, '0'); })
     .join('');
 }
+
+
+
+/** Run once from the Apps Script editor to authorize MailApp for this project. */
+function authorizeEmailBridge() {
+  const remaining = MailApp.getRemainingDailyQuota();
+  Logger.log('MailApp authorization passed. Remaining recipient quota: ' + remaining);
+  return remaining;
+}
+
+/**
+ * Transactional email bridge for Platform Core.
+ *
+ * Deploy this same Apps Script project as a Web App (execute as the owner).
+ * Add EMAIL_BRIDGE_SECRET to Script Properties. The Worker sends the secret
+ * in the JSON body; it is never placed in a URL or logged.
+ */
+function doPost(e) {
+  try {
+    const raw = e && e.postData && e.postData.contents ? e.postData.contents : '';
+    if (!raw || raw.length > 24000) return emailJson_({ ok: false, error: 'invalid_request' });
+    const body = JSON.parse(raw);
+    const configuredSecret = PropertiesService.getScriptProperties().getProperty('EMAIL_BRIDGE_SECRET') || '';
+    if (configuredSecret.length < 32 || !constantTimeEqual_(String(body.secret || ''), configuredSecret)) {
+      return emailJson_({ ok: false, error: 'unauthorized' });
+    }
+    const to = String(body.to || '').trim().toLowerCase();
+    const subject = String(body.subject || '').trim();
+    const textBody = String(body.text || '');
+    const htmlBody = String(body.html || '');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || to.length > 320 ||
+        !subject || subject.length > 180 || !textBody || textBody.length > 12000 ||
+        htmlBody.length > 16000) {
+      return emailJson_({ ok: false, error: 'invalid_message' });
+    }
+    MailApp.sendEmail({
+      to: to,
+      subject: subject,
+      body: textBody,
+      htmlBody: htmlBody || undefined,
+      name: 'Platform Core'
+    });
+    return emailJson_({ ok: true });
+  } catch (err) {
+    // Never log message contents, tokens, recipients, or secrets.
+    console.error('platform_email_delivery_failed: ' + (err && err.name ? err.name : 'Error'));
+    return emailJson_({ ok: false, error: 'delivery_failed' });
+  }
+}
+
+function emailJson_(value) {
+  return ContentService.createTextOutput(JSON.stringify(value))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function constantTimeEqual_(left, right) {
+  left = String(left);
+  right = String(right);
+  let difference = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+  for (let i = 0; i < length; i++) {
+    difference |= (left.charCodeAt(i) || 0) ^ (right.charCodeAt(i) || 0);
+  }
+  return difference === 0;
+}

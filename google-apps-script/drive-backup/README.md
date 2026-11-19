@@ -41,3 +41,8 @@ This first version does not apply client-side encryption to the SQL dump. The Dr
 ## Current safety boundary
 
 **No data retention cleanup is performed.** D1 remains the system of record. Do not delete or archive old transactional rows until the backup has been configured, at least one backup has completed, a restore has been tested in an isolated database, and table-by-table retention rules have been reviewed for foreign-key and reporting dependencies.
+
+
+## Transactional email bridge
+
+The same Apps Script project can also send Platform Core owner invitations, password resets and ownership-transfer notifications through MailApp. See [EMAIL-BRIDGE-SETUP.md](./EMAIL-BRIDGE-SETUP.md) for the separate Web App deployment and secret configuration. This does not change the D1 backup trigger or its existing Script Properties.

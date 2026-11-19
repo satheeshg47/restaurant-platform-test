@@ -1,5 +1,7 @@
 import { authenticateAdmin } from './auth.ts'
 import { handleNativeAuth } from './native-auth.ts'
+import { handleAccountRecovery } from './account-recovery.ts'
+import { handleOwnerTransfers } from './owner-transfers.ts'
 import { handleCommunications } from './communications.ts'
 import { handleOwnerInvitations } from './owner-invitations.ts'
 import { handleOwnerStaff } from './owner-staff.ts'
@@ -177,7 +179,7 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
           t.created_at AS tenant_created_at,pu.id AS user_id,pu.email,tm.role,
           tm.status AS membership_status,tm.created_at AS membership_created_at
          FROM tenants t
-         LEFT JOIN tenant_memberships tm ON tm.tenant_id=t.id AND tm.role='owner'
+         LEFT JOIN tenant_memberships tm ON tm.tenant_id=t.id AND tm.role='owner' AND tm.status='active'
          LEFT JOIN platform_users pu ON pu.id=tm.user_id
          ORDER BY t.created_at DESC,pu.email`,
       ).all<Record<string, unknown>>()
@@ -218,6 +220,10 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   }
   const nativeAuthResponse = await handleNativeAuth(request, env, path)
   if (nativeAuthResponse) return nativeAuthResponse
+  const recoveryResponse = await handleAccountRecovery(request, env, path)
+  if (recoveryResponse) return recoveryResponse
+  const transferResponse = await handleOwnerTransfers(request, env, path)
+  if (transferResponse) return transferResponse
   if (path === '/health' && request.method === 'GET') {
     return json(200, { status: 'ok', service: 'platform-core-api', environment: env.ENVIRONMENT || 'production', checks: { process: 'ok', database: 'configured' } })
   }
@@ -229,7 +235,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
           (SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN (
             'application_deployments','application_releases','applications','audit_events',
             'communication_conversations','communication_messages','communication_participants',
-            'owner_transfer_requests','platform_audit_events','platform_owner_invitations','platform_users',
+            'owner_transfer_requests','owner_transfer_invitations','ownership_transfer_history','platform_password_reset_tokens','platform_audit_events','platform_owner_invitations','platform_users',
             'restaurant_activity_events','restaurant_addon_groups','restaurant_addons','restaurant_batch_allocations',
             'restaurant_daily_summaries','restaurant_invoice_counters','restaurant_invoices','restaurant_item_addon_groups',
             'restaurant_kitchen_batches','restaurant_menu_categories','restaurant_menu_items','restaurant_menu_variants',
@@ -242,8 +248,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
             'platform_admin_accounts','platform_auth_rate_limits','tenant_membership_permissions'
           )) AS required_tables`,
       ).first<{ latest_migration: string | null; required_tables: number }>()
-      if (schema?.latest_migration !== '0009_totp_replay_protection.sql' || Number(schema.required_tables) !== 50) {
-        return json(503, { status: 'not_ready', checks: { database: 'ok', schema: 'incomplete' }, required_migration: '0009_totp_replay_protection.sql' })
+      if (schema?.latest_migration !== '0010_account_recovery_and_owner_transfer.sql' || Number(schema.required_tables) !== 53) {
+        return json(503, { status: 'not_ready', checks: { database: 'ok', schema: 'incomplete' }, required_migration: '0010_account_recovery_and_owner_transfer.sql' })
       }
       return json(200, { status: 'ready', checks: { database: 'ok', schema: 'complete' }, latest_migration: schema.latest_migration })
     } catch {

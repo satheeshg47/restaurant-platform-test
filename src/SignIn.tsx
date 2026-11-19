@@ -11,7 +11,7 @@ type Props = {
   encryptionReady?: boolean
   onAuthenticated?: () => void
 }
-type Phase = 'credentials' | 'bootstrap' | 'mfa' | 'enroll' | 'recovery'
+type Phase = 'credentials' | 'bootstrap' | 'mfa' | 'enroll' | 'recovery' | 'forgot'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 
@@ -116,6 +116,23 @@ export default function SignIn({
     finally { setBusy(false) }
   }
 
+  const submitForgotPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const response = await fetch(API_BASE + '/auth/password-reset/request', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginId.trim() }), cache: 'no-store',
+      })
+      const payload = await response.json().catch(() => ({})) as { error?: string }
+      if (!response.ok) throw new Error(payload.error === 'email_delivery_not_configured' ? 'Email recovery is not configured yet. Contact the platform administrator.' : 'Password reset request could not be submitted. Try again later.')
+      setNotice('If an Owner account matches and email delivery succeeds, a reset link will be sent. Check your spam folder or contact the platform administrator if it does not arrive.')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Password reset request failed.')
+    } finally { setBusy(false) }
+  }
+
   const submitBootstrap = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!encryptionReady) { setError('The AUTH_ENCRYPTION_KEY secret must be configured before creating the first administrator.'); return }
@@ -202,10 +219,12 @@ export default function SignIn({
   return <main className="signin-screen">
     <section className="signin-card">
       <div className="signin-brand"><div className="signin-mark">{isAdmin ? <ShieldCheck size={23}/> : <Store size={23}/>}</div><div><b>platform<span>core</span></b><small>{isAdmin ? 'CONTROL PLANE' : isOwner ? 'RESTAURANT OWNER' : 'STAFF ACCOUNT'}</small></div></div>
-      <div className="signin-icon">{phase === 'recovery' ? <KeyRound size={22}/> : <LockKeyhole size={22}/>}</div>
+      <div className="signin-icon">{phase === 'recovery' || phase === 'forgot' ? <KeyRound size={22}/> : <LockKeyhole size={22}/>}</div>
       <span className="signin-eyebrow">{phase === 'recovery' ? 'SAVE YOUR RECOVERY CODES' : isAdmin ? 'SUPER ADMIN ACCESS' : isOwner ? 'OWNER ACCOUNT ACCESS' : 'STAFF ACCOUNT ACCESS'}</span>
-      <h1>{phase === 'bootstrap' ? 'Set up the first administrator' : phase === 'enroll' ? 'Secure your account' : phase === 'mfa' ? 'Verify your identity' : phase === 'recovery' ? 'Keep these codes safe' : isAdmin ? 'Sign in to Platform Core' : isOwner ? 'Welcome back' : 'Staff sign in'}</h1>
-      <p>{phase === 'bootstrap'
+      <h1>{phase === 'forgot' ? 'Reset your password' : phase === 'bootstrap' ? 'Set up the first administrator' : phase === 'enroll' ? 'Secure your account' : phase === 'mfa' ? 'Verify your identity' : phase === 'recovery' ? 'Keep these codes safe' : isAdmin ? 'Sign in to Platform Core' : isOwner ? 'Welcome back' : 'Staff sign in'}</h1>
+      <p>{phase === 'forgot'
+        ? 'Enter your registered Owner email. We will send a one-time reset link if an account matches.'
+        : phase === 'bootstrap'
         ? 'Create the first Super Admin account. This one-time setup requires the two Worker secrets configured by the platform operator.'
         : phase === 'enroll'
           ? 'Scan this QR code with Google Authenticator or another compatible authenticator, then enter the six-digit code.'
@@ -215,13 +234,20 @@ export default function SignIn({
               ? 'These recovery codes are shown only once. Save them privately before continuing.'
               : isAdmin
                 ? 'Sign in with your individual administrator login ID and password.'
-                : isOwner ? 'Sign in with your individual owner login ID and password.' : 'Sign in with the individual login ID and password assigned by your restaurant owner.'}
+                : isOwner ? 'Sign in with your email address and password.' : 'Sign in with the individual login ID and password assigned by your restaurant owner.'}
       </p>
 
+      {phase === 'forgot' && <form className="signin-form" onSubmit={submitForgotPassword}>
+        <label>Email address<input value={loginId} onChange={event => setLoginId(event.target.value)} type="email" autoComplete="email" required maxLength={320}/></label>
+        <button className="signin-button" type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'} <ArrowRight size={16}/></button>
+        <button className="signin-link" type="button" onClick={() => { setPhase('credentials'); setError(''); setNotice('') }}>Back to sign in</button>
+      </form>}
+
       {phase === 'credentials' && <form className="signin-form" onSubmit={submitCredentials}>
-        <label>Login ID<input value={loginId} onChange={event => setLoginId(event.target.value)} autoComplete="username" required minLength={3} maxLength={64}/></label>
+        <label>{isOwner ? 'Email address' : 'Login ID'}<input value={loginId} onChange={event => setLoginId(event.target.value)} type={isOwner ? 'email' : 'text'} autoComplete={isOwner ? 'email' : 'username'} required minLength={isOwner ? 5 : 3} maxLength={isOwner ? 320 : 64}/></label>
         <label>Password<input value={password} onChange={event => setPassword(event.target.value)} type="password" autoComplete="current-password" required maxLength={256}/></label>
         <button className="signin-button" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}{!busy && <ArrowRight size={16}/>}</button>
+        {isOwner && <button className="signin-link" type="button" onClick={() => { setPhase('forgot'); setError(''); setNotice('') }}>Forgot password?</button>}
         {bootstrapAvailable && isAdmin && <button className="signin-link" type="button" onClick={() => { setPhase('bootstrap'); setError('') }}>Set up the first Super Admin account</button>}
       </form>}
 
@@ -253,7 +279,7 @@ export default function SignIn({
       {error && <p className="signin-error" role="alert">{error}</p>}
       {notice && <p className="signin-notice" role="status">{notice}</p>}
       {phase === 'credentials' && configured && role !== 'staff' && <div className="signin-alternative"><span>OR</span><button className="signin-button secondary" type="button" onClick={() => void signInOidc()} disabled={busy}>{busy ? 'Connecting securely…' : 'Continue with existing identity provider'}{!busy && <ArrowRight size={16}/>}</button></div>}
-      <div className="signin-foot"><LockKeyhole size={13}/> Native sessions use secure HTTP-only cookies. Native administrator and owner accounts require authenticator verification. Legacy identity-provider sign-in remains available during migration.</div>
+      <div className="signin-foot"><LockKeyhole size={13}/> Native sessions use secure HTTP-only cookies. Super Admin accounts require authenticator verification; Owners sign in with email and password. Legacy identity-provider sign-in remains available during migration.</div>
     </section>
   </main>
 }

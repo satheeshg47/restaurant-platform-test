@@ -1,6 +1,7 @@
 import { authenticateAdmin, authenticateIdentity, authenticateVerifiedEmail, authStatus } from './auth.ts'
 import type { Env, Identity, D1Result } from './types.ts'
 import { hashPassword } from './native-auth-crypto.ts'
+import { sendPlatformEmail } from './platform-email.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
@@ -170,10 +171,21 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
         if (active) return json(409, { error: 'active_owner_already_exists' })
         return json(409, { error: 'pending_invitation_exists' })
       }
+      const rawBase = env.APP_PUBLIC_URL || new URL(request.url).origin
+      const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase
+      const inviteUrl = base + '/owner/invitations/accept#token=' + encodeURIComponent(token)
+      const tenantName = await env.DB.prepare('SELECT name FROM tenants WHERE id=?').bind(tenantId).first<{ name: string }>()
+      const safeName = (tenantName?.name || 'your restaurant').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[char] || char))
+      const delivered = await sendPlatformEmail(env, {
+        to: email,
+        subject: 'You are invited to manage ' + (tenantName?.name || 'a restaurant'),
+        text: 'You have been invited to become the owner of ' + (tenantName?.name || 'a restaurant') + '. Open this one-time link within 48 hours to create your password and activate your account:\\n' + inviteUrl,
+        html: '<p>You have been invited to become the owner of ' + safeName + '.</p><p><a href="' + inviteUrl.replace(/&/g, '&amp;').replace(/\"/g, '&quot;') + '">Accept owner invitation</a></p><p>This one-time link expires in 48 hours.</p>',
+      })
       return json(201, {
         invitation: { id: row.id, tenant_id: row.tenant_id, email: row.email, expires_at: row.expires_at },
-        token,
-        delivery: 'manual_link_required',
+        ...(delivered ? {} : { token }),
+        delivery: delivered ? 'email_sent' : 'manual_link_required',
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
@@ -214,20 +226,12 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
       email = verifiedIdentity.email.trim().toLowerCase()
       if (invitation.email !== email) return json(403, { error: 'invitation_email_mismatch' })
     } else {
-      const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
       const password = typeof body.password === 'string' ? body.password : ''
-      if (!/^[A-Za-z0-9._-]{3,64}$/.test(loginId) || password.length < 12 || password.length > 256) {
-        return json(400, { error: 'invalid_account_details' })
-      }
-      if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'owner_auth_not_configured' })
+      if (password.length < 12 || password.length > 256) return json(400, { error: 'invalid_password_length' })
       const existingNative = await env.DB.prepare(
         "SELECT 1 AS found FROM platform_users WHERE auth_provider='native' AND lower(email)=? LIMIT 1",
       ).bind(invitation.email.toLowerCase()).first()
       if (existingNative) return json(409, { error: 'native_account_exists_sign_in' })
-      const existingLogin = await env.DB.prepare(
-        'SELECT 1 AS found FROM platform_user_credentials WHERE login_id_normalized=? LIMIT 1',
-      ).bind(loginId.toLowerCase()).first()
-      if (existingLogin) return json(409, { error: 'login_id_unavailable' })
       acceptedIdentity = {
         issuer: 'native',
         subject: crypto.randomUUID(),
@@ -236,7 +240,7 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
       }
       email = invitation.email.toLowerCase()
       newNativeUser = true
-      newLoginId = loginId
+      newLoginId = 'owner-' + crypto.randomUUID().replace(/-/g, '')
       newPasswordHash = await hashPassword(password)
     }
 

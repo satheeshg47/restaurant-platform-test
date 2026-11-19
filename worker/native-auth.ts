@@ -217,7 +217,7 @@ async function login(request: Request, env: Env): Promise<Response> {
   if (!body) return json(400, { error: 'invalid_request' })
   const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
   const password = typeof body.password === 'string' ? body.password : ''
-  if (!loginId || loginId.length > 64 || password.length > 256) return json(401, { error: 'invalid_credentials' })
+  if (!loginId || loginId.length > 320 || password.length > 256) return json(401, { error: 'invalid_credentials' })
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
   if (!await consumeRateLimit(env, `login:${loginId.toLowerCase()}:${ip}`)) return json(429, { error: 'too_many_attempts' })
   const user = await env.DB.prepare(
@@ -226,12 +226,13 @@ async function login(request: Request, env: Env): Promise<Response> {
        EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner,
        EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active') AS is_member_active
      FROM platform_user_credentials c JOIN platform_users pu ON pu.id=c.user_id
-     WHERE c.login_id_normalized=? LIMIT 1`,
-  ).bind(loginId.toLowerCase()).first<UserAuthRow>()
+     WHERE lower(pu.email)=? OR c.login_id_normalized=?
+     ORDER BY CASE WHEN lower(pu.email)=? THEN 0 ELSE 1 END LIMIT 1`,
+  ).bind(loginId.toLowerCase(), loginId.toLowerCase(), loginId.toLowerCase()).first<UserAuthRow>()
   const dummyHash = 'pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
   const valid = await verifyPassword(password, user && user.credential_status === 'active' ? user.password_hash : dummyHash)
   if (!user || user.credential_status !== 'active' || !valid || (!Number(user.is_admin) && !Number(user.is_owner) && !Number(user.is_member_active))) return json(401, { error: 'invalid_credentials' })
-  if (Number(user.is_admin) || Number(user.is_owner)) {
+  if (Number(user.is_admin)) {
     if (!user.totp_enabled) {
       if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
       const secret = createTotpSecret()
@@ -316,6 +317,7 @@ async function logout(request: Request, env: Env): Promise<Response> {
 }
 
 export async function handleNativeAuth(request: Request, env: Env, path: string): Promise<Response | null> {
+  if (path === '/auth/password-reset/request' || path === '/auth/password-reset/complete') return null
   if (!path.startsWith('/auth/')) return null
   if (path === '/auth/session' && request.method === 'GET') {
     const identity = await authenticateNativeSession(request, env)

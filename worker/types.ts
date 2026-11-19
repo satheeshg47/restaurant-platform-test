@@ -27,6 +27,9 @@ export interface Env {
   AUTH_ENCRYPTION_KEY?: string
   AUTH_BOOTSTRAP_SECRET?: string
   ENVIRONMENT?: string
+  EMAIL_BRIDGE_URL?: string
+  EMAIL_BRIDGE_SECRET?: string
+  APP_PUBLIC_URL?: string
 }
 
 export interface Identity {

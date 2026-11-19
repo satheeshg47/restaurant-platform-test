@@ -16,7 +16,6 @@ type State = 'checking' | 'setup' | 'signin' | 'ready' | 'sending' | 'accepted' 
 export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl, onAccepted, onSignOut, onAuthenticated }: Props) {
   const [state, setState] = useState<State>('checking')
   const [token, setToken] = useState('')
-  const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
   const [accountCreated, setAccountCreated] = useState(false)
@@ -45,9 +44,9 @@ export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl
     event?.preventDefault()
     if (!token || state !== 'ready' && state !== 'setup') return
     const creatingAccount = !accessToken && !idToken
-    if (creatingAccount && (!/^[A-Za-z0-9._-]{3,64}$/.test(loginId.trim()) || password.length < 12 || password.length > 256)) {
+    if (creatingAccount && (password.length < 12 || password.length > 256)) {
       setState('error')
-      setMessage('Choose a login ID (3–64 letters, numbers, dots, underscores or hyphens) and a password of at least 12 characters.')
+      setMessage('Choose a password of at least 12 characters.')
       return
     }
     setState('sending')
@@ -61,7 +60,7 @@ export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl
         credentials: 'same-origin',
         body: JSON.stringify({
           token,
-          ...(creatingAccount ? { login_id: loginId.trim(), password } : {}),
+          ...(creatingAccount ? { password } : {}),
         }),
         cache: 'no-store',
       })
@@ -91,7 +90,7 @@ export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl
       setAccountCreated(payload.account_created === true)
       setState('accepted')
       setMessage(payload.account_created
-        ? 'Your owner login has been created for ' + (payload.tenant?.name || 'this restaurant') + '. Sign in next to enroll your authenticator.'
+        ? 'Your owner account has been created for ' + (payload.tenant?.name || 'this restaurant') + '. Sign in using your email address and password.'
         : 'You are now the owner of ' + (payload.tenant?.name || 'this restaurant') + '.')
     } catch (cause) {
       setState('error')
@@ -121,11 +120,10 @@ export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl
       <span className="signin-eyebrow">RESTAURANT OWNER ACCESS</span>
       <h1>{state === 'setup' ? 'Create your owner account' : 'Accept your invitation'}</h1>
       <p>{state === 'setup'
-        ? 'Create an individual login using the one-time invitation sent by the platform administrator. Your account will require authenticator setup at first sign-in.'
+        ? 'Create your password to activate the email address invited by the platform administrator. No authenticator app is required.'
         : 'Confirm your invitation to link your account to this restaurant.'}</p>
       {message && <p className="signin-error" role="alert">{message}</p>}
       {state === 'setup' && <form className="signin-form" onSubmit={event => void accept(event)}>
-        <label>Choose a login ID<input value={loginId} onChange={event => setLoginId(event.target.value)} required minLength={3} maxLength={64} autoComplete="username"/></label>
         <label>Create password<input value={password} onChange={event => setPassword(event.target.value)} type="password" required minLength={12} maxLength={256} autoComplete="new-password"/><small>Use at least 12 characters.</small></label>
         <button className="signin-button" type="submit">Create account & accept invitation <ArrowRight size={16}/></button>
       </form>}
@@ -135,6 +133,6 @@ export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl
       {!accessToken && !idToken && oidcConfigured && <button className="signin-link" type="button" onClick={() => void signInWithOidc()}>Continue with existing identity provider</button>}
       {(accessToken || idToken) && <button className="signin-link" type="button" onClick={onSignOut}>Sign out to switch account</button>}
     </>}
-    <div className="signin-foot">The invitation is one-time use and expires after 48 hours. Owner accounts require authenticator verification.</div>
+    <div className="signin-foot">The invitation is one-time use and expires after 48 hours. Sign in with your invited email address and password.</div>
   </section></main>
 }
