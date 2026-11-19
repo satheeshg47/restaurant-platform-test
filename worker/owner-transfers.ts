@@ -74,7 +74,7 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     ).bind(actor.issuer, actor.subject, tenant.id, JSON.stringify({ invitation_id: id, target_email: email, outgoing_owner_user_id: current.id, transfer_type: transferType, new_owner_email_delivery: sent ? 'sent' : 'failed', outgoing_owner_approval_delivery: approvalSent ? 'sent' : 'failed', reason })).run()
     const delivered = sent && approvalSent
     return json(201, {
-      transfer: { id, tenant_id: tenant.id, tenant_name: tenant.name, target_email: email, outgoing_owner_email: current.email, expires_at: expires },
+      transfer: { id, tenant_id: tenant.id, tenant_name: tenant.name, target_email: email, outgoing_owner_email: current.email, transfer_type: transferType, expires_at: expires },
       delivery: delivered ? 'email_sent' : 'manual_link_required',
       ...(!sent ? { token } : {}),
       ...(approvalToken && !approvalSent ? { approval_token: approvalToken } : {}),
