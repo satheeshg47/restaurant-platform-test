@@ -7,9 +7,9 @@
 - Super Admin and owner accounts require RFC 6238 TOTP using authenticator apps compatible with Google Authenticator. Recovery codes are random, single-use and stored as hashes.
 - TOTP secrets are encrypted with the stable Cloudflare Worker secret `AUTH_ENCRYPTION_KEY`. Accepted TOTP counters are recorded so the same authenticator time-step cannot be replayed across challenges.
 - Login and MFA attempts are rate-limited. Native sessions use opaque random tokens; only token hashes are stored in D1, and the browser receives an HttpOnly, Secure, SameSite cookie.
-- `AUTH_ENCRYPTION_KEY` and the one-time `AUTH_BOOTSTRAP_SECRET` are configured as Cloudflare Worker secrets. Never place their values in Git, browser bundles, screenshots or logs. Remove the bootstrap secret after the first Super Admin has been provisioned and verified; keep the encryption key stable.
+- `AUTH_ENCRYPTION_KEY` remains configured as a Cloudflare Worker secret and must remain stable because it encrypts enrolled authenticator secrets. The one-time `AUTH_BOOTSTRAP_SECRET` was removed after first-admin provisioning and successful native sign-in. Never place secret values in Git, browser bundles, screenshots or logs.
 - The legacy Auth0 OIDC Authorization Code + PKCE path remains as a compatibility route during staged migration. Do not remove it until native Super Admin, owner and staff flows have passed end-to-end production verification.
-- No first native Super Admin has been provisioned yet. The platform remains pre-launch.
+- The first native Super Admin is provisioned and active. Production D1 confirms TOTP is enabled, the encrypted authenticator secret is present, and an authenticated session exists. No restaurant tenants have been created yet; the platform remains pre-launch.
 
 ## Tenant authorization boundary
 
@@ -49,17 +49,17 @@
 
 ## Current launch status
 
-The production Worker and preview Worker build are deployed. Migrations through `0009_totp_replay_protection.sql` are applied to both production and preview D1. The schema has 50 required application/authentication tables (53 total tables including platform metadata); production and preview currently have no users, tenants or sessions. The foreign-key check returned zero violations. The native authentication code, owner/staff workspaces and automated tests are in place, but the first Super Admin has not yet been provisioned.
+The production Worker and preview Worker build are deployed. Migrations through `0009_totp_replay_protection.sql` are applied to both production and preview D1. The schema has 50 required application/authentication tables (53 total tables including platform metadata). Production now has one active native Super Admin account, one active platform-admin grant, and an active authenticated session; no restaurant tenants have been created yet. The foreign-key check returned zero violations. The native authentication code, owner/staff workspaces and automated tests are in place.
 
 The platform remains **pre-launch** until all of the following are complete:
 
-1. Provision the first Super Admin, enroll an authenticator, save recovery codes and remove the one-time bootstrap secret.
-2. Verify Super Admin sign-in and owner invitation/acceptance in the live Worker.
+1. Confirm the Super Admin's one-time recovery codes are saved securely; the account, TOTP enrollment and native login are verified, and the bootstrap secret has been removed.
+2. Verify a real owner invitation and acceptance in the live Worker, then confirm owner TOTP enrollment.
 3. Create a controlled test tenant and verify owner/staff permissions, suspension, session revocation and tenant isolation end-to-end; do not create dummy production customers.
 4. Run a fresh Google Drive backup and isolated restore against migration 0009; verify checksum, schema, row counts and foreign keys.
 5. Monitor scheduled backup executions, Drive capacity and measured recovery time.
 6. Complete the Update Centre package storage, approval, deployment, health-check and rollback workflow. It remains deliberately locked; no package can be deployed from the current screen.
-7. Remove the OIDC compatibility path only after native flows are verified and a rollback plan is documented.
+7. Remove the OIDC compatibility path only after native owner/staff flows are verified and a rollback plan is documented.
 8. Onboard the first real restaurant only after the gates above pass.
 
 Do not represent the system as production-ready or approved for customer operations before these gates pass.
