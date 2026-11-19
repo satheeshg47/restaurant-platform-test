@@ -65,7 +65,7 @@ Keep platform_users as the canonical user record and preserve its existing ident
 - No plaintext passwords, shared staff accounts, client-authoritative tenant IDs, or destructive migration.
 - Do not claim the system is secured by MFA until TOTP enrollment and server-side enforcement are implemented and tested.
 
-## Implementation status — 2026-11-18
+## Implementation status — 2026-11-19
 
 The native authentication foundation is implemented and deployed to the production Worker:
 
@@ -74,6 +74,7 @@ The native authentication foundation is implemented and deployed to the producti
 - TOTP replay protection records the last accepted time-step; MFA verification is rate-limited by account and IP.
 - Native owner invitation acceptance and owner-managed individual staff account provisioning are implemented.
 - The Super Admin, owner and staff sign-in/workspace interfaces are deployed.
-- The Cloudflare Worker secrets `AUTH_ENCRYPTION_KEY` and `AUTH_BOOTSTRAP_SECRET` are configured. Their values are intentionally not stored in this repository.
+- The Cloudflare Worker secret `AUTH_ENCRYPTION_KEY` remains configured and stable. The one-time `AUTH_BOOTSTRAP_SECRET` was removed after the first Super Admin was provisioned and successfully signed in. Secret values are intentionally not stored in this repository.
+- Production D1 confirms one active Super Admin grant, active credentials, TOTP enabled with an encrypted authenticator secret, and an active authenticated session. No restaurant tenant has been created yet.
 
-**Rollout is not complete:** no first native Super Admin has been provisioned yet. The existing OIDC path remains available as a compatibility route. Do not remove OIDC configuration or onboard a real restaurant until the first Super Admin has enrolled TOTP and the complete owner/staff and tenant-isolation flows have passed production verification.
+**Rollout is not complete:** the first Super Admin setup is complete, but live owner invitation/acceptance, owner MFA, staff permission boundaries, tenant isolation, and a fresh current-schema Drive restore remain to be verified. The existing OIDC path remains available as a compatibility route until the native owner/staff flows and rollback plan are verified.
