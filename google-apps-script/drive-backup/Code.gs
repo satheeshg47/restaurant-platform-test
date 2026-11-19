@@ -319,7 +319,7 @@ function doPost(e) {
     if (!raw || raw.length > 24000) return emailJson_({ ok: false, error: 'invalid_request' });
     const body = JSON.parse(raw);
     const configuredSecret = PropertiesService.getScriptProperties().getProperty('EMAIL_BRIDGE_SECRET') || '';
-    if (!configuredSecret || !constantTimeEqual_(String(body.secret || ''), configuredSecret)) {
+    if (configuredSecret.length < 32 || !constantTimeEqual_(String(body.secret || ''), configuredSecret)) {
       return emailJson_({ ok: false, error: 'unauthorized' });
     }
     const to = String(body.to || '').trim().toLowerCase();
