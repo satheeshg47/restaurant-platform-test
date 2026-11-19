@@ -4,7 +4,7 @@
 
 - Native username/password authentication is implemented for Super Admin, restaurant owners and individually assigned staff accounts.
 - Passwords are stored as PBKDF2-SHA256 hashes; plaintext passwords are never stored.
-- Super Admin and owner accounts require RFC 6238 TOTP using authenticator apps compatible with Google Authenticator. Recovery codes are random, single-use and stored as hashes.
+- Super Admin accounts require RFC 6238 TOTP using authenticator apps compatible with Google Authenticator. Owners sign in with email and password without mandatory authenticator setup. Recovery codes apply to Super Admin MFA and are random, single-use and stored as hashes.
 - TOTP secrets are encrypted with the stable Cloudflare Worker secret `AUTH_ENCRYPTION_KEY`. Accepted TOTP counters are recorded so the same authenticator time-step cannot be replayed across challenges.
 - Login and MFA attempts are rate-limited. Native sessions use opaque random tokens; only token hashes are stored in D1, and the browser receives an HttpOnly, Secure, SameSite cookie.
 - `AUTH_ENCRYPTION_KEY` remains configured as a Cloudflare Worker secret and must remain stable because it encrypts enrolled authenticator secrets. The one-time `AUTH_BOOTSTRAP_SECRET` was removed after first-admin provisioning and successful native sign-in. Never place secret values in Git, browser bundles, screenshots or logs.
@@ -54,7 +54,7 @@ The production Worker and preview Worker build are deployed. Migrations through 
 The platform remains **pre-launch** until all of the following are complete:
 
 1. Confirm the Super Admin's one-time recovery codes are saved securely; the account, TOTP enrollment and native login are verified, and the bootstrap secret has been removed.
-2. Verify a real owner invitation and acceptance in the live Worker, then confirm owner TOTP enrollment.
+2. Verify a real owner invitation and acceptance in the live Worker, then confirm owner email/password sign-in without TOTP enrollment.
 3. Create a controlled test tenant and verify owner/staff permissions, suspension, session revocation and tenant isolation end-to-end; do not create dummy production customers.
 4. Run a fresh Google Drive backup and isolated restore against migration 0009; verify checksum, schema, row counts and foreign keys.
 5. Monitor scheduled backup executions, Drive capacity and measured recovery time.
