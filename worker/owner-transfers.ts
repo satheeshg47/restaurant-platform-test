@@ -79,6 +79,33 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     })
   }
 
+  if (path === '/owner/transfers/approve' && request.method === 'POST') {
+    const body = await readBody(request)
+    const token = typeof body?.token === 'string' ? body.token : ''
+    if (!TOKEN.test(token)) return json(400, { error: 'invalid_approval_token' })
+    const tokenHash = await sha256Hex(token)
+    const now = new Date().toISOString()
+    const approved = await env.DB.prepare(
+      `UPDATE owner_transfer_invitations
+       SET outgoing_approved_at=?,outgoing_approval_token_hash=NULL
+       WHERE outgoing_approval_token_hash=? AND status='pending'
+         AND transfer_type='standard' AND outgoing_approved_at IS NULL AND expires_at>?
+       RETURNING id,tenant_id,from_user_id,target_email`,
+    ).bind(now, tokenHash, now).first<{id:string;tenant_id:string;from_user_id:string;target_email:string}>()
+    if (!approved) return json(400, { error: 'invalid_or_expired_approval_link' })
+    await env.DB.prepare(
+      "INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) VALUES('email-approval',?,'owner.transfer.outgoing_approved','tenant',?,?)",
+    ).bind(approved.from_user_id, approved.tenant_id, JSON.stringify({ transfer_invitation_id: approved.id, incoming_owner_email: approved.target_email })).run()
+    const tenant = await env.DB.prepare('SELECT name FROM tenants WHERE id=?').bind(approved.tenant_id).first<{name:string}>()
+    const outgoing = await env.DB.prepare('SELECT email FROM platform_users WHERE id=?').bind(approved.from_user_id).first<{email:string|null}>()
+    if (outgoing?.email) await sendPlatformEmail(env, {
+      to: outgoing.email, subject: 'Ownership transfer approval recorded',
+      text: 'Your approval for the ownership transfer of ' + (tenant?.name || 'the restaurant') + ' has been recorded. The incoming Owner must still accept before access changes.',
+      html: '<p>Your approval has been recorded. The incoming Owner must still accept before access changes.</p>',
+    })
+    return json(200, { approved: true, incoming_owner_must_still_accept: true })
+  }
+
   if (path === '/owner/transfers/accept' && request.method === 'POST') {
     const body = await readBody(request)
     const token = typeof body?.token === 'string' ? body.token : ''
