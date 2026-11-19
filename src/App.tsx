@@ -24,6 +24,7 @@ import GuestMenu from './GuestMenu'
 import OwnerPortal from './OwnerPortal'
 import OwnerInviteAcceptance from './OwnerInviteAcceptance'
 import PasswordReset from './PasswordReset'
+import OwnerTransferAcceptance from './OwnerTransferAcceptance'
 import StaffPortal from './StaffPortal'
 import SignIn from './SignIn'
 import { apiFetch, completeOidcLogin, setSessionToken as setApiSessionToken } from './auth'
@@ -73,6 +74,7 @@ function App() {
   const ownerRoute = window.location.pathname === '/owner' || window.location.pathname === '/owner/'
   const ownerInviteRoute = window.location.pathname === '/owner/invitations/accept'
   const passwordResetRoute = window.location.pathname === '/owner/reset-password'
+  const ownerTransferRoute = window.location.pathname === '/owner/transfers/accept'
   const staffRoute = window.location.pathname === '/staff' || window.location.pathname === '/staff/'
 
   useEffect(() => {
@@ -80,6 +82,11 @@ function App() {
       const inviteToken = new URLSearchParams(window.location.search).get('token') || new URLSearchParams(window.location.hash.slice(1)).get('token') || ''
       if (/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) sessionStorage.setItem('platformcore.owner.invitation.token', inviteToken)
       if (window.location.hash || window.location.search) window.history.replaceState({}, document.title, window.location.pathname)
+    }
+    if (window.location.pathname === '/owner/transfers/accept') {
+      const transferToken = new URLSearchParams(window.location.search).get('token') || ''
+      if (/^[A-Za-z0-9_-]{43}$/.test(transferToken)) sessionStorage.setItem('platformcore.owner.transfer.token', transferToken)
+      if (window.location.search) window.history.replaceState({}, document.title, window.location.pathname)
     }
     if (window.location.pathname !== '/auth/callback') {
       let active = true
@@ -154,6 +161,7 @@ function App() {
   }
   if (staffRoute && !sessionToken) return <SignIn role="staff" error={authError} onAuthenticated={handleNativeAuthenticated}/>
   if (passwordResetRoute) return <PasswordReset/>
+  if (ownerTransferRoute) return <OwnerTransferAcceptance accessToken={sessionToken || ''} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onAuthenticated={handleNativeAuthenticated} onSignOut={signOut} onCompleted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
   if (ownerInviteRoute) {
     return <OwnerInviteAcceptance accessToken={sessionToken || ''} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAuthenticated={handleNativeAuthenticated} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
   }
