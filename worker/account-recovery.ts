@@ -49,6 +49,7 @@ async function issueReset(env: Env, request: Request, user: { id: string; email:
 
 export async function handleAccountRecovery(request: Request, env: Env, path: string): Promise<Response | null> {
   if (path === '/auth/password-reset/request' && request.method === 'POST') {
+    if (!env.EMAIL_BRIDGE_URL || !env.EMAIL_BRIDGE_SECRET) return json(503, { error: 'email_delivery_not_configured' })
     const payload = await body(request)
     const email = typeof payload?.email === 'string' ? payload.email.trim().toLowerCase() : ''
     if (!EMAIL.test(email) || email.length > 320) return json(200, { ok: true })
