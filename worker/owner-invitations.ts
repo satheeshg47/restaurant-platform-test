@@ -171,7 +171,8 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
         if (active) return json(409, { error: 'active_owner_already_exists' })
         return json(409, { error: 'pending_invitation_exists' })
       }
-      const base = (env.APP_PUBLIC_URL || new URL(request.url).origin).replace(/\\/$/, '')
+      const rawBase = env.APP_PUBLIC_URL || new URL(request.url).origin
+      const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase
       const inviteUrl = base + '/owner/invitations/accept?token=' + encodeURIComponent(token)
       const tenantName = await env.DB.prepare('SELECT name FROM tenants WHERE id=?').bind(tenantId).first<{ name: string }>()
       const safeName = (tenantName?.name || 'your restaurant').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[char] || char))
