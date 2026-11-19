@@ -73,8 +73,8 @@ export default function Owners(){
    setTransferCreated({token:typeof payload.token==='string'?payload.token:undefined,approval_token:typeof payload.approval_token==='string'?payload.approval_token:undefined,delivery:payload.delivery||'manual_link_required',expires_at:payload.transfer.expires_at,email:payload.transfer.target_email,outgoing_owner_email:payload.transfer.outgoing_owner_email||undefined,tenant_name:payload.transfer.tenant_name})
   }catch(e){setTransferError(e instanceof Error?e.message:'Ownership transfer could not be started.')}finally{setTransferBusy(false)}
  }
- const transferLink=transferCreated?.token?window.location.origin+'/owner/transfers/accept?token='+encodeURIComponent(transferCreated.token):''
- const approvalLink=transferCreated?.approval_token?window.location.origin+'/owner/transfers/approve?token='+encodeURIComponent(transferCreated.approval_token):''
+ const transferLink=transferCreated?.token?window.location.origin+'/owner/transfers/accept#token='+encodeURIComponent(transferCreated.token):''
+ const approvalLink=transferCreated?.approval_token?window.location.origin+'/owner/transfers/approve#token='+encodeURIComponent(transferCreated.approval_token):''
  const copyTransferLink=async()=>{const links=[transferLink,approvalLink].filter(Boolean).join('\\n');if(!links)return;try{await navigator.clipboard.writeText(links);setTransferCopied(true)}catch{setTransferError('Clipboard access was blocked. Select and copy the links manually.')}}
  const openInvite=(row:OwnerRow)=>{setTarget(row);setEmail('');setInviteError('');setCreated(null);setCopied(false)}
  const closeInvite=()=>{setTarget(null);setEmail('');setInviteError('');setCreated(null);setCopied(false)}
