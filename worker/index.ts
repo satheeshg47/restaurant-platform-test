@@ -179,7 +179,7 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
           t.created_at AS tenant_created_at,pu.id AS user_id,pu.email,tm.role,
           tm.status AS membership_status,tm.created_at AS membership_created_at
          FROM tenants t
-         LEFT JOIN tenant_memberships tm ON tm.tenant_id=t.id AND tm.role='owner'
+         LEFT JOIN tenant_memberships tm ON tm.tenant_id=t.id AND tm.role='owner' AND tm.status='active'
          LEFT JOIN platform_users pu ON pu.id=tm.user_id
          ORDER BY t.created_at DESC,pu.email`,
       ).all<Record<string, unknown>>()
