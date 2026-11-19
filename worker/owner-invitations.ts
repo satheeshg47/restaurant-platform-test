@@ -214,20 +214,12 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
       email = verifiedIdentity.email.trim().toLowerCase()
       if (invitation.email !== email) return json(403, { error: 'invitation_email_mismatch' })
     } else {
-      const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
       const password = typeof body.password === 'string' ? body.password : ''
-      if (!/^[A-Za-z0-9._-]{3,64}$/.test(loginId) || password.length < 12 || password.length > 256) {
-        return json(400, { error: 'invalid_account_details' })
-      }
-      if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'owner_auth_not_configured' })
+      if (password.length < 12 || password.length > 256) return json(400, { error: 'invalid_password_length' })
       const existingNative = await env.DB.prepare(
         "SELECT 1 AS found FROM platform_users WHERE auth_provider='native' AND lower(email)=? LIMIT 1",
       ).bind(invitation.email.toLowerCase()).first()
       if (existingNative) return json(409, { error: 'native_account_exists_sign_in' })
-      const existingLogin = await env.DB.prepare(
-        'SELECT 1 AS found FROM platform_user_credentials WHERE login_id_normalized=? LIMIT 1',
-      ).bind(loginId.toLowerCase()).first()
-      if (existingLogin) return json(409, { error: 'login_id_unavailable' })
       acceptedIdentity = {
         issuer: 'native',
         subject: crypto.randomUUID(),
@@ -236,7 +228,7 @@ export async function handleOwnerInvitations(request: Request, env: Env, path: s
       }
       email = invitation.email.toLowerCase()
       newNativeUser = true
-      newLoginId = loginId
+      newLoginId = 'owner-' + crypto.randomUUID().replace(/-/g, '')
       newPasswordHash = await hashPassword(password)
     }
 
