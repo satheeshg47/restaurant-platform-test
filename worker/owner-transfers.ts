@@ -75,6 +75,9 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
       return json(410, { error: 'transfer_invitation_expired' })
     }
     let identity: Identity | null = null
+    let newNativeUser = false
+    let newPasswordHash = ''
+    let newLoginId = ''
     const hasSession = request.headers.has('Authorization') || request.headers.has('X-OIDC-ID-Token') || (request.headers.get('Cookie') || '').includes('platformcore_session=')
     if (hasSession) {
       try { identity = await authenticateIdentity(request, env) }
@@ -95,19 +98,28 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
       if (existing) return json(409, { error: 'sign_in_to_existing_account' })
       if (!env.AUTH_ENCRYPTION_KEY) { /* Owner accounts do not require TOTP; encryption key is not needed. */ }
       const id = crypto.randomUUID()
-      const passwordHash = await hashPassword(password)
-      const loginId = 'owner-' + crypto.randomUUID().replace(/-/g, '')
-      await env.DB.prepare("INSERT INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,?)").bind(id, id, invite.target_email).run()
-      await env.DB.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) VALUES(?,?,?,?)').bind(id, loginId, loginId, passwordHash).run()
+      newLoginId = 'owner-' + crypto.randomUUID().replace(/-/g, '')
+      newPasswordHash = await hashPassword(password)
+      newNativeUser = true
       identity = { issuer: 'native', subject: id, email: invite.target_email, emailVerified: true }
     }
-    const newUser = await env.DB.prepare('SELECT id,email FROM platform_users WHERE auth_provider=? AND auth_subject=?').bind(identity.issuer, identity.subject).first<{id:string;email:string|null}>()
+    const newUser = newNativeUser
+      ? { id: identity!.subject, email: invite.target_email }
+      : await env.DB.prepare('SELECT id,email FROM platform_users WHERE auth_provider=? AND auth_subject=?').bind(identity!.issuer, identity!.subject).first<{id:string;email:string|null}>()
     if (!newUser || newUser.id === invite.from_user_id) return json(409, { error: 'invalid_new_owner' })
     const now = new Date().toISOString()
     const historyId = crypto.randomUUID()
     try {
-      const results = await env.DB.batch([
-        env.DB.prepare("UPDATE tenant_memberships SET status='suspended' WHERE tenant_id=? AND user_id=? AND role='owner' AND status='active' AND EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status='pending' AND expires_at>?)").bind(invite.tenant_id, invite.from_user_id, invite.id, now),
+      const statements = []
+      if (newNativeUser) {
+        statements.push(env.DB.prepare(
+          "INSERT INTO platform_users(id,auth_provider,auth_subject,email) SELECT ?,'native',?,? WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status='pending' AND expires_at>?)",
+        ).bind(newUser.id, newUser.id, invite.target_email, invite.id, now))
+        statements.push(env.DB.prepare(
+          'INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM platform_users WHERE id=?)',
+        ).bind(newUser.id, newLoginId, newLoginId, newPasswordHash, newUser.id))
+      }
+      statements.push(env.DB.prepare("UPDATE tenant_memberships SET status='suspended' WHERE tenant_id=? AND user_id=? AND role='owner' AND status='active' AND EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status='pending' AND expires_at>?)").bind(invite.tenant_id, invite.from_user_id, invite.id, now),
         env.DB.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) SELECT ?,?,'owner','active' WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status='pending' AND expires_at>?) AND NOT EXISTS(SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND role='owner' AND status='active') ON CONFLICT(tenant_id,user_id) DO UPDATE SET role='owner',status='active'").bind(invite.tenant_id, newUser.id, invite.id, now, invite.tenant_id),
         env.DB.prepare("UPDATE owner_transfer_invitations SET status='accepted',accepted_by_user_id=?,accepted_at=? WHERE id=? AND status='pending' AND EXISTS(SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND user_id=? AND role='owner' AND status='active')").bind(newUser.id, now, invite.id, invite.tenant_id, newUser.id),
         env.DB.prepare('INSERT INTO ownership_transfer_history(id,tenant_id,previous_owner_user_id,new_owner_user_id,initiated_by_issuer,initiated_by_subject,reason,transfer_type) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM owner_transfer_invitations WHERE id=? AND status=\'accepted\')').bind(historyId, invite.tenant_id, invite.from_user_id, newUser.id, invite.initiated_by_issuer, invite.initiated_by_subject, invite.reason, invite.transfer_type, invite.id),
