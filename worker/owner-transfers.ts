@@ -61,7 +61,7 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
       approvalSent = await sendPlatformEmail(env, {
         to: current.email,
         subject: 'Approve ownership transfer for ' + tenant.name,
-        text: 'A transfer of ' + tenant.name + ' ownership has been requested. If you agree, approve it within 7 days: ' + approvalLink + '. If you do not agree, do not open the link; contact the platform administrator.',
+        text: 'A transfer of ' + tenant.name + ' ownership to ' + email + ' has been requested. If you agree, approve it within 7 days: ' + approvalLink + '. If you do not agree, do not open the link; contact the platform administrator.',
         html: '<p>A transfer of ' + safeName + ' ownership has been requested.</p><p><a href="' + escapeHtml(approvalLink) + '">Approve ownership transfer</a></p><p>If you do not agree, do not approve this request. The link expires in 7 days.</p>',
       })
     } else if (approvalToken) {
