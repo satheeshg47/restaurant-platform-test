@@ -664,7 +664,7 @@ test('Super Admin ownership transfer keeps tenant data and revokes outgoing owne
   })
   assert.equal(adminControlled.status, 201)
   const adminTransfer = await adminControlled.json()
-  assert.equal(adminTransfer.transfer.transfer_type, undefined)
+  assert.equal(adminTransfer.transfer.transfer_type, 'admin_controlled')
   assert.equal(adminTransfer.approval_token, undefined)
   const adminAccepted = await call('/owner/transfers/accept', {
     method: 'POST', body: { token: adminTransfer.token, password: 'admin-controlled-owner-password-123' },
