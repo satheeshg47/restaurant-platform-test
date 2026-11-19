@@ -86,14 +86,14 @@ function App() {
       if (window.location.hash || window.location.search) window.history.replaceState({}, document.title, window.location.pathname)
     }
     if (window.location.pathname === '/owner/transfers/accept') {
-      const transferToken = new URLSearchParams(window.location.search).get('token') || ''
+      const transferToken = new URLSearchParams(window.location.hash.slice(1)).get('token') || new URLSearchParams(window.location.search).get('token') || ''
       if (/^[A-Za-z0-9_-]{43}$/.test(transferToken)) sessionStorage.setItem('platformcore.owner.transfer.token', transferToken)
-      if (window.location.search) window.history.replaceState({}, document.title, window.location.pathname)
+      if (window.location.search || window.location.hash) window.history.replaceState({}, document.title, window.location.pathname)
     }
     if (window.location.pathname === '/owner/transfers/approve') {
-      const approvalToken = new URLSearchParams(window.location.search).get('token') || ''
+      const approvalToken = new URLSearchParams(window.location.hash.slice(1)).get('token') || new URLSearchParams(window.location.search).get('token') || ''
       if (/^[A-Za-z0-9_-]{43}$/.test(approvalToken)) sessionStorage.setItem('platformcore.owner.transfer.approval', approvalToken)
-      if (window.location.search) window.history.replaceState({}, document.title, window.location.pathname)
+      if (window.location.search || window.location.hash) window.history.replaceState({}, document.title, window.location.pathname)
     }
     if (window.location.pathname !== '/auth/callback') {
       let active = true
