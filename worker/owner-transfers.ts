@@ -57,7 +57,7 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     })
     let approvalSent = true
     if (approvalToken && current.email) {
-      const approvalLink = base + '/owner/transfers/approve?token=' + encodeURIComponent(approvalToken)
+      const approvalLink = base + '/owner/transfers/approve#token=' + encodeURIComponent(approvalToken)
       approvalSent = await sendPlatformEmail(env, {
         to: current.email,
         subject: 'Approve ownership transfer for ' + tenant.name,
