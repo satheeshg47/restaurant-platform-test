@@ -127,7 +127,7 @@ export default function SignIn({
       })
       const payload = await response.json().catch(() => ({})) as { error?: string }
       if (!response.ok) throw new Error(payload.error === 'email_delivery_not_configured' ? 'Email recovery is not configured yet. Contact the platform administrator.' : 'Password reset request could not be submitted. Try again later.')
-      setNotice('If an owner account exists for that email, a password reset link will be sent.')
+      setNotice('If an Owner account matches and email delivery succeeds, a reset link will be sent. Check your spam folder or contact the platform administrator if it does not arrive.')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Password reset request failed.')
     } finally { setBusy(false) }
