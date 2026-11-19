@@ -658,9 +658,16 @@ test('Super Admin ownership transfer keeps tenant data and revokes outgoing owne
   const revokedSession = await call('/auth/session', { cookie: oldCookie })
   assert.equal((await revokedSession.json()).authenticated, false)
 
-  const adminControlled = await call('/admin/tenants/' + tenantId + '/owner-transfer', {
+  const adminMissingConfirmation = await call('/admin/tenants/' + tenantId + '/owner-transfer', {
     method: 'POST', accessToken: adminToken,
     body: { email: 'admin-controlled-owner@example.test', reason: 'Outgoing Owner unavailable; business transfer verified under case XYZ-9', transfer_type: 'admin_controlled' },
+  })
+  assert.equal(adminMissingConfirmation.status, 400)
+  assert.equal((await adminMissingConfirmation.json()).error, 'admin_transfer_confirmation_required')
+
+  const adminControlled = await call('/admin/tenants/' + tenantId + '/owner-transfer', {
+    method: 'POST', accessToken: adminToken,
+    body: { email: 'admin-controlled-owner@example.test', reason: 'Outgoing Owner unavailable; business transfer verified under case XYZ-9', transfer_type: 'admin_controlled', confirmation: 'TRANSFER OWNERSHIP' },
   })
   assert.equal(adminControlled.status, 201)
   const adminTransfer = await adminControlled.json()
