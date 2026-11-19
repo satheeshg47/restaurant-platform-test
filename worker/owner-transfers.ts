@@ -28,6 +28,7 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
     const transferType = body?.transfer_type === 'admin_controlled' ? 'admin_controlled' : 'standard'
+    if (transferType === 'admin_controlled' && body?.confirmation !== 'TRANSFER OWNERSHIP') return json(400, { error: 'admin_transfer_confirmation_required' })
     if (!EMAIL.test(email) || email.length > 320 || reason.length < 3 || reason.length > 1000) return json(400, { error: 'invalid_transfer_request' })
     const tenant = await env.DB.prepare("SELECT id,name,status FROM tenants WHERE id=? AND status='active'").bind(adminMatch[1]).first<{id:string;name:string;status:string}>()
     if (!tenant) return json(404, { error: 'tenant_not_found' })
