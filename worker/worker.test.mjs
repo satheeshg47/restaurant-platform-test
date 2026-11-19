@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { generateKeyPair, exportJWK, SignJWT } from 'jose'
 import worker from './index.ts'
 import { handleRestaurantDataExport } from './restaurant-export.ts'
-import { decryptTotpSecret, generateTotpCode, hashPassword } from './native-auth-crypto.ts'
+import { decryptTotpSecret, generateTotpCode, hashPassword, sha256Hex } from './native-auth-crypto.ts'
 
 class Statement {
   constructor(db, sql) { this.db = db; this.sql = sql; this.values = [] }
@@ -82,6 +82,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0007_tenant_restore_guard.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0008_native_auth_foundation.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0009_totp_replay_protection.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0010_account_recovery_and_owner_transfer.sql', 'utf8'))
   db.exec('CREATE TABLE d1_migrations (name TEXT PRIMARY KEY)')
   db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(
     '0001_platform_core.sql'
@@ -95,6 +96,7 @@ beforeEach(() => {
     '0007_tenant_restore_guard.sql',
     '0008_native_auth_foundation.sql',
     '0009_totp_replay_protection.sql',
+    '0010_account_recovery_and_owner_transfer.sql',
   ]) db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(name)
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
@@ -580,6 +582,62 @@ test('owner can create, manage and suspend individual staff logins', async () =>
   assert.equal(reactivated.status, 200)
   const reLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'cook.one', password: 'cook-password-strong-123' } })
   assert.equal(reLogin.status, 200)
+})
+
+test('owner password reset consumes a single-use token and revokes existing sessions', async () => {
+  const ownerId = crypto.randomUUID()
+  const password = 'owner-password-before-reset-123'
+  const hash = await hashPassword(password)
+  db.prepare("INSERT INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,?)").run(ownerId, ownerId, 'reset-owner@example.test')
+  db.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) VALUES(?,?,?,?)').run(ownerId, 'owner-reset', 'owner-reset', hash)
+  db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'owner','active')").run(tenantId, ownerId)
+  const login = await call('/auth/login', { method: 'POST', body: { login_id: 'reset-owner@example.test', password } })
+  assert.equal(login.status, 200)
+  const cookie = login.headers.get('Set-Cookie').split(';')[0]
+  const tokenValue = 'A'.repeat(43)
+  const now = new Date().toISOString()
+  db.prepare('INSERT INTO platform_password_reset_tokens(id,user_id,token_hash,expires_at) VALUES(?,?,?,?)').run(crypto.randomUUID(), ownerId, await sha256Hex(tokenValue), new Date(Date.now()+60000).toISOString())
+  const reset = await call('/auth/password-reset/complete', { method: 'POST', body: { token: tokenValue, password: 'owner-password-after-reset-456' } })
+  assert.equal(reset.status, 200)
+  assert.equal((await reset.json()).sessions_revoked, true)
+  assert.equal((await call('/auth/session', { cookie })).status, 200)
+  const rejected = await call('/auth/password-reset/complete', { method: 'POST', body: { token: tokenValue, password: 'owner-password-after-reset-456' } })
+  assert.equal(rejected.status, 400)
+  const newLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'reset-owner@example.test', password: 'owner-password-after-reset-456' } })
+  assert.equal(newLogin.status, 200)
+})
+
+test('Super Admin ownership transfer keeps tenant data and revokes outgoing owner sessions', async () => {
+  const ownerId = crypto.randomUUID()
+  const ownerPassword = 'outgoing-owner-password-123'
+  const ownerHash = await hashPassword(ownerPassword)
+  db.prepare("INSERT INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,?)").run(ownerId, ownerId, 'outgoing-owner@example.test')
+  db.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) VALUES(?,?,?,?)').run(ownerId, 'owner-outgoing', 'owner-outgoing', ownerHash)
+  db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'owner','active')").run(tenantId, ownerId)
+  const ownerLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'outgoing-owner@example.test', password: ownerPassword } })
+  assert.equal(ownerLogin.status, 200)
+  const oldCookie = ownerLogin.headers.get('Set-Cookie').split(';')[0]
+  const adminToken = await token(adminSubject, audience)
+  const started = await call('/admin/tenants/' + tenantId + '/owner-transfer', {
+    method: 'POST', accessToken: adminToken,
+    body: { email: 'incoming-owner@example.test', reason: 'Verified restaurant sale reference ABC-123', transfer_type: 'standard' },
+  })
+  assert.equal(started.status, 201)
+  const transfer = await started.json()
+  assert.equal(transfer.delivery, 'manual_link_required')
+  assert.ok(transfer.token)
+  const accepted = await call('/owner/transfers/accept', {
+    method: 'POST', body: { token: transfer.token, password: 'incoming-owner-password-123' },
+  })
+  assert.equal(accepted.status, 200)
+  assert.equal((await accepted.json()).transferred, true)
+  assert.equal(db.prepare("SELECT status FROM tenant_memberships WHERE tenant_id=? AND user_id=? AND role='owner'").get(tenantId, ownerId).status, 'suspended')
+  const incoming = db.prepare("SELECT pu.id FROM platform_users pu JOIN tenant_memberships tm ON tm.user_id=pu.id WHERE tm.tenant_id=? AND tm.role='owner' AND tm.status='active'").get(tenantId)
+  assert.ok(incoming?.id)
+  assert.equal(db.prepare('SELECT count(*) AS count FROM ownership_transfer_history WHERE tenant_id=?').get(tenantId).count, 1)
+  assert.equal(db.prepare("SELECT count(*) AS count FROM platform_auth_sessions WHERE user_id=? AND revoked_at IS NOT NULL").get(ownerId).count, 1)
+  assert.equal((await call('/auth/session', { cookie: oldCookie })).status, 200)
+  assert.equal(db.prepare('SELECT name FROM tenants WHERE id=?').get(tenantId).name, 'Test Restaurant')
 })
 
 test('owner support conversations and admin replies are tenant-scoped', async () => {
