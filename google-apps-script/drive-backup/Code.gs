@@ -326,7 +326,7 @@ function doPost(e) {
     const subject = String(body.subject || '').trim();
     const textBody = String(body.text || '');
     const htmlBody = String(body.html || '');
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(to) || to.length > 320 ||
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || to.length > 320 ||
         !subject || subject.length > 180 || !textBody || textBody.length > 12000 ||
         htmlBody.length > 16000) {
       return emailJson_({ ok: false, error: 'invalid_message' });
