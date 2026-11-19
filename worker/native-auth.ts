@@ -317,6 +317,7 @@ async function logout(request: Request, env: Env): Promise<Response> {
 }
 
 export async function handleNativeAuth(request: Request, env: Env, path: string): Promise<Response | null> {
+  if (path === '/auth/password-reset/request' || path === '/auth/password-reset/complete') return null
   if (!path.startsWith('/auth/')) return null
   if (path === '/auth/session' && request.method === 'GET') {
     const identity = await authenticateNativeSession(request, env)
