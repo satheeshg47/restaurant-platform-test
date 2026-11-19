@@ -39,12 +39,13 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     const existing = await env.DB.prepare("SELECT id FROM owner_transfer_invitations WHERE tenant_id=? AND status='pending'").bind(tenant.id).first()
     if (existing) return json(409, { error: 'transfer_already_pending' })
     const token = randomToken(32)
+    const approvalToken = transferType === 'standard' ? randomToken(32) : ''
     const id = crypto.randomUUID()
     const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     await env.DB.prepare(
-      `INSERT INTO owner_transfer_invitations(id,tenant_id,from_user_id,target_email,token_hash,reason,transfer_type,initiated_by_issuer,initiated_by_subject,expires_at)
-       VALUES(?,?,?,?,?,?,?,?,?,?)`,
-    ).bind(id, tenant.id, current.id, email, await sha256Hex(token), reason, transferType, actor.issuer, actor.subject, expires).run()
+      `INSERT INTO owner_transfer_invitations(id,tenant_id,from_user_id,target_email,token_hash,outgoing_approval_token_hash,reason,transfer_type,initiated_by_issuer,initiated_by_subject,expires_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+    ).bind(id, tenant.id, current.id, email, await sha256Hex(token), approvalToken ? await sha256Hex(approvalToken) : null, reason, transferType, actor.issuer, actor.subject, expires).run()
     const base = (env.APP_PUBLIC_URL || new URL(request.url).origin).replace(/\/$/, '')
     const link = base + '/owner/transfers/accept?token=' + encodeURIComponent(token)
     const safeName = escapeHtml(tenant.name)
@@ -54,10 +55,28 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
       text: 'You have been invited to become the owner of ' + tenant.name + '. Accept this transfer within 7 days: ' + link,
       html: '<p>You have been invited to become the owner of ' + safeName + '.</p><p><a href="' + escapeHtml(link) + '">Accept ownership transfer</a></p><p>This link expires in 7 days.</p>',
     })
+    let approvalSent = true
+    if (approvalToken && current.email) {
+      const approvalLink = base + '/owner/transfers/approve?token=' + encodeURIComponent(approvalToken)
+      approvalSent = await sendPlatformEmail(env, {
+        to: current.email,
+        subject: 'Approve ownership transfer for ' + tenant.name,
+        text: 'A transfer of ' + tenant.name + ' ownership has been requested. If you agree, approve it within 7 days: ' + approvalLink + '. If you do not agree, do not open the link; contact the platform administrator.',
+        html: '<p>A transfer of ' + safeName + ' ownership has been requested.</p><p><a href="' + escapeHtml(approvalLink) + '">Approve ownership transfer</a></p><p>If you do not agree, do not approve this request. The link expires in 7 days.</p>',
+      })
+    } else if (approvalToken) {
+      approvalSent = false
+    }
     await env.DB.prepare(
       "INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) VALUES(?,?,'owner.transfer.initiated','tenant',?,?)",
-    ).bind(actor.issuer, actor.subject, tenant.id, JSON.stringify({ invitation_id: id, target_email: email, transfer_type: transferType, delivery: sent ? 'sent' : 'failed', reason })).run()
-    return json(201, { transfer: { id, tenant_id: tenant.id, tenant_name: tenant.name, target_email: email, expires_at: expires }, delivery: sent ? 'email_sent' : 'manual_link_required', ...(!sent ? { token } : {}) })
+    ).bind(actor.issuer, actor.subject, tenant.id, JSON.stringify({ invitation_id: id, target_email: email, outgoing_owner_user_id: current.id, transfer_type: transferType, new_owner_email_delivery: sent ? 'sent' : 'failed', outgoing_owner_approval_delivery: approvalSent ? 'sent' : 'failed', reason })).run()
+    const delivered = sent && approvalSent
+    return json(201, {
+      transfer: { id, tenant_id: tenant.id, tenant_name: tenant.name, target_email: email, outgoing_owner_email: current.email, expires_at: expires },
+      delivery: delivered ? 'email_sent' : 'manual_link_required',
+      ...(!sent ? { token } : {}),
+      ...(approvalToken && !approvalSent ? { approval_token: approvalToken } : {}),
+    })
   }
 
   if (path === '/owner/transfers/accept' && request.method === 'POST') {
@@ -65,11 +84,12 @@ export async function handleOwnerTransfers(request: Request, env: Env, path: str
     const token = typeof body?.token === 'string' ? body.token : ''
     if (!TOKEN.test(token)) return json(400, { error: 'invalid_transfer_token' })
     const invite = await env.DB.prepare(
-      `SELECT i.id,i.tenant_id,i.from_user_id,i.target_email,i.reason,i.transfer_type,i.initiated_by_issuer,i.initiated_by_subject,i.status,i.expires_at,t.name AS tenant_name,t.status AS tenant_status
+      `SELECT i.id,i.tenant_id,i.from_user_id,i.target_email,i.reason,i.transfer_type,i.outgoing_approved_at,i.initiated_by_issuer,i.initiated_by_subject,i.status,i.expires_at,t.name AS tenant_name,t.status AS tenant_status
        FROM owner_transfer_invitations i JOIN tenants t ON t.id=i.tenant_id WHERE i.token_hash=?`,
-    ).bind(await sha256Hex(token)).first<{id:string;tenant_id:string;from_user_id:string;target_email:string;reason:string;transfer_type:'standard'|'admin_controlled';initiated_by_issuer:string;initiated_by_subject:string;status:string;expires_at:string;tenant_name:string;tenant_status:string}>()
+    ).bind(await sha256Hex(token)).first<{id:string;tenant_id:string;from_user_id:string;target_email:string;reason:string;transfer_type:'standard'|'admin_controlled';outgoing_approved_at:string|null;initiated_by_issuer:string;initiated_by_subject:string;status:string;expires_at:string;tenant_name:string;tenant_status:string}>()
     if (!invite || invite.status !== 'pending') return json(404, { error: 'transfer_invitation_not_found' })
     if (invite.tenant_status !== 'active') return json(409, { error: 'tenant_not_active' })
+    if (invite.transfer_type === 'standard' && !invite.outgoing_approved_at) return json(409, { error: 'outgoing_owner_approval_required' })
     if (new Date(invite.expires_at).getTime() <= Date.now()) {
       await env.DB.prepare("UPDATE owner_transfer_invitations SET status='expired' WHERE id=? AND status='pending'").bind(invite.id).run()
       return json(410, { error: 'transfer_invitation_expired' })
