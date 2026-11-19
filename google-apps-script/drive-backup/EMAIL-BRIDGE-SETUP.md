@@ -7,10 +7,11 @@ The existing Google Apps Script backup project now also contains a small authent
 1. Open the same Apps Script project currently running the D1 Drive backup.
 2. Update its `Code.gs` with the current `google-apps-script/drive-backup/Code.gs` from this repository. Keep the existing backup script properties unchanged.
 3. In **Project Settings → Script Properties**, add `EMAIL_BRIDGE_SECRET` with a new, long random secret (at least 32 random bytes). Do not reuse the Cloudflare API token or the D1 backup credentials.
-4. Click **Deploy → New deployment → Web app**.
-5. Set **Execute as** to your Google account. Set access to **Anyone** so the Cloudflare Worker can reach the endpoint; the endpoint rejects requests unless the JSON body contains the separate secret. Do not share the secret.
-6. Deploy and copy the Web App URL ending in `/exec`. If updating an existing deployment, create a new version and edit the deployment to use it.
-7. Keep the Apps Script project and Drive backup folder private. Only trusted editors should have access.
+4. Run `authorizeEmailBridge` once from the Apps Script editor and approve the requested MailApp permission. This checks the available daily recipient quota without sending a message.
+5. Click **Deploy → New deployment → Web app**.
+6. Set **Execute as** to your Google account. Set access to **Anyone** so the Cloudflare Worker can reach the endpoint; the endpoint rejects requests unless the JSON body contains the separate secret. Do not share the secret.
+7. Deploy and copy the Web App URL ending in `/exec`. If updating an existing deployment, create a new version and edit the deployment to use it.
+8. Keep the Apps Script project and Drive backup folder private. Only trusted editors should have access.
 
 ## Cloudflare Worker configuration
 
