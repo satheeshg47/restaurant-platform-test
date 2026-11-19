@@ -60,7 +60,7 @@ export default function OwnerInviteAcceptance({ accessToken, idToken, apiBaseUrl
         credentials: 'same-origin',
         body: JSON.stringify({
           token,
-          ...(creatingAccount ? { login_id: 'owner-' + crypto.randomUUID().replace(/-/g, ''), password } : {}),
+          ...(creatingAccount ? { password } : {}),
         }),
         cache: 'no-store',
       })
