@@ -318,17 +318,22 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
   if (parts.length < 2 || parts[0] !== 'restaurant') return json(404, { error: 'restaurant_not_found' })
   const slug = parts[1]
   if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(slug)) return json(404, { error: 'restaurant_not_found' })
+  const isDemo = slug === 'platform-demo-restaurant'
+  if (isDemo && !env.DEMO_DB) return json(503, { error: 'demo_storage_not_configured' })
+  // Demo tenant records are isolated in the preview D1 database. Identity
+  // verification remains on the primary DB so an existing Admin session works.
+  const dataEnv: Env = isDemo ? { ...env, DB: env.DEMO_DB! } : env
   let tenantId: string
-  try { tenantId = await resolveTenant(env, slug) }
+  try { tenantId = await resolveTenant(dataEnv, slug) }
   catch (error) { return errorResponse(error, 'restaurant_lookup_failed') }
 
   if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'menu' && request.method === 'GET') {
-    return handleGuestMenu(env, tenantId, parts[3])
+    return handleGuestMenu(dataEnv, tenantId, parts[3])
   }
-  if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'orders' && request.method === 'POST') return handleGuestOrder(request, env, tenantId, parts[3])
-  if (parts[2] === 'guest' && parts[4] === 'orders' && parts.length >= 6) return handleGuestLifecycle(request, env, tenantId, parts[3], parts)
-  if (parts[2] === 'guest' && parts[4] === 'requests' && parts.length === 5) return handleGuestLifecycle(request, env, tenantId, parts[3], parts)
-  if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'reviews') return handleGuestReviewRoutes(request, env, tenantId, parts[3])
+  if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'orders' && request.method === 'POST') return handleGuestOrder(request, dataEnv, tenantId, parts[3])
+  if (parts[2] === 'guest' && parts[4] === 'orders' && parts.length >= 6) return handleGuestLifecycle(request, dataEnv, tenantId, parts[3], parts)
+  if (parts[2] === 'guest' && parts[4] === 'requests' && parts.length === 5) return handleGuestLifecycle(request, dataEnv, tenantId, parts[3], parts)
+  if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'reviews') return handleGuestReviewRoutes(request, dataEnv, tenantId, parts[3])
   if (parts[2] === 'guest') return json(501, { error: 'guest_ordering_not_migrated_to_d1' })
 
   // Super Admins may export and validate any tenant's data. Restore remains
@@ -338,7 +343,7 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
     try { admin = await authenticateAdmin(request, env) } catch { /* fall through to owner authentication */ }
     if (admin) {
       const exported = await handleRestaurantDataExport(
-        request, env, { tenantId, userId: '', staffId: null, role: 'super_admin' }, parts,
+        request, dataEnv, { tenantId, userId: '', staffId: null, role: 'super_admin' }, parts,
       )
       if (exported) {
         if (exported.ok) {
@@ -368,25 +373,25 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
     return json(status, { error: status === 503 ? 'identity_auth_not_configured' : status === 403 ? 'forbidden' : 'unauthorized' })
   }
   let actor: TenantActor
-  try { actor = await authenticateTenant(env, tenantId, identity) }
+  try { actor = await authenticateTenant(dataEnv, tenantId, identity) }
   catch (error) { return errorResponse(error, 'restaurant_access_failed') }
 
   try {
-    if (parts[2] === 'settings' && parts.length === 3) return await handleSettings(request, env, actor)
-    if (parts[2] === 'tables') return await handleTables(request, env, actor, parts)
-    if (parts[2] === 'menu') return await handleRestaurantMenuRoutes(request, env, actor, parts)
-    const finance = await handleRestaurantFinance(request, env, actor, parts, new URL(request.url))
+    if (parts[2] === 'settings' && parts.length === 3) return await handleSettings(request, dataEnv, actor)
+    if (parts[2] === 'tables') return await handleTables(request, dataEnv, actor, parts)
+    if (parts[2] === 'menu') return await handleRestaurantMenuRoutes(request, dataEnv, actor, parts)
+    const finance = await handleRestaurantFinance(request, dataEnv, actor, parts, new URL(request.url))
     if (finance) return finance
     if (parts[2] === 'reviews') {
-      const reviews = await handleRestaurantReviewRoutes(request, env, actor, parts)
+      const reviews = await handleRestaurantReviewRoutes(request, dataEnv, actor, parts)
       if (reviews) return reviews
     }
     if (parts[2] === 'data-export') {
-      const exported = await handleRestaurantDataExport(request, env, actor, parts)
+      const exported = await handleRestaurantDataExport(request, dataEnv, actor, parts)
       if (exported) return exported
     }
     if (parts[2] === 'kitchen' || parts[2] === 'waiter') {
-      const operation = await handleOrderOperations(request, env, actor, parts)
+      const operation = await handleOrderOperations(request, dataEnv, actor, parts)
       if (operation) return operation
     }
     return json(404, { error: 'restaurant_route_not_found' })
