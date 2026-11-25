@@ -222,7 +222,8 @@ async function login(request: Request, env: Env): Promise<Response> {
   const password = typeof body.password === 'string' ? body.password : ''
   if (!loginId || loginId.length > 64 || password.length > 256) return json(401, { error: 'invalid_credentials' })
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
-  if (!await consumeRateLimit(env, `login:${loginId.toLowerCase()}:${ip}`)) return json(429, { error: 'too_many_attempts' })
+  const rateEnv = loginId.toLowerCase().startsWith('demo.') && env.DEMO_DB ? { ...env, DB: env.DEMO_DB } : env
+  if (!await consumeRateLimit(rateEnv, `login:${loginId.toLowerCase()}:${ip}`)) return json(429, { error: 'too_many_attempts' })
   let authEnv = env
   let user = await env.DB.prepare(
     `SELECT pu.id,pu.email,c.login_id,c.password_hash,c.credential_status,c.totp_secret_ciphertext,c.totp_enabled,
@@ -332,10 +333,14 @@ async function logout(request: Request, env: Env): Promise<Response> {
   if (token && /^[A-Za-z0-9_-]{43}$/.test(token)) {
     const hash = await sha256Hex(token)
     const now = new Date().toISOString()
-    await env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL')
-      .bind(now, hash).run()
-    if (env.DEMO_DB) await env.DEMO_DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL')
-      .bind(now, hash).run()
+    const primaryIdentity = await identityForToken(env, token)
+    if (primaryIdentity) {
+      await env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL')
+        .bind(now, hash).run()
+    } else if (env.DEMO_DB) {
+      await env.DEMO_DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL')
+        .bind(now, hash).run()
+    }
   }
   return json(200, { signed_out: true }, { 'Set-Cookie': clearSessionCookie(request) })
 }
