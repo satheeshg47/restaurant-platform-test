@@ -662,3 +662,72 @@
 .owner-home-heading-actions{display:flex;align-items:center;gap:7px}
 .owner-home-heading-actions button{display:grid;place-items:center;width:34px;height:34px;border:1px solid #e7eaf1;border-radius:9px;background:#fff;color:#647087;cursor:pointer}
 .owner-home-heading-actions button:hover{background:#f5f4ff;color:#6556d8}
+
+
+/* Owner workspace: desktop sidebar and compact mobile drawer */
+.owner-workspace-layout{display:grid;grid-template-columns:224px minmax(0,1fr);gap:16px;align-items:start;min-width:0}
+.owner-workspace-main{min-width:0}
+.owner-workspace-sidebar{position:sticky;top:82px;display:grid;gap:10px;padding:12px;background:#fff;border:1px solid #e8eaf1;border-radius:12px;box-shadow:0 2px 8px #202b4205}
+.owner-workspace-sidebar-title{display:flex;align-items:center;justify-content:space-between;padding:3px 6px 8px;border-bottom:1px solid #edf0f5}
+.owner-workspace-sidebar-title span{font-size:9px;font-weight:800;letter-spacing:1.2px;color:#8993a4}
+.owner-workspace-sidebar-title button{display:none;border:0;background:transparent;color:#68748a;padding:5px}
+.owner-workspace-sidebar nav{display:grid;gap:4px}
+.owner-workspace-sidebar nav button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:10px;border:0;border-radius:8px;background:transparent;color:#5f6b80;text-align:left;font-size:11px;font-weight:700}
+.owner-workspace-sidebar nav button:hover{background:#f6f5ff;color:#574bc2}
+.owner-workspace-sidebar nav button.active{background:#efedff;color:#574bc2}
+.owner-workspace-sidebar nav button span{min-width:0}
+.owner-mobile-nav-toggle{display:none}
+.owner-workspace-scrim{display:none}
+.translate-inline{border:0;background:transparent;color:#6556d8;font:inherit;font-size:10px;font-weight:800;padding:2px 5px;margin-left:4px}
+.translate-inline:disabled{opacity:.45}
+.restaurant-menu-modal-alert{display:flex;align-items:flex-start;gap:8px;padding:10px 11px;margin:10px 0;border:1px solid #f1c8c5;border-radius:9px;background:#fff3f2;color:#a33c35;font-size:11px;line-height:1.45}
+.restaurant-menu-modal-alert span{flex:1;min-width:0;overflow-wrap:anywhere}
+.restaurant-menu-modal-alert button{border:0;background:transparent;color:inherit;padding:0 2px}
+@media(max-width:760px){
+ .owner-workspace-layout{grid-template-columns:minmax(0,1fr);gap:10px}
+ .owner-mobile-nav-toggle{display:flex;align-items:center;gap:9px;width:100%;min-height:44px;padding:10px 12px;border:1px solid #e4e7ef;border-radius:9px;background:#fff;color:#37435a;font-size:12px;font-weight:800;text-align:left}
+ .owner-mobile-nav-toggle span{margin-left:auto;color:#8a93a3;font-size:10px;font-weight:600}
+ .owner-workspace-sidebar{position:fixed;z-index:71;left:0;top:0;bottom:0;width:min(82vw,300px);max-height:100dvh;overflow-y:auto;border-radius:0 14px 14px 0;box-shadow:12px 0 35px #10182830;transform:translateX(-110%);transition:transform .2s ease}
+ .owner-workspace-sidebar.open{transform:translateX(0)}
+ .owner-workspace-sidebar-title button{display:grid;place-items:center}
+ .owner-workspace-scrim{display:block;position:fixed;z-index:70;inset:0;border:0;background:#10182866}
+ .owner-workspace-main{width:100%;min-width:0}
+ .owner-workspace-heading{align-items:flex-start}
+ .owner-workspace-heading h2{font-size:17px}
+ .restaurant-menu-toolbar{align-items:flex-start;gap:10px;flex-wrap:wrap}
+ .restaurant-menu-toolbar>div:last-child{display:flex;flex-wrap:wrap;gap:7px}
+ .restaurant-menu-summary{display:flex;flex-wrap:wrap;gap:10px}
+ .restaurant-menu-summary>div{flex:1;min-width:75px}
+ .restaurant-category{padding:12px}
+ .restaurant-food-row{grid-template-columns:30px minmax(0,1fr) auto;gap:8px}
+ .restaurant-food-price{grid-column:2}
+ .restaurant-edit-button,.restaurant-availability{min-height:36px}
+ .modal-backdrop{padding:10px;align-items:flex-end}
+ .modal.restaurant-editor{width:100%;max-width:560px;max-height:88dvh;overflow-y:auto;padding:16px;border-radius:16px 16px 12px 12px}
+ .modal-input,.restaurant-menu-screen input,.restaurant-menu-screen select,.restaurant-menu-screen textarea{font-size:16px;max-width:100%}
+ .restaurant-form-grid{grid-template-columns:minmax(0,1fr)}
+ .modal-actions{position:sticky;bottom:-16px;padding:12px 0 2px;background:#fff;flex-wrap:wrap}
+ .restaurant-qr-actions{display:flex;flex-wrap:wrap}
+ .restaurant-qr-actions>*{flex:1 1 130px;justify-content:center}
+ .restaurant-table-row{grid-template-columns:32px minmax(0,1fr);gap:9px}
+ .restaurant-table-status,.restaurant-table-row>button{grid-column:2}
+ .guest-screen{width:100%;max-width:100%;overflow-x:hidden}
+ .guest-header,.guest-welcome,.guest-menu-list{padding-left:14px;padding-right:14px}
+ .guest-item{grid-template-columns:72px minmax(0,1fr);gap:10px}
+ .guest-item-photo{width:72px;height:82px}
+ .guest-add-button{grid-column:2;justify-self:start}
+ .guest-categories{overflow-x:auto;max-width:100%;padding-left:14px;padding-right:14px}
+ .guest-modal-backdrop{align-items:flex-end;padding:8px}
+ .guest-modal{width:100%;max-width:100%;max-height:88dvh;overflow-y:auto;border-radius:16px 16px 10px 10px}
+}
+@media(max-width:420px){
+ .owner-workspace{gap:9px}
+ .owner-home-grid{grid-template-columns:minmax(0,1fr)}
+ .owner-home-heading{align-items:flex-start}
+ .restaurant-food-row{grid-template-columns:28px minmax(0,1fr)}
+ .restaurant-food-price{grid-column:2}
+ .restaurant-stock-adjust-row{display:grid;grid-template-columns:1fr}
+ .guest-quick-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .guest-quick-actions button{min-width:0;padding:9px 5px;font-size:10px}
+ .guest-cart-bar{left:10px;right:10px;width:auto}
+}
