@@ -1,4 +1,3 @@
-import { authenticateAdmin, authStatus } from './auth.ts'
 import type { Env, Identity } from './types.ts'
 
 const DEMO_SLUG = 'platform-demo-restaurant'
@@ -160,14 +159,8 @@ async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, coo
   `).bind(tenantId, tenantId, ownerId).run()
 }
 
-export async function handleDemoProvision(request: Request, env: Env): Promise<Response> {
+export async function handleDemoProvision(request: Request, env: Env, admin: Identity): Promise<Response> {
   if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
-  let admin: Identity
-  try { admin = await authenticateAdmin(request, env) }
-  catch (error) {
-    const status = authStatus(error, 401)
-    return json(status, { error: status === 503 ? 'admin_auth_not_configured' : status === 403 ? 'forbidden' : 'unauthorized' })
-  }
   if (!env.DEMO_DB) return json(503, { error: 'demo_storage_not_configured' })
 
   const db = env.DEMO_DB
