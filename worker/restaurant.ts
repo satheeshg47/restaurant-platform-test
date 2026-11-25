@@ -264,6 +264,18 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
       ).bind(actor.tenantId, tableNumber, label, tableType, hash).all<Record<string, unknown>>()
       const row = result.results[0]
       if (!row) fail(500, 'table_create_failed')
+      const tenant = await env.DB.prepare('SELECT slug FROM tenants WHERE id=?').bind(actor.tenantId).first<{ slug: string }>()
+      if (tenant?.slug === 'platform-demo-restaurant') {
+        const saved = await env.DB.prepare("SELECT setting_value FROM restaurant_settings WHERE tenant_id=? AND setting_key='demo_qr_tokens'")
+          .bind(actor.tenantId).first<{ setting_value: string }>()
+        let tokens: Record<string, string> = {}
+        try { tokens = JSON.parse(saved?.setting_value || '{}') as Record<string, string> } catch { tokens = {} }
+        tokens[String(row.id)] = token
+        await env.DB.prepare(`INSERT INTO restaurant_settings(tenant_id,setting_key,setting_value,updated_by)
+          VALUES(?,'demo_qr_tokens',?,?)
+          ON CONFLICT(tenant_id,setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_by=excluded.updated_by,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`)
+          .bind(actor.tenantId, JSON.stringify(tokens), actor.staffId).run()
+      }
       return json(201, { table: { ...row, active: Boolean(row.active) }, qr_token: token })
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
