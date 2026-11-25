@@ -25,6 +25,8 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
   const [state, setState] = useState<ViewState>('idle')
   const [menu, setMenu] = useState<MenuPayload>({ categories: [], items: [], variants: [], addon_groups: [], addons: [], item_addon_groups: [] })
   const [error, setError] = useState('')
+  const [modalError, setModalError] = useState('')
+  const [translating, setTranslating] = useState(false)
   const [busy, setBusy] = useState(false)
   const [showCategory, setShowCategory] = useState(false)
   const [showItem, setShowItem] = useState(false)
@@ -109,15 +111,34 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
   }
 
   function openNewItem() {
+    setModalError('')
     setEditing(null); setItemName(''); setItemNameHi(''); setItemNameKn(''); setItemPrice(''); setItemPrep('10'); setItemHsnSac(''); setStockTracking(false); setStockQuantity('')
     setItemCategory(menu.categories.find(category => category.active)?.id || '')
     setItemType('veg'); setShowItem(true)
   }
 
   function openEditItem(item: MenuItem) {
+    setModalError('')
     setEditing(item); setItemName(item.name.en || ''); setItemNameHi(item.name.hi || ''); setItemNameKn(item.name.kn || '')
     setItemPrice((Number(item.base_price_minor) / 100).toFixed(2))
     setItemPrep(String(item.prep_minutes)); setItemHsnSac(item.hsn_sac_code || ''); setItemCategory(item.category_id); setItemType(item.food_type); setStockTracking(item.stock_tracking); setStockQuantity(item.stock_quantity === null ? '' : String(item.stock_quantity)); setShowItem(true)
+  }
+
+  async function translateItem(target: 'hi' | 'kn') {
+    const source = itemName.trim()
+    if (!source) { setModalError('Enter the English food name before translating.'); return }
+    setTranslating(true); setModalError('')
+    try {
+      const url = 'https://translate.googleapis.com/translate_a/single?' + new URLSearchParams({ client: 'gtx', sl: 'en', tl: target, dt: 't', q: source }).toString()
+      const response = await fetch(url, { headers: { Accept: 'application/json' } })
+      if (!response.ok) throw new Error('Translation service is temporarily unavailable. You can type the translation manually.')
+      const payload = await response.json()
+      const translated = Array.isArray(payload?.[0]) ? payload[0].map((part: unknown[]) => String(part?.[0] || '')).join('').trim() : ''
+      if (!translated) throw new Error('No translation was returned. Please enter it manually.')
+      if (target === 'hi') setItemNameHi(translated)
+      else setItemNameKn(translated)
+    } catch (cause) { setModalError(cause instanceof Error ? cause.message : 'Translation failed. Please enter the translation manually.') }
+    finally { setTranslating(false) }
   }
 
   async function saveItem() {
@@ -125,16 +146,16 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
     const prep = Number(itemPrep)
     const stock = stockQuantity.trim() === '' ? null : Number(stockQuantity)
     if (!itemName.trim() || !itemCategory || !Number.isFinite(price) || price < 0 || !Number.isInteger(price * 100) || !Number.isInteger(prep) || prep < 0 || prep > 1440 || (stockTracking && (stock === null || !Number.isFinite(stock) || stock < 0))) {
-      setError('Enter a name, category, valid price (up to 2 decimals) and preparation time.')
+      setModalError('Enter a name, category, valid price (up to 2 decimals) and preparation time.')
       return
     }
-    setBusy(true); setError('')
+    setBusy(true); setModalError('')
     const body = { category_id: itemCategory, hsn_sac_code: itemHsnSac.trim() || null, name: { en: itemName.trim(), ...(itemNameHi.trim() ? { hi: itemNameHi.trim() } : {}), ...(itemNameKn.trim() ? { kn: itemNameKn.trim() } : {}) }, description: {}, base_price_minor: Math.round(price * 100), food_type: itemType, prep_minutes: prep, stock_tracking: stockTracking, ...(!editing ? { stock_quantity: stockTracking ? stock : null } : {}) }
     try {
       if (editing) await request(`/menu/items/${editing.id}`, { method: 'PATCH', body: JSON.stringify(body) })
       else await request('/menu/items', { method: 'POST', body: JSON.stringify(body) })
       setShowItem(false); setEditing(null); await load()
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save food item.') }
+    } catch (cause) { setModalError(cause instanceof Error ? cause.message : 'Could not save food item.') }
     finally { setBusy(false) }
   }
 
@@ -313,6 +334,6 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
       <p className="restaurant-menu-footnote"><Check size={13}/> Menu data and options are loaded from the protected tenant API. Private menu photo uploads are available when storage is configured. Multilingual menu fields are supported.</p>
     </>}
     {showCategory && <div className="modal-backdrop" role="presentation"><div className="modal restaurant-editor" role="dialog" aria-modal="true" aria-labelledby="category-modal-title"><div className="modal-top"><div><span className="eyebrow">MENU SETUP</span><h2 id="category-modal-title">Add category</h2></div><button className="icon-button" onClick={() => setShowCategory(false)} aria-label="Close"><X size={18}/></button></div><p className="modal-desc">Create a category to organize your restaurant menu.</p><label htmlFor="category-name">Category name · English (required)</label><input className="modal-input" id="category-name" value={categoryName} onChange={event => setCategoryName(event.target.value)} placeholder="e.g. Starters" maxLength={120}/><div className="restaurant-form-grid"><div><label htmlFor="category-name-hi">Hindi (हिन्दी)</label><input className="modal-input" id="category-name-hi" value={categoryNameHi} onChange={event=>setCategoryNameHi(event.target.value)} placeholder="शुरुआती व्यंजन" maxLength={120}/></div><div><label htmlFor="category-name-kn">Kannada (ಕನ್ನಡ)</label><input className="modal-input" id="category-name-kn" value={categoryNameKn} onChange={event=>setCategoryNameKn(event.target.value)} placeholder="ಸ್ಟಾರ್ಟರ್ಸ್" maxLength={120}/></div></div><label htmlFor="category-station" className="restaurant-field-label">Kitchen station (optional)</label><input className="modal-input" id="category-station" value={categoryStation} onChange={event => setCategoryStation(event.target.value)} placeholder="e.g. Grill" maxLength={80}/><div className="modal-actions"><button className="button secondary" onClick={() => setShowCategory(false)}>Cancel</button><button className="button primary" onClick={() => void saveCategory()} disabled={busy || !categoryName.trim()}><Save size={14}/>Save category</button></div></div></div>}
-    {showItem && <div className="modal-backdrop" role="presentation"><div className="modal restaurant-editor" role="dialog" aria-modal="true" aria-labelledby="item-modal-title"><div className="modal-top"><div><span className="eyebrow">MENU ITEM</span><h2 id="item-modal-title">{editing ? 'Edit food item' : 'Add food item'}</h2></div><button className="icon-button" onClick={() => setShowItem(false)} aria-label="Close"><X size={18}/></button></div><p className="modal-desc">Set the item details and selling price in Indian rupees.</p><label htmlFor="item-name">Food name · English (required)</label><input className="modal-input" id="item-name" value={itemName} onChange={event => setItemName(event.target.value)} placeholder="e.g. Masala dosa" maxLength={120}/><div className="restaurant-form-grid"><div><label htmlFor="item-name-hi">Hindi (हिन्दी)</label><input className="modal-input" id="item-name-hi" value={itemNameHi} onChange={event=>setItemNameHi(event.target.value)} placeholder="मसाला डोसा" maxLength={120}/></div><div><label htmlFor="item-name-kn">Kannada (ಕನ್ನಡ)</label><input className="modal-input" id="item-name-kn" value={itemNameKn} onChange={event=>setItemNameKn(event.target.value)} placeholder="ಮಸಾಲೆ ದೋಸೆ" maxLength={120}/></div></div><label htmlFor="item-category" className="restaurant-field-label">Category</label><select className="modal-input" id="item-category" value={itemCategory} onChange={event => setItemCategory(event.target.value)}>{menu.categories.filter(c => c.active).map(category => <option key={category.id} value={category.id}>{categoryLabel(category)}</option>)}</select><div className="restaurant-form-grid"><div><label htmlFor="item-price">Price (₹)</label><input className="modal-input" id="item-price" type="number" min="0" step="0.01" value={itemPrice} onChange={event => setItemPrice(event.target.value)} placeholder="0.00"/></div><div><label htmlFor="item-prep">Prep time (min)</label><input className="modal-input" id="item-prep" type="number" min="0" max="1440" step="1" value={itemPrep} onChange={event => setItemPrep(event.target.value)}/></div></div><label htmlFor="item-hsn-sac">HSN / SAC code (4, 6 or 8 digits)</label><input className="modal-input" id="item-hsn-sac" inputMode="numeric" maxLength={8} value={itemHsnSac} onChange={event=>setItemHsnSac(event.target.value.replace(/[^0-9]/g,''))} placeholder="e.g. 996331"/><div className="restaurant-stock-control"><label><input type="checkbox" checked={stockTracking} onChange={event=>setStockTracking(event.target.checked)}/> Track stock quantity</label>{stockTracking && <div><label htmlFor="item-stock">Available quantity</label><input className="modal-input" id="item-stock" type="number" min="0" step="0.01" value={stockQuantity} onChange={event=>setStockQuantity(event.target.value)} placeholder="e.g. 25"/></div>}</div><label htmlFor="item-type" className="restaurant-field-label">Food type</label><select className="modal-input" id="item-type" value={itemType} onChange={event => setItemType(event.target.value as 'veg'|'non_veg'|'egg')}><option value="veg">Vegetarian</option><option value="non_veg">Non-vegetarian</option><option value="egg">Contains egg</option></select><div className="modal-actions"><button className="button secondary" onClick={() => setShowItem(false)}>Cancel</button><button className="button primary" onClick={() => void saveItem()} disabled={busy}><Save size={14}/>Save item</button></div></div></div>}
+    {showItem && <div className="modal-backdrop" role="presentation"><div className="modal restaurant-editor" role="dialog" aria-modal="true" aria-labelledby="item-modal-title"><div className="modal-top"><div><span className="eyebrow">MENU ITEM</span><h2 id="item-modal-title">{editing ? 'Edit food item' : 'Add food item'}</h2></div><button className="icon-button" onClick={() => setShowItem(false)} aria-label="Close"><X size={18}/></button></div><p className="modal-desc">Set the item details and selling price in Indian rupees.</p>{modalError && <div className="restaurant-menu-modal-alert" role="alert"><AlertCircle size={15}/><span>{modalError}</span><button type="button" onClick={() => setModalError('')} aria-label="Dismiss"><X size={14}/></button></div>}<label htmlFor="item-name">Food name · English (required)</label><input className="modal-input" id="item-name" value={itemName} onChange={event => setItemName(event.target.value)} placeholder="e.g. Masala dosa" maxLength={120}/><div className="restaurant-form-grid"><div><label htmlFor="item-name-hi">Hindi (हिन्दी) <button type="button" className="translate-inline" onClick={() => void translateItem('hi')} disabled={translating || !itemName.trim()}>{translating ? 'Translating…' : 'Auto translate'}</button></label><input className="modal-input" id="item-name-hi" value={itemNameHi} onChange={event=>setItemNameHi(event.target.value)} placeholder="मसाला डोसा" maxLength={120}/></div><div><label htmlFor="item-name-kn">Kannada (ಕನ್ನಡ) <button type="button" className="translate-inline" onClick={() => void translateItem('kn')} disabled={translating || !itemName.trim()}>{translating ? 'Translating…' : 'Auto translate'}</button></label><input className="modal-input" id="item-name-kn" value={itemNameKn} onChange={event=>setItemNameKn(event.target.value)} placeholder="ಮಸಾಲೆ ದೋಸೆ" maxLength={120}/></div></div><label htmlFor="item-category" className="restaurant-field-label">Category</label><select className="modal-input" id="item-category" value={itemCategory} onChange={event => setItemCategory(event.target.value)}>{menu.categories.filter(c => c.active).map(category => <option key={category.id} value={category.id}>{categoryLabel(category)}</option>)}</select><div className="restaurant-form-grid"><div><label htmlFor="item-price">Price (₹)</label><input className="modal-input" id="item-price" type="number" min="0" step="0.01" value={itemPrice} onChange={event => setItemPrice(event.target.value)} placeholder="0.00"/></div><div><label htmlFor="item-prep">Prep time (min)</label><input className="modal-input" id="item-prep" type="number" min="0" max="1440" step="1" value={itemPrep} onChange={event => setItemPrep(event.target.value)}/></div></div><label htmlFor="item-hsn-sac">HSN / SAC code (4, 6 or 8 digits)</label><input className="modal-input" id="item-hsn-sac" inputMode="numeric" maxLength={8} value={itemHsnSac} onChange={event=>setItemHsnSac(event.target.value.replace(/[^0-9]/g,''))} placeholder="e.g. 996331"/><div className="restaurant-stock-control"><label><input type="checkbox" checked={stockTracking} onChange={event=>setStockTracking(event.target.checked)}/> Track stock quantity</label>{stockTracking && <div><label htmlFor="item-stock">Available quantity</label><input className="modal-input" id="item-stock" type="number" min="0" step="0.01" value={stockQuantity} onChange={event=>setStockQuantity(event.target.value)} placeholder="e.g. 25"/></div>}</div><label htmlFor="item-type" className="restaurant-field-label">Food type</label><select className="modal-input" id="item-type" value={itemType} onChange={event => setItemType(event.target.value as 'veg'|'non_veg'|'egg')}><option value="veg">Vegetarian</option><option value="non_veg">Non-vegetarian</option><option value="egg">Contains egg</option></select><div className="modal-actions"><button className="button secondary" onClick={() => setShowItem(false)}>Cancel</button><button className="button primary" onClick={() => void saveItem()} disabled={busy}><Save size={14}/>Save item</button></div></div></div>}
   </section>
 }
