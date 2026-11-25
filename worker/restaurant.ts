@@ -158,7 +158,26 @@ async function handleGuestMenu(env: Env, tenantId: string, token: string): Promi
     const variants = menu.variants.filter(row => Boolean(row.active) && itemIds.has(String(row.item_id)))
     const addons = menu.addons.filter(row => Boolean(row.active) && groupIds.has(String(row.group_id)))
     const item_addon_groups = menu.item_addon_groups.filter(row => itemIds.has(String(row.item_id)) && groupIds.has(String(row.group_id)))
-    return json(200, { table, session: session ?? null, ...menu, categories, items, variants, addon_groups, addons, item_addon_groups })
+    // The guest app renders items nested under each category. Build that public
+    // menu shape here so a valid table QR never opens an empty category list.
+    const guestCategories = categories.map(category => ({
+      ...category,
+      items: items.filter(item => String(item.category_id) === String(category.id)).map(item => ({
+        ...item,
+        variants: variants.filter(variant => String(variant.item_id) === String(item.id)),
+        addon_groups: item_addon_groups
+          .filter(link => String(link.item_id) === String(item.id))
+          .map(link => {
+            const group = addon_groups.find(candidate => String(candidate.id) === String(link.group_id))
+            return group ? {
+              ...group,
+              addons: addons.filter(addon => String(addon.group_id) === String(group.id)),
+            } : null
+          })
+          .filter(Boolean),
+      })),
+    }))
+    return json(200, { table, session: session ?? null, restaurant: menu.restaurant, categories: guestCategories })
   } catch { return json(500, { error: 'restaurant_menu_unavailable' }) }
 }
 
