@@ -8,6 +8,7 @@ import { handleAdminSubscriptions } from './admin-subscriptions.ts'
 import { handleAdminMonitoring } from './admin-monitoring.ts'
 import { handleRestaurantRoutes } from './restaurant.ts'
 import { handleOwnerRestaurants } from './owner-portal.ts'
+import { handleDemoProvision } from './demo.ts'
 import type { Env, Identity } from './types.ts'
 import { validateReleaseManifest } from './release-manifest.ts'
 
@@ -48,6 +49,8 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 401
     return json(status, { error: status === 503 ? 'admin_auth_not_configured' : status === 403 ? 'forbidden' : 'unauthorized' })
   }
+
+  if (path === '/admin/demo-restaurant/provision') return handleDemoProvision(request, env)
 
   if (path === '/admin/session' && request.method === 'GET') {
     return json(200, { authenticated: true, admin })
