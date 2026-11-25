@@ -60,11 +60,16 @@ export async function handleOwnerStaff(request: Request, env: Env, path: string)
     : typeof body.tenant_id === 'string' ? body.tenant_id : ''
   if (!UUID.test(tenantId)) return json(400, { error: 'invalid_tenant_id' })
 
+  const demoTenant = env.DEMO_DB
+    ? await env.DEMO_DB.prepare("SELECT id FROM tenants WHERE id=? AND slug='platform-demo-restaurant'").bind(tenantId).first()
+    : null
+  const dataEnv: Env = demoTenant ? { ...env, DB: env.DEMO_DB! } : env
+
   try {
-    await requireOwner(env, identity, tenantId)
+    await requireOwner(dataEnv, identity, tenantId)
     if (request.method === 'GET') {
       if (staffId) return json(404, { error: 'staff_not_found' })
-      const result = await env.DB.prepare(
+      const result = await dataEnv.DB.prepare(
         `SELECT rs.id AS staff_id,rs.user_id,rs.username,rs.display_name,rs.role,rs.active,rs.created_at,rs.last_login_at,
           c.login_id
          FROM restaurant_staff rs
@@ -86,24 +91,27 @@ export async function handleOwnerStaff(request: Request, env: Env, path: string)
           password.length < 12 || password.length > 256 || !STAFF_ROLES.has(role)) {
         return json(400, { error: 'invalid_staff_account' })
       }
-      const exists = await env.DB.prepare(
+      const exists = await dataEnv.DB.prepare(
         'SELECT 1 AS found FROM platform_user_credentials WHERE login_id_normalized=? LIMIT 1',
       ).bind(loginId.toLowerCase()).first()
-      if (exists) return json(409, { error: 'login_id_unavailable' })
+      const primaryExists = dataEnv.DB === env.DB ? null : await env.DB.prepare(
+        'SELECT 1 AS found FROM platform_user_credentials WHERE login_id_normalized=? LIMIT 1',
+      ).bind(loginId.toLowerCase()).first()
+      if (exists || primaryExists) return json(409, { error: 'login_id_unavailable' })
 
       const userId = crypto.randomUUID()
       const passwordHash = await hashPassword(password)
       try {
-        const results = await env.DB.batch([
-          env.DB.prepare("INSERT INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)")
+        const results = await dataEnv.DB.batch([
+          dataEnv.DB.prepare("INSERT INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)")
             .bind(userId, userId),
-          env.DB.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) VALUES(?,?,?,?)')
+          dataEnv.DB.prepare('INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash) VALUES(?,?,?,?)')
             .bind(userId, loginId, loginId.toLowerCase(), passwordHash),
-          env.DB.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'staff','active')")
+          dataEnv.DB.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'staff','active')")
             .bind(tenantId, userId),
-          env.DB.prepare('INSERT INTO restaurant_staff(tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,1) RETURNING id')
+          dataEnv.DB.prepare('INSERT INTO restaurant_staff(tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,1) RETURNING id')
             .bind(tenantId, userId, loginId.toLowerCase(), displayName, role),
-          env.DB.prepare(
+          dataEnv.DB.prepare(
             "INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) VALUES(?,?,'owner.staff.created','tenant',?,?)",
           ).bind(identity.issuer, identity.subject, tenantId, JSON.stringify({ staff_user_id: userId, login_id: loginId, role })),
         ])
@@ -123,17 +131,17 @@ export async function handleOwnerStaff(request: Request, env: Env, path: string)
     if (request.method === 'POST' && staffId && passwordRoute) {
       const password = typeof body.password === 'string' ? body.password : ''
       if (password.length < 12 || password.length > 256) return json(400, { error: 'invalid_password' })
-      const staff = await env.DB.prepare(
+      const staff = await dataEnv.DB.prepare(
         'SELECT user_id FROM restaurant_staff WHERE tenant_id=? AND id=? AND user_id IS NOT NULL',
       ).bind(tenantId, staffId).first<{ user_id: string }>()
       if (!staff) return json(404, { error: 'staff_not_found' })
       const passwordHash = await hashPassword(password)
-      await env.DB.batch([
-        env.DB.prepare('UPDATE platform_user_credentials SET password_hash=?,password_changed_at=?,updated_at=? WHERE user_id=?')
+      await dataEnv.DB.batch([
+        dataEnv.DB.prepare('UPDATE platform_user_credentials SET password_hash=?,password_changed_at=?,updated_at=? WHERE user_id=?')
           .bind(passwordHash, new Date().toISOString(), new Date().toISOString(), staff.user_id),
-        env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL')
+        dataEnv.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL')
           .bind(new Date().toISOString(), staff.user_id),
-        env.DB.prepare(
+        dataEnv.DB.prepare(
           "INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) VALUES(?,?,'owner.staff.password_reset','tenant',?,?)",
         ).bind(identity.issuer, identity.subject, tenantId, JSON.stringify({ staff_user_id: staff.user_id })),
       ])
@@ -148,7 +156,7 @@ export async function handleOwnerStaff(request: Request, env: Env, path: string)
       if (role !== undefined && (typeof role !== 'string' || !STAFF_ROLES.has(role))) return json(400, { error: 'invalid_staff_role' })
       if (active !== undefined && typeof active !== 'boolean') return json(400, { error: 'invalid_staff_status' })
       if (displayName === undefined && role === undefined && active === undefined) return json(400, { error: 'empty_staff_update' })
-      const staff = await env.DB.prepare(
+      const staff = await dataEnv.DB.prepare(
         'SELECT user_id FROM restaurant_staff WHERE tenant_id=? AND id=? AND user_id IS NOT NULL',
       ).bind(tenantId, staffId).first<{ user_id: string }>()
       if (!staff) return json(404, { error: 'staff_not_found' })
@@ -160,19 +168,19 @@ export async function handleOwnerStaff(request: Request, env: Env, path: string)
       values.push(tenantId, staffId)
       const now = new Date().toISOString()
       const statements = [
-        env.DB.prepare(`UPDATE restaurant_staff SET ${assignments.join(',')} WHERE tenant_id=? AND id=?`).bind(...values),
+        dataEnv.DB.prepare(`UPDATE restaurant_staff SET ${assignments.join(',')} WHERE tenant_id=? AND id=?`).bind(...values),
         ...(active === undefined ? [] : [
-          env.DB.prepare('UPDATE tenant_memberships SET status=? WHERE tenant_id=? AND user_id=? AND role=\'staff\'')
+          dataEnv.DB.prepare('UPDATE tenant_memberships SET status=? WHERE tenant_id=? AND user_id=? AND role=\'staff\'')
             .bind(active ? 'active' : 'suspended', tenantId, staff.user_id),
         ]),
         ...(active === false ? [
-          env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL').bind(now, staff.user_id),
+          dataEnv.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL').bind(now, staff.user_id),
         ] : []),
-        env.DB.prepare(
+        dataEnv.DB.prepare(
           "INSERT INTO platform_audit_events(actor_issuer,actor_subject,action,resource_type,resource_id,metadata) VALUES(?,?,'owner.staff.updated','tenant',?,?)",
         ).bind(identity.issuer, identity.subject, tenantId, JSON.stringify({ staff_user_id: staff.user_id, display_name: displayName, role, active })),
       ]
-      await env.DB.batch(statements)
+      await dataEnv.DB.batch(statements)
       return json(200, { updated: true, sessions_revoked: active === false })
     }
 
