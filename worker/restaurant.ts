@@ -231,8 +231,19 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
        LEFT JOIN restaurant_table_sessions s ON s.tenant_id=t.tenant_id AND s.table_id=t.id AND s.status='open'
        WHERE t.tenant_id=?
        ORDER BY t.table_type,t.table_number IS NULL,t.table_number,t.label`,
-    ).bind(actor.tenantId).all()
-    return json(200, { tables: result.results.map(row => ({ ...row, active: Boolean(row.active) })) })
+    ).bind(actor.tenantId).all<Record<string, unknown>>()
+    const tenant = await env.DB.prepare('SELECT slug FROM tenants WHERE id=?').bind(actor.tenantId).first<{ slug: string }>()
+    let demoTokens: Record<string, string> = {}
+    if (tenant?.slug === 'platform-demo-restaurant') {
+      const saved = await env.DB.prepare("SELECT setting_value FROM restaurant_settings WHERE tenant_id=? AND setting_key='demo_qr_tokens'")
+        .bind(actor.tenantId).first<{ setting_value: string }>()
+      try { demoTokens = JSON.parse(saved?.setting_value || '{}') as Record<string, string> } catch { demoTokens = {} }
+    }
+    return json(200, { tables: result.results.map(row => ({
+      ...row,
+      active: Boolean(row.active),
+      qr_url: typeof demoTokens[String(row.id)] === 'string' ? '/r/' + tenant?.slug + '/' + demoTokens[String(row.id)] : null,
+    })) })
   }
 
   if (parts.length === 3 && request.method === 'POST') {
