@@ -155,9 +155,9 @@ async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, coo
     FROM restaurant_tables WHERE tenant_id=? AND table_number=10`)
     .bind(tenantId, liveSession, tenantId).run()
   await db.prepare(`
-    INSERT INTO restaurant_activity_events(tenant_id,actor_staff_id,severity,action,detail)
-    VALUES(?,?,'info','demo.history.seeded','{"orders":1095,"days":365,"payments":"simulated","live_order":true}')
-  `).bind(tenantId, ownerId).run()
+    INSERT OR IGNORE INTO restaurant_activity_events(id,tenant_id,actor_staff_id,severity,action,detail)
+    VALUES('demo-history-seeded-'||?, ?,?,'info','demo.history.seeded','{"orders":1095,"days":365,"payments":"simulated","live_order":true}')
+  `).bind(tenantId, tenantId, ownerId).run()
 }
 
 export async function handleDemoProvision(request: Request, env: Env): Promise<Response> {
@@ -269,9 +269,9 @@ export async function handleDemoProvision(request: Request, env: Env): Promise<R
     const menuItem = await db.prepare("SELECT id,category_id FROM restaurant_menu_items WHERE tenant_id=? ORDER BY sort_order LIMIT 1")
       .bind(tenantId).first<{ id: string; category_id: string }>()
     if (!menuItem) throw new Error('demo_menu_seed_failed')
-    const hasHistory = await db.prepare("SELECT 1 AS ready FROM restaurant_orders WHERE tenant_id=? AND id='demo-order-1-1'")
-      .bind(tenantId).first()
-    if (!hasHistory) await seedHistory(db, tenantId, ownerId, cookId, waiterId, menuItem.id, menuItem.category_id)
+    // Every statement in seedHistory is idempotent, so a retry repairs a
+    // partially completed first-time seed instead of leaving an incomplete demo.
+    await seedHistory(db, tenantId, ownerId, cookId, waiterId, menuItem.id, menuItem.category_id)
 
     await db.prepare(`
       INSERT INTO restaurant_activity_events(tenant_id,actor_staff_id,severity,action,detail)
