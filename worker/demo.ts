@@ -253,9 +253,8 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
       const qr = await stableToken('platform-core-demo-qr-' + n)
       const hash = await digest(qr)
       const label = 'Table ' + n
-      await db.prepare(`INSERT INTO restaurant_tables(tenant_id,table_number,label,table_type,public_token_hash)
-        VALUES(?,?,?,'dine_in',?)
-        ON CONFLICT(tenant_id,table_number) DO UPDATE SET label=excluded.label,public_token_hash=excluded.public_token_hash,active=1`)
+      await db.prepare(`INSERT OR IGNORE INTO restaurant_tables(tenant_id,table_number,label,table_type,public_token_hash)
+        VALUES(?,?,?,'dine_in',?)`)
         .bind(tenantId, n, label, hash).run()
       const row = await db.prepare('SELECT id FROM restaurant_tables WHERE tenant_id=? AND table_number=?')
         .bind(tenantId, n).first<{ id: string }>()
