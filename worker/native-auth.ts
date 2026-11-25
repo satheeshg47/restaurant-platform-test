@@ -143,9 +143,12 @@ async function identityForToken(env: Env, token: string): Promise<Identity | nul
 
 export async function authenticateNativeSession(request: Request, env: Env): Promise<Identity | null> {
   const cookie = readCookie(request, 'platformcore_session')
-  if (cookie) return identityForToken(env, cookie)
   const bearer = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.get('Authorization') || '')
-  return bearer ? identityForToken(env, bearer[1]) : null
+  const token = cookie || bearer?.[1]
+  if (!token) return null
+  const primary = await identityForToken(env, token)
+  if (primary) return primary
+  return env.DEMO_DB ? identityForToken({ ...env, DB: env.DEMO_DB }, token) : null
 }
 
 async function verifyChallenge(env: Env, token: string, purpose: 'login_totp' | 'totp_enrollment') {
@@ -220,7 +223,8 @@ async function login(request: Request, env: Env): Promise<Response> {
   if (!loginId || loginId.length > 64 || password.length > 256) return json(401, { error: 'invalid_credentials' })
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
   if (!await consumeRateLimit(env, `login:${loginId.toLowerCase()}:${ip}`)) return json(429, { error: 'too_many_attempts' })
-  const user = await env.DB.prepare(
+  let authEnv = env
+  let user = await env.DB.prepare(
     `SELECT pu.id,pu.email,c.login_id,c.password_hash,c.credential_status,c.totp_secret_ciphertext,c.totp_enabled,
        EXISTS(SELECT 1 FROM platform_admin_accounts aa WHERE aa.user_id=pu.id AND aa.status='active') AS is_admin,
        EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner,
@@ -228,6 +232,17 @@ async function login(request: Request, env: Env): Promise<Response> {
      FROM platform_user_credentials c JOIN platform_users pu ON pu.id=c.user_id
      WHERE c.login_id_normalized=? LIMIT 1`,
   ).bind(loginId.toLowerCase()).first<UserAuthRow>()
+  if (!user && env.DEMO_DB) {
+    authEnv = { ...env, DB: env.DEMO_DB }
+    user = await authEnv.DB.prepare(
+      `SELECT pu.id,pu.email,c.login_id,c.password_hash,c.credential_status,c.totp_secret_ciphertext,c.totp_enabled,
+         EXISTS(SELECT 1 FROM platform_admin_accounts aa WHERE aa.user_id=pu.id AND aa.status='active') AS is_admin,
+         EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner,
+         EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active') AS is_member_active
+       FROM platform_user_credentials c JOIN platform_users pu ON pu.id=c.user_id
+       WHERE c.login_id_normalized=? LIMIT 1`,
+    ).bind(loginId.toLowerCase()).first<UserAuthRow>()
+  }
   const dummyHash = 'pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
   const valid = await verifyPassword(password, user && user.credential_status === 'active' ? user.password_hash : dummyHash)
   if (!user || user.credential_status !== 'active' || !valid || (!Number(user.is_admin) && !Number(user.is_owner) && !Number(user.is_member_active))) return json(401, { error: 'invalid_credentials' })
@@ -242,15 +257,15 @@ async function login(request: Request, env: Env): Promise<Response> {
       if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
       const secret = createTotpSecret()
       const ciphertext = await encryptTotpSecret(secret, env.AUTH_ENCRYPTION_KEY)
-      await env.DB.prepare('UPDATE platform_user_credentials SET totp_secret_ciphertext=?,updated_at=? WHERE user_id=?')
+      await authEnv.DB.prepare('UPDATE platform_user_credentials SET totp_secret_ciphertext=?,updated_at=? WHERE user_id=?')
         .bind(ciphertext, new Date().toISOString(), user.id).run()
-      const challenge = await createChallenge(env, user.id, 'totp_enrollment')
+      const challenge = await createChallenge(authEnv, user.id, 'totp_enrollment')
       return json(200, { totp_enrollment_required: true, challenge_token: challenge, provisioning_uri: totpProvisioningUri(secret, user.login_id), issuer: 'Platform Core' })
     }
-    const challenge = await createChallenge(env, user.id, 'login_totp')
+    const challenge = await createChallenge(authEnv, user.id, 'login_totp')
     return json(200, { mfa_required: true, challenge_token: challenge })
   }
-  return completeLogin(env, user.id, request)
+  return completeLogin(authEnv, user.id, request)
 }
 
 async function verifyMfa(request: Request, env: Env, enrollment: boolean): Promise<Response> {
