@@ -50,7 +50,7 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
     return json(status, { error: status === 503 ? 'admin_auth_not_configured' : status === 403 ? 'forbidden' : 'unauthorized' })
   }
 
-  if (path === '/admin/demo-restaurant/provision') return handleDemoProvision(request, env)
+  if (path === '/admin/demo-restaurant/provision') return handleDemoProvision(request, env, admin)
 
   if (path === '/admin/session' && request.method === 'GET') {
     return json(200, { authenticated: true, admin })
