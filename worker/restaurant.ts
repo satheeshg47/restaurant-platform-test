@@ -177,7 +177,7 @@ async function handleGuestMenu(env: Env, tenantId: string, token: string): Promi
           .filter(Boolean),
       })),
     }))
-    return json(200, { table, session: session ?? null, restaurant: menu.restaurant, categories: guestCategories })
+    return json(200, { table, session: session ?? null, ...menu, categories: guestCategories, items, variants, addon_groups, addons, item_addon_groups })
   } catch { return json(500, { error: 'restaurant_menu_unavailable' }) }
 }
 
