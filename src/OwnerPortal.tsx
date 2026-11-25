@@ -112,7 +112,7 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
       {activeTool === 'settings' && <RestaurantSettings initialSlug={selectedSlug}/>}
       {activeTool === 'reports' && <RestaurantReports initialSlug={selectedSlug}/>}
       {activeTool === 'reviews' && <RestaurantReviews initialSlug={selectedSlug}/>}
-      {activeTool === 'staff' && <OwnerStaff tenantId={selectedRestaurant.tenant_id} apiBaseUrl={apiBaseUrl}/>} 
+      {activeTool === 'staff' && <OwnerStaff tenantId={selectedRestaurant.tenant_id} apiBaseUrl={apiBaseUrl} demoMode={selectedSlug === 'platform-demo-restaurant'}/>} 
     </section>}
     <OwnerCommunications accessToken={accessToken} apiBaseUrl={apiBaseUrl}/>
   </div>
