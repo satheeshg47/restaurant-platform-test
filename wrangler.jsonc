@@ -17,6 +17,12 @@
       "database_name": "restaurant-platform",
       "database_id": "ed0a6041-9235-495d-8106-a6c642a41c2c",
       "migrations_dir": "database/d1/migrations"
+    },
+    {
+      "binding": "DEMO_DB",
+      "database_name": "restaurant-platform-preview",
+      "database_id": "98846bad-cd3e-4770-8bee-2076774885e6",
+      "migrations_dir": "database/d1/migrations"
     }
   ],
   "vars": {
@@ -36,6 +42,12 @@
     "d1_databases": [
       {
         "binding": "DB",
+        "database_name": "restaurant-platform-preview",
+        "database_id": "98846bad-cd3e-4770-8bee-2076774885e6",
+        "migrations_dir": "database/d1/migrations"
+      },
+      {
+        "binding": "DEMO_DB",
         "database_name": "restaurant-platform-preview",
         "database_id": "98846bad-cd3e-4770-8bee-2076774885e6",
         "migrations_dir": "database/d1/migrations"
