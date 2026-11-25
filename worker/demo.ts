@@ -216,11 +216,17 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
         .bind(ownerId, tenantId, userId, ownerUsername, 'Demo Owner'),
       db.prepare("INSERT OR IGNORE INTO restaurant_tenant_controls(tenant_id) VALUES(?)").bind(tenantId),
       db.prepare("INSERT OR IGNORE INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) VALUES(?,?,?,1,'kitchen')")
-        .bind('demo-category-south-'+tenantId, tenantId, JSON.stringify({ en: 'South Indian', kn: 'ದಕ್ಷಿಣ ಭಾರತೀಯ' })),
+        .bind('demo-category-south-'+tenantId, tenantId, JSON.stringify({ en: 'South Indian', hi: 'दक्षिण भारतीय', kn: 'ದಕ್ಷಿಣ ಭಾರತೀಯ' })),
       db.prepare("INSERT OR IGNORE INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) VALUES(?,?,?,2,'kitchen')")
-        .bind('demo-category-north-'+tenantId, tenantId, JSON.stringify({ en: 'North Indian', kn: 'ಉತ್ತರ ಭಾರತೀಯ' })),
+        .bind('demo-category-north-'+tenantId, tenantId, JSON.stringify({ en: 'North Indian', hi: 'उत्तर भारतीय', kn: 'ಉತ್ತರ ಭಾರತೀಯ' })),
       db.prepare("INSERT OR IGNORE INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) VALUES(?,?,?,3,'beverage')")
-        .bind('demo-category-drinks-'+tenantId, tenantId, JSON.stringify({ en: 'Beverages', kn: 'ಪಾನೀಯಗಳು' })),
+        .bind('demo-category-drinks-'+tenantId, tenantId, JSON.stringify({ en: 'Beverages', hi: 'पेय पदार्थ', kn: 'ಪಾನೀಯಗಳು' })),
+      db.prepare("UPDATE restaurant_menu_categories SET name=json_set(name,'$.hi',COALESCE(json_extract(name,'$.hi'),?),'$.kn',COALESCE(json_extract(name,'$.kn'),?)) WHERE tenant_id=? AND id=?")
+        .bind('दक्षिण भारतीय','ದಕ್ಷಿಣ ಭಾರತೀಯ',tenantId,'demo-category-south-'+tenantId),
+      db.prepare("UPDATE restaurant_menu_categories SET name=json_set(name,'$.hi',COALESCE(json_extract(name,'$.hi'),?),'$.kn',COALESCE(json_extract(name,'$.kn'),?)) WHERE tenant_id=? AND id=?")
+        .bind('उत्तर भारतीय','ಉತ್ತರ ಭಾರತೀಯ',tenantId,'demo-category-north-'+tenantId),
+      db.prepare("UPDATE restaurant_menu_categories SET name=json_set(name,'$.hi',COALESCE(json_extract(name,'$.hi'),?),'$.kn',COALESCE(json_extract(name,'$.kn'),?)) WHERE tenant_id=? AND id=?")
+        .bind('पेय पदार्थ','ಪಾನೀಯಗಳು',tenantId,'demo-category-drinks-'+tenantId),
     ])
 
     const south = 'demo-category-south-' + tenantId
@@ -228,19 +234,21 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
     const drinks = 'demo-category-drinks-' + tenantId
 
     const menu = [
-      ['Masala Dosa', south, 8500, 'veg', 12], ['Idli Vada', south, 6500, 'veg', 8],
-      ['Bisi Bele Bath', south, 9500, 'veg', 15], ['Paneer Butter Masala', north, 18500, 'veg', 18],
-      ['Butter Naan', north, 4500, 'veg', 5], ['Chicken Biryani', north, 19500, 'non_veg', 22],
-      ['Filter Coffee', drinks, 3500, 'veg', 4], ['Fresh Lime Soda', drinks, 5500, 'veg', 3],
-      ['Mango Lassi', drinks, 6500, 'veg', 4],
+      ['Masala Dosa', south, 8500, 'veg', 12, 'मसाला डोसा', 'ಮಸಾಲೆ ದೋಸೆ'], ['Idli Vada', south, 6500, 'veg', 8, 'इडली वड़ा', 'ಇಡ್ಲಿ ವಡೆ'],
+      ['Bisi Bele Bath', south, 9500, 'veg', 15, 'बिसी बेले भात', 'ಬಿಸಿಬೇಳೆ ಬಾತ್'], ['Paneer Butter Masala', north, 18500, 'veg', 18, 'पनीर बटर मसाला', 'ಪನೀರ್ ಬಟರ್ ಮಸಾಲಾ'],
+      ['Butter Naan', north, 4500, 'veg', 5, 'बटर नान', 'ಬೆಣ್ಣೆ ನಾನ್'], ['Chicken Biryani', north, 19500, 'non_veg', 22, 'चिकन बिरयानी', 'ಚಿಕನ್ ಬಿರಿಯಾನಿ'],
+      ['Filter Coffee', drinks, 3500, 'veg', 4, 'फ़िल्टर कॉफ़ी', 'ಫಿಲ್ಟರ್ ಕಾಫಿ'], ['Fresh Lime Soda', drinks, 5500, 'veg', 3, 'फ्रेश लाइम सोडा', 'ತಾಜಾ ನಿಂಬೆ ಸೋಡಾ'],
+      ['Mango Lassi', drinks, 6500, 'veg', 4, 'आम की लस्सी', 'ಮಾವಿನ ಲಸ್ಸಿ'],
     ] as const
     for (let i = 0; i < menu.length; i++) {
-      const [name, categoryId, price, foodType, prep] = menu[i]
+      const [name, categoryId, price, foodType, prep, hindi, kannada] = menu[i]
       await db.prepare(`INSERT OR IGNORE INTO restaurant_menu_items
         (id,tenant_id,category_id,name,description,base_price_minor,food_type,prep_minutes,sort_order)
         VALUES(?,?,?,?,?,?,?,?,?)`)
-        .bind('demo-menu-item-'+(i+1)+'-'+tenantId, tenantId, categoryId, JSON.stringify({ en: name }),
+        .bind('demo-menu-item-'+(i+1)+'-'+tenantId, tenantId, categoryId, JSON.stringify({ en: name, hi: hindi, kn: kannada }),
           JSON.stringify({ en: 'Freshly prepared demo menu item' }), price, foodType, prep, i + 1).run()
+      await db.prepare("UPDATE restaurant_menu_items SET name=json_set(name,'$.hi',COALESCE(json_extract(name,'$.hi'),?),'$.kn',COALESCE(json_extract(name,'$.kn'),?)) WHERE tenant_id=? AND id=?")
+        .bind(hindi,kannada,tenantId,'demo-menu-item-'+(i+1)+'-'+tenantId).run()
     }
 
     const cookId = await ensureDemoStaffAccount(db, tenantId, 'cook', 'demo.cook', 'Demo Cook', 'DemoCook#2026!')

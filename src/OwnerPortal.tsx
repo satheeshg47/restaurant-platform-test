@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Building2, CheckCircle2, LogOut, RefreshCw, Store } from 'lucide-react'
+import { AlertCircle, BarChart3, Building2, CheckCircle2, ChefHat, LogOut, Menu as MenuIcon, QrCode, RefreshCw, Settings, Star, Store, Utensils, Users, X } from 'lucide-react'
 import OwnerCommunications from './OwnerCommunications'
 import { apiFetch } from './auth'
 import RestaurantMenu from './RestaurantMenu'
@@ -26,10 +26,10 @@ type Restaurant = {
 
 type Props = { accessToken: string; apiBaseUrl?: string; onSignOut?: () => void }
 type OwnerTool = 'menu' | 'tables' | 'operations' | 'settings' | 'reports' | 'reviews' | 'staff'
-const ownerTools: { id: OwnerTool; label: string }[] = [
-  { id: 'menu', label: 'Menu' }, { id: 'tables', label: 'Tables & QR' },
-  { id: 'operations', label: 'Kitchen & service' }, { id: 'settings', label: 'Settings' },
-  { id: 'reports', label: 'Reports' }, { id: 'reviews', label: 'Reviews' }, { id: 'staff', label: 'Staff access' },
+const ownerTools: { id: OwnerTool; label: string; icon: typeof Store }[] = [
+  { id: 'menu', label: 'Menu', icon: Utensils }, { id: 'tables', label: 'Tables & QR', icon: QrCode },
+  { id: 'operations', label: 'Kitchen & service', icon: ChefHat }, { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'reports', label: 'Reports', icon: BarChart3 }, { id: 'reviews', label: 'Reviews', icon: Star }, { id: 'staff', label: 'Staff access', icon: Users },
 ]
 
 export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOut }: Props) {
@@ -40,6 +40,7 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
   const [error, setError] = useState('')
   const [selectedSlug, setSelectedSlug] = useState('')
   const [activeTool, setActiveTool] = useState<OwnerTool>('menu')
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const selectedRestaurant = restaurants.find(item => item.tenant_slug === selectedSlug)
 
   const load = useCallback(async () => {
@@ -105,14 +106,23 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
     </section>
     {selectedRestaurant && <section className="owner-workspace">
       <div className="owner-workspace-heading"><div><span className="owner-comms-kicker">RESTAURANT WORKSPACE</span><h2>{selectedRestaurant.display_name || selectedRestaurant.tenant_name}</h2><p>Changes are saved to this restaurant's live workspace.</p></div><button type="button" className="owner-workspace-back" onClick={() => setSelectedSlug('')}>Back to restaurants</button></div>
-      <nav className="owner-workspace-tabs" aria-label="Restaurant tools">{ownerTools.map(tool => <button type="button" key={tool.id} className={activeTool === tool.id ? 'active' : ''} onClick={() => setActiveTool(tool.id)}>{tool.label}</button>)}</nav>
-      {activeTool === 'menu' && <RestaurantMenu initialSlug={selectedSlug}/>}
-      {activeTool === 'tables' && <RestaurantTables initialSlug={selectedSlug}/>}
-      {activeTool === 'operations' && <RestaurantOperations initialSlug={selectedSlug}/>}
-      {activeTool === 'settings' && <RestaurantSettings initialSlug={selectedSlug}/>}
-      {activeTool === 'reports' && <RestaurantReports initialSlug={selectedSlug}/>}
-      {activeTool === 'reviews' && <RestaurantReviews initialSlug={selectedSlug}/>}
-      {activeTool === 'staff' && <OwnerStaff tenantId={selectedRestaurant.tenant_id} apiBaseUrl={apiBaseUrl} demoMode={selectedSlug === 'platform-demo-restaurant'}/>} 
+      <div className="owner-workspace-layout">
+        <button type="button" className="owner-mobile-nav-toggle" onClick={() => setMobileNavOpen(value => !value)} aria-expanded={mobileNavOpen}><MenuIcon size={17}/>{ownerTools.find(tool => tool.id === activeTool)?.label}<span>Navigate</span></button>
+        {mobileNavOpen && <button type="button" className="owner-workspace-scrim" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)}/>} 
+        <aside className={"owner-workspace-sidebar " + (mobileNavOpen ? "open" : "")} aria-label="Restaurant workspace navigation">
+          <div className="owner-workspace-sidebar-title"><span>WORKSPACE MENU</span><button type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close menu"><X size={17}/></button></div>
+          <nav>{ownerTools.map(tool => { const Icon = tool.icon; return <button type="button" key={tool.id} className={activeTool === tool.id ? "active" : ""} onClick={() => { setActiveTool(tool.id); setMobileNavOpen(false) }}><Icon size={17}/><span>{tool.label}</span></button> })}</nav>
+        </aside>
+        <div className="owner-workspace-main">
+          {activeTool === 'menu' && <RestaurantMenu initialSlug={selectedSlug}/>}
+          {activeTool === 'tables' && <RestaurantTables initialSlug={selectedSlug}/>}
+          {activeTool === 'operations' && <RestaurantOperations initialSlug={selectedSlug}/>}
+          {activeTool === 'settings' && <RestaurantSettings initialSlug={selectedSlug}/>}
+          {activeTool === 'reports' && <RestaurantReports initialSlug={selectedSlug}/>}
+          {activeTool === 'reviews' && <RestaurantReviews initialSlug={selectedSlug}/>}
+          {activeTool === 'staff' && <OwnerStaff tenantId={selectedRestaurant.tenant_id} apiBaseUrl={apiBaseUrl} demoMode={selectedSlug === 'platform-demo-restaurant'}/>}
+        </div>
+      </div>
     </section>}
     <OwnerCommunications accessToken={accessToken} apiBaseUrl={apiBaseUrl}/>
   </div>

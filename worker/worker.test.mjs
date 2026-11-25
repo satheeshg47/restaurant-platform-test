@@ -870,6 +870,8 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(guestData.restaurant.display_name, 'Green Leaf Foods')
   assert.equal(guestData.categories.length, 1)
   assert.equal(guestData.items.length, 1)
+  assert.equal(guestData.categories[0].items.length, 1)
+  assert.equal(guestData.categories[0].items[0].id, item.id)
 
   const selectedVariant = db.prepare('SELECT id FROM restaurant_menu_variants WHERE tenant_id=? AND item_id=?').get(tenant.id, item.id)
   const orderPayload = { session_id: session.id, idempotency_key: 'guest-order-test-0001', note: '  No   onions  ', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
