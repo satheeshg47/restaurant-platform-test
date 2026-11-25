@@ -235,12 +235,11 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
     ] as const
     for (let i = 0; i < menu.length; i++) {
       const [name, categoryId, price, foodType, prep] = menu[i]
-      await db.prepare(`INSERT INTO restaurant_menu_items
-        (tenant_id,category_id,name,description,base_price_minor,food_type,prep_minutes,sort_order,active,available)
-        SELECT ?,?,?,?, ?,?,?,?,1,1
-        WHERE NOT EXISTS (SELECT 1 FROM restaurant_menu_items WHERE tenant_id=? AND json_extract(name,'$.en')=?)`)
-        .bind(tenantId, categoryId, JSON.stringify({ en: name }), JSON.stringify({ en: 'Freshly prepared demo menu item' }),
-          price, foodType, prep, i + 1, tenantId, name).run()
+      await db.prepare(`INSERT OR IGNORE INTO restaurant_menu_items
+        (id,tenant_id,category_id,name,description,base_price_minor,food_type,prep_minutes,sort_order)
+        VALUES(?,?,?,?,?,?,?,?,?)`)
+        .bind('demo-menu-item-'+(i+1)+'-'+tenantId, tenantId, categoryId, JSON.stringify({ en: name }),
+          JSON.stringify({ en: 'Freshly prepared demo menu item' }), price, foodType, prep, i + 1).run()
     }
 
     const cookId = await ensureDemoStaffAccount(db, tenantId, 'cook', 'demo.cook', 'Demo Cook', 'DemoCook#2026!')
