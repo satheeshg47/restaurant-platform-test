@@ -43,6 +43,7 @@
     ],
     "vars": {
       "ENVIRONMENT": "preview",
+      "DEMO_OWNER_LOGIN_ID": "demo.owner",
       "OIDC_ISSUER": "https://dev-iamsatheeshgkotegar.us.auth0.com/",
       "OIDC_AUDIENCE": "https://platform-core-api",
       "OIDC_JWKS_URL": "https://dev-iamsatheeshgkotegar.us.auth0.com/.well-known/jwks.json",
