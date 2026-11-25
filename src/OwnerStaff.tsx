@@ -11,7 +11,7 @@ type Staff = {
   active: boolean
   last_login_at: string | null
 }
-type Props = { tenantId: string; apiBaseUrl?: string }
+type Props = { tenantId: string; apiBaseUrl?: string; demoMode?: boolean }
 
 const ROLES = [
   { value: 'manager', label: 'Manager', description: 'Menu, tables, operations, settings and reports' },
@@ -19,7 +19,7 @@ const ROLES = [
   { value: 'waiter', label: 'Waiter', description: 'Service board, tables and order hand-off' },
 ] as const
 
-export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
+export default function OwnerStaff({ tenantId, apiBaseUrl = '/api', demoMode = false }: Props) {
   const base = apiBaseUrl.replace(/\/$/, '')
   const [staff, setStaff] = useState<Staff[]>([])
   const [loading, setLoading] = useState(true)
@@ -138,6 +138,13 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api' }: Props) {
         <button type="button" className="owner-staff-primary" onClick={() => setShowCreate(value => !value)}><Plus size={15}/> Add staff</button>
       </div>
     </div>
+    {demoMode && <div className="owner-staff-created">
+      <b>Demo staff sign-in accounts</b>
+      <p>Open <code>/staff</code> on another device to test role-specific access. These accounts are isolated to this demo restaurant.</p>
+      <code>Cook — demo.cook / DemoCook#2026!</code>
+      <code>Waiter — demo.waiter / DemoWaiter#2026!</code>
+      <code>Manager — demo.manager / DemoManager#2026!</code>
+    </div>}
     {showCreate && <form className="owner-staff-form" onSubmit={createStaff}>
       <h3>Create individual staff login</h3>
       <div className="owner-staff-fields">
