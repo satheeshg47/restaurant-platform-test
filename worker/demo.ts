@@ -78,7 +78,13 @@ async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, coo
     INSERT OR IGNORE INTO restaurant_order_items
       (id,tenant_id,order_id,item_id,category_id,item_name_snapshot,quantity,unit_price_minor,
        addons_price_minor,line_total_minor,status,accepted_by,created_at,preparation_started_at,ready_at,served_at)
-    SELECT 'demo-line-'||o.order_number, o.tenant_id,o.id,?,?,
+    SELECT 'demo-line-'||o.order_number, o.tenant_id,o.id,
+      (SELECT mi.id FROM restaurant_menu_items mi WHERE mi.tenant_id=o.tenant_id AND json_extract(mi.name,'$.en')=
+        CASE (o.order_number%5) WHEN 0 THEN 'Masala Dosa' WHEN 1 THEN 'Idli Vada' WHEN 2 THEN 'Bisi Bele Bath'
+          WHEN 3 THEN 'Paneer Butter Masala' ELSE 'Chicken Biryani' END LIMIT 1),
+      (SELECT mi.category_id FROM restaurant_menu_items mi WHERE mi.tenant_id=o.tenant_id AND json_extract(mi.name,'$.en')=
+        CASE (o.order_number%5) WHEN 0 THEN 'Masala Dosa' WHEN 1 THEN 'Idli Vada' WHEN 2 THEN 'Bisi Bele Bath'
+          WHEN 3 THEN 'Paneer Butter Masala' ELSE 'Chicken Biryani' END LIMIT 1),
       CASE (o.order_number%5)
         WHEN 0 THEN '{"en":"Masala Dosa","kn":"ಮಸಾಲೆ ದೋಸೆ"}'
         WHEN 1 THEN '{"en":"Idli Vada","kn":"ಇಡ್ಲಿ ವಡೆ"}'
@@ -89,7 +95,7 @@ async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, coo
       o.created_at,o.preparation_started_at,o.ready_at,o.served_at
     FROM restaurant_orders o
     WHERE o.tenant_id=? AND o.id LIKE 'demo-order-%'`
-  await db.prepare(itemSql).bind(menuItemId, categoryId, cookId, tenantId).run()
+  await db.prepare(itemSql).bind(cookId, tenantId).run()
 
   const paymentSql = `
     INSERT INTO restaurant_payments(tenant_id,session_id,table_id,amount_minor,method,reference,confirmed_by,paid_at)
