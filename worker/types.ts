@@ -27,6 +27,7 @@ export interface Env {
   AUTH_ENCRYPTION_KEY?: string
   AUTH_BOOTSTRAP_SECRET?: string
   ENVIRONMENT?: string
+  DEMO_OWNER_LOGIN_ID?: string
 }
 
 export interface Identity {
