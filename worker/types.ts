@@ -18,6 +18,7 @@ export interface D1Database {
 
 export interface Env {
   DB: D1Database
+  DEMO_DB?: D1Database
   ASSETS: { fetch(request: Request): Promise<Response> }
   OIDC_ISSUER?: string
   OIDC_AUDIENCE?: string
