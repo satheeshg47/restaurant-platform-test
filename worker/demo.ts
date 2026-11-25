@@ -214,12 +214,12 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
       db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,'demo-owner','Demo Owner','owner',1)")
         .bind(ownerId, tenantId, userId),
       db.prepare("INSERT OR IGNORE INTO restaurant_tenant_controls(tenant_id) VALUES(?)").bind(tenantId),
-      db.prepare("INSERT INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) SELECT ?,?,?,1,'kitchen' WHERE NOT EXISTS (SELECT 1 FROM restaurant_menu_categories WHERE tenant_id=? AND json_extract(name,'$.en')='South Indian')")
-        .bind(crypto.randomUUID(), tenantId, JSON.stringify({ en: 'South Indian', kn: 'ದಕ್ಷಿಣ ಭಾರತೀಯ' }), tenantId),
-      db.prepare("INSERT INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) SELECT ?,?,?,2,'kitchen' WHERE NOT EXISTS (SELECT 1 FROM restaurant_menu_categories WHERE tenant_id=? AND json_extract(name,'$.en')='North Indian')")
-        .bind(crypto.randomUUID(), tenantId, JSON.stringify({ en: 'North Indian', kn: 'ಉತ್ತರ ಭಾರತೀಯ' }), tenantId),
-      db.prepare("INSERT INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) SELECT ?,?,?,3,'beverage' WHERE NOT EXISTS (SELECT 1 FROM restaurant_menu_categories WHERE tenant_id=? AND json_extract(name,'$.en')='Beverages')")
-        .bind(crypto.randomUUID(), tenantId, JSON.stringify({ en: 'Beverages', kn: 'ಪಾನೀಯಗಳು' }), tenantId),
+      db.prepare("INSERT OR IGNORE INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) VALUES(?,?,?,1,'kitchen')")
+        .bind('demo-category-south-'+tenantId, tenantId, JSON.stringify({ en: 'South Indian', kn: 'ದಕ್ಷಿಣ ಭಾರತೀಯ' })),
+      db.prepare("INSERT OR IGNORE INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) VALUES(?,?,?,2,'kitchen')")
+        .bind('demo-category-north-'+tenantId, tenantId, JSON.stringify({ en: 'North Indian', kn: 'ಉತ್ತರ ಭಾರತೀಯ' })),
+      db.prepare("INSERT OR IGNORE INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) VALUES(?,?,?,3,'beverage')")
+        .bind('demo-category-drinks-'+tenantId, tenantId, JSON.stringify({ en: 'Beverages', kn: 'ಪಾನೀಯಗಳು' })),
     ])
 
     const south = 'demo-category-south-' + tenantId
