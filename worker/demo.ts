@@ -195,8 +195,9 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
     const tenantId = existing?.id || crypto.randomUUID()
     const userId = (await db.prepare('SELECT id FROM platform_users WHERE auth_provider=? AND auth_subject=?')
       .bind(admin.issuer, admin.subject).first<{ id: string }>())?.id || crypto.randomUUID()
-    const ownerId = (await db.prepare("SELECT id FROM restaurant_staff WHERE tenant_id=? AND username='demo-owner'")
-      .bind(tenantId).first<{ id: string }>())?.id || crypto.randomUUID()
+    const ownerUsername = 'demo-owner-' + userId.slice(0, 8)
+    const ownerId = (await db.prepare("SELECT id FROM restaurant_staff WHERE tenant_id=? AND username=?")
+      .bind(tenantId, ownerUsername).first<{ id: string }>())?.id || crypto.randomUUID()
 
     await db.batch([
       db.prepare("INSERT OR IGNORE INTO tenants(id,name,slug,status) VALUES(?,? ,?,'active')")
@@ -211,8 +212,8 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
         (tenant_id,display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,tax_inclusive,accepting_orders,city,state_name,state_code,invoice_prefix)
         VALUES(?,'Platform Demo Restaurant','INR','Asia/Kolkata','en','gst',5,5,0,1,'Bengaluru','Karnataka','29','DM')`)
         .bind(tenantId),
-      db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,'demo-owner','Demo Owner','owner',1)")
-        .bind(ownerId, tenantId, userId),
+      db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,'owner',1)")
+        .bind(ownerId, tenantId, userId, ownerUsername, 'Demo Owner'),
       db.prepare("INSERT OR IGNORE INTO restaurant_tenant_controls(tenant_id) VALUES(?)").bind(tenantId),
       db.prepare("INSERT OR IGNORE INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) VALUES(?,?,?,1,'kitchen')")
         .bind('demo-category-south-'+tenantId, tenantId, JSON.stringify({ en: 'South Indian', kn: 'ದಕ್ಷಿಣ ಭಾರತೀಯ' })),
