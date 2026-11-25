@@ -231,7 +231,13 @@ async function login(request: Request, env: Env): Promise<Response> {
   const dummyHash = 'pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
   const valid = await verifyPassword(password, user && user.credential_status === 'active' ? user.password_hash : dummyHash)
   if (!user || user.credential_status !== 'active' || !valid || (!Number(user.is_admin) && !Number(user.is_owner) && !Number(user.is_member_active))) return json(401, { error: 'invalid_credentials' })
-  if (Number(user.is_admin) || Number(user.is_owner)) {
+  // A single, explicitly named preview-only demo owner can sign in without
+  // enrolling an authenticator. Production owners and administrators still
+  // follow the normal MFA enrollment and verification flow.
+  const previewDemoOwner = env.ENVIRONMENT === 'preview' &&
+    Number(user.is_owner) === 1 &&
+    user.login_id === (env.DEMO_OWNER_LOGIN_ID || 'demo.owner')
+  if (Number(user.is_admin) || (Number(user.is_owner) && !previewDemoOwner)) {
     if (!user.totp_enabled) {
       if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
       const secret = createTotpSecret()
