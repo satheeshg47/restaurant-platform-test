@@ -330,8 +330,12 @@ async function verifyMfa(request: Request, env: Env, enrollment: boolean): Promi
 async function logout(request: Request, env: Env): Promise<Response> {
   const token = readCookie(request, 'platformcore_session')
   if (token && /^[A-Za-z0-9_-]{43}$/.test(token)) {
+    const hash = await sha256Hex(token)
+    const now = new Date().toISOString()
     await env.DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL')
-      .bind(new Date().toISOString(), await sha256Hex(token)).run()
+      .bind(now, hash).run()
+    if (env.DEMO_DB) await env.DEMO_DB.prepare('UPDATE platform_auth_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL')
+      .bind(now, hash).run()
   }
   return json(200, { signed_out: true }, { 'Set-Cookie': clearSessionCookie(request) })
 }
@@ -341,14 +345,24 @@ export async function handleNativeAuth(request: Request, env: Env, path: string)
   if (path === '/auth/session' && request.method === 'GET') {
     const identity = await authenticateNativeSession(request, env)
     if (identity) {
-      const user = await env.DB.prepare(
+      let userEnv = env
+      let user = await env.DB.prepare(
         `SELECT pu.id,pu.email,c.login_id,
           EXISTS(SELECT 1 FROM platform_admin_accounts aa WHERE aa.user_id=pu.id AND aa.status='active') AS is_admin,
           (SELECT tm.role FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' ORDER BY CASE tm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END LIMIT 1) AS tenant_role
          FROM platform_users pu JOIN platform_user_credentials c ON c.user_id=pu.id WHERE pu.id=?`,
       ).bind(identity.subject).first<{ id: string; email: string | null; login_id: string; is_admin: number; tenant_role: string | null }>()
+      if (!user && env.DEMO_DB) {
+        userEnv = { ...env, DB: env.DEMO_DB }
+        user = await userEnv.DB.prepare(
+          `SELECT pu.id,pu.email,c.login_id,
+            EXISTS(SELECT 1 FROM platform_admin_accounts aa WHERE aa.user_id=pu.id AND aa.status='active') AS is_admin,
+            (SELECT tm.role FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' ORDER BY CASE tm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END LIMIT 1) AS tenant_role
+           FROM platform_users pu JOIN platform_user_credentials c ON c.user_id=pu.id WHERE pu.id=?`,
+        ).bind(identity.subject).first<{ id: string; email: string | null; login_id: string; is_admin: number; tenant_role: string | null }>()
+      }
       if (!user) return json(401, { authenticated: false })
-      const memberships = await env.DB.prepare(
+      const memberships = await userEnv.DB.prepare(
         `SELECT tm.tenant_id,t.name AS tenant_name,t.slug AS tenant_slug,tm.role AS membership_role,
           rs.id AS staff_id,rs.role AS staff_role,rs.display_name
          FROM tenant_memberships tm JOIN tenants t ON t.id=tm.tenant_id
