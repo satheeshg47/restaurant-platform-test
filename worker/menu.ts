@@ -104,7 +104,7 @@ function validateCategory(source: Row) {
 
 function validateItem(source: Row) {
   const categoryId = source.category_id
-  if (!uuid(categoryId)) fail(400, 'invalid_category')
+  if (typeof categoryId !== 'string' || !/^[A-Za-z0-9_-]{8,160}$/.test(categoryId)) fail(400, 'invalid_category')
   const name = localized(source.name)
   const description = jsonObject(source.description ?? {})
   const basePrice = int(source.base_price_minor,0,1000000000)
