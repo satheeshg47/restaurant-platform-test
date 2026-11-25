@@ -222,12 +222,9 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
         .bind(crypto.randomUUID(), tenantId, JSON.stringify({ en: 'Beverages', kn: 'ಪಾನೀಯಗಳು' }), tenantId),
     ])
 
-    const categories = await db.prepare('SELECT id,name FROM restaurant_menu_categories WHERE tenant_id=? ORDER BY sort_order')
-      .bind(tenantId).all<{ id: string; name: string }>()
-    const south = categories.results.find(row => row.name.includes('South Indian'))?.id
-    const north = categories.results.find(row => row.name.includes('North Indian'))?.id
-    const drinks = categories.results.find(row => row.name.includes('Beverages'))?.id
-    if (!south || !north || !drinks) throw new Error('demo_categories_unavailable')
+    const south = 'demo-category-south-' + tenantId
+    const north = 'demo-category-north-' + tenantId
+    const drinks = 'demo-category-drinks-' + tenantId
 
     const menu = [
       ['Masala Dosa', south, 8500, 'veg', 12], ['Idli Vada', south, 6500, 'veg', 8],
