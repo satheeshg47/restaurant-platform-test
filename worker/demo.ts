@@ -133,9 +133,30 @@ async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, coo
     FROM days`
   await db.prepare(summarySql).bind(tenantId).run()
 
+  const liveSession = 'demo-session-live'
+  await db.prepare(`INSERT OR IGNORE INTO restaurant_table_sessions
+    (id,tenant_id,table_id,status,guest_count,opened_by)
+    SELECT ?,?,id,'open',2,? FROM restaurant_tables WHERE tenant_id=? AND table_number=10`)
+    .bind(liveSession, tenantId, waiterId, tenantId).run()
+  await db.prepare(`INSERT OR IGNORE INTO restaurant_orders
+    (id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,
+     source,idempotency_key,placed_by,tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot)
+    SELECT 'demo-order-live',?,1099,id,?,'new',8500,425,8925,'qr','demo-key-live',?,
+      'gst',5,0 FROM restaurant_tables WHERE tenant_id=? AND table_number=10`)
+    .bind(tenantId, liveSession, waiterId, tenantId).run()
+  await db.prepare(`INSERT OR IGNORE INTO restaurant_order_items
+    (id,tenant_id,order_id,item_id,category_id,item_name_snapshot,quantity,unit_price_minor,
+     addons_price_minor,line_total_minor,status)
+    VALUES('demo-line-live',?,?,?,?,'{"en":"Masala Dosa","kn":"ಮಸಾಲೆ ದೋಸೆ"}',1,8500,0,8500,'new')`)
+    .bind(tenantId, 'demo-order-live', menuItemId, categoryId).run()
+  await db.prepare(`INSERT OR IGNORE INTO restaurant_service_requests
+    (id,tenant_id,session_id,table_id,request_type,note,status)
+    SELECT 'demo-request-live',?,? ,id,'call_waiter','Sample open request for waiter demo','open'
+    FROM restaurant_tables WHERE tenant_id=? AND table_number=10`)
+    .bind(tenantId, liveSession, tenantId).run()
   await db.prepare(`
     INSERT INTO restaurant_activity_events(tenant_id,actor_staff_id,severity,action,detail)
-    VALUES(?,?,'info','demo.history.seeded','{"orders":1095,"days":365,"payments":"simulated"}')
+    VALUES(?,?,'info','demo.history.seeded','{"orders":1095,"days":365,"payments":"simulated","live_order":true}')
   `).bind(tenantId, ownerId).run()
 }
 
