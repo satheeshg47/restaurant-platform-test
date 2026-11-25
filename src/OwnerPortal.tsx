@@ -54,7 +54,13 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'Your restaurant list could not be loaded.')
-      setRestaurants(Array.isArray(payload.restaurants) ? payload.restaurants : [])
+      const nextRestaurants = Array.isArray(payload.restaurants) ? payload.restaurants : []
+      setRestaurants(nextRestaurants)
+      if (new URLSearchParams(window.location.search).get('demo') === '1' &&
+          nextRestaurants.some((item: Restaurant) => item.tenant_slug === 'platform-demo-restaurant')) {
+        setSelectedSlug('platform-demo-restaurant')
+        setActiveTool('menu')
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Your restaurant list could not be loaded.')
       setRestaurants([])
