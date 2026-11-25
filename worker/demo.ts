@@ -28,8 +28,7 @@ async function ensureDemoStaffAccount(db: Env['DB'], tenantId: string, role: 'co
   const passwordHash = await hashPassword(password)
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)").bind(userId, userId),
-    db.prepare(`INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status)
-      VALUES(?,?,?,?, 'active') ON CONFLICT(user_id) DO UPDATE SET login_id=excluded.login_id,login_id_normalized=excluded.login_id_normalized,password_hash=excluded.password_hash,credential_status='active',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`)
+    db.prepare("INSERT OR IGNORE INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status) VALUES(?,?,?,?,'active')")
       .bind(userId, loginId, loginId.toLowerCase(), passwordHash),
     db.prepare("INSERT OR IGNORE INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'staff','active')").bind(tenantId, userId),
     db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,?,1)").bind(staffId, tenantId, userId, loginId.toLowerCase(), displayName, role),
