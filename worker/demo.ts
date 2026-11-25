@@ -1,4 +1,5 @@
 import type { Env, Identity } from './types.ts'
+import { hashPassword } from './native-auth-crypto.ts'
 
 const DEMO_SLUG = 'platform-demo-restaurant'
 
@@ -19,6 +20,21 @@ async function stableToken(seed: string): Promise<string> {
   let binary = ''
   bytes.forEach(byte => { binary += String.fromCharCode(byte) })
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+async function ensureDemoStaffAccount(db: Env['DB'], tenantId: string, role: 'cook' | 'waiter' | 'manager', loginId: string, displayName: string, password: string): Promise<string> {
+  const userId = 'demo-user-' + role + '-' + tenantId
+  const staffId = 'demo-staff-' + role + '-' + tenantId
+  const passwordHash = await hashPassword(password)
+  await db.batch([
+    db.prepare("INSERT OR IGNORE INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)").bind(userId, userId),
+    db.prepare(`INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status)
+      VALUES(?,?,?,?, 'active') ON CONFLICT(user_id) DO UPDATE SET login_id=excluded.login_id,login_id_normalized=excluded.login_id_normalized,password_hash=excluded.password_hash,credential_status='active',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`)
+      .bind(userId, loginId, loginId.toLowerCase(), passwordHash),
+    db.prepare("INSERT OR IGNORE INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'staff','active')").bind(tenantId, userId),
+    db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,?,1)").bind(staffId, tenantId, userId, loginId.toLowerCase(), displayName, role),
+  ])
+  return staffId
 }
 
 async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, cookId: string, waiterId: string, menuItemId: string, categoryId: string): Promise<void> {
@@ -193,12 +209,6 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
       db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,'demo-owner','Demo Owner','owner',1)")
         .bind(ownerId, tenantId, userId),
       db.prepare("INSERT OR IGNORE INTO restaurant_tenant_controls(tenant_id) VALUES(?)").bind(tenantId),
-      db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,username,display_name,role,active) VALUES(?,?,'demo-cook','Demo Cook','cook',1)")
-        .bind('demo-cook-'+tenantId, tenantId),
-      db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,username,display_name,role,active) VALUES(?,?,'demo-waiter','Demo Waiter','waiter',1)")
-        .bind('demo-waiter-'+tenantId, tenantId),
-      db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,username,display_name,role,active) VALUES(?,?,'demo-manager','Demo Manager','manager',1)")
-        .bind('demo-manager-'+tenantId, tenantId),
       db.prepare("INSERT INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) SELECT ?,?,?,1,'kitchen' WHERE NOT EXISTS (SELECT 1 FROM restaurant_menu_categories WHERE tenant_id=? AND json_extract(name,'$.en')='South Indian')")
         .bind(crypto.randomUUID(), tenantId, JSON.stringify({ en: 'South Indian', kn: 'ದಕ್ಷಿಣ ಭಾರತೀಯ' }), tenantId),
       db.prepare("INSERT INTO restaurant_menu_categories(id,tenant_id,name,sort_order,station) SELECT ?,?,?,2,'kitchen' WHERE NOT EXISTS (SELECT 1 FROM restaurant_menu_categories WHERE tenant_id=? AND json_extract(name,'$.en')='North Indian')")
@@ -231,11 +241,9 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
           price, foodType, prep, i + 1, tenantId, name).run()
     }
 
-    const staff = await db.prepare("SELECT id,username FROM restaurant_staff WHERE tenant_id=?")
-      .bind(tenantId).all<{ id: string; username: string }>()
-    const cookId = staff.results.find(row => row.username === 'demo-cook')?.id
-    const waiterId = staff.results.find(row => row.username === 'demo-waiter')?.id
-    if (!cookId || !waiterId) throw new Error('demo_staff_seed_failed')
+    const cookId = await ensureDemoStaffAccount(db, tenantId, 'cook', 'demo.cook', 'Demo Cook', 'DemoCook#2026!')
+    const waiterId = await ensureDemoStaffAccount(db, tenantId, 'waiter', 'demo.waiter', 'Demo Waiter', 'DemoWaiter#2026!')
+    await ensureDemoStaffAccount(db, tenantId, 'manager', 'demo.manager', 'Demo Manager', 'DemoManager#2026!')
 
     const tableTokens: Array<{ label: string; url: string }> = []
     const qrMap: Record<string, string> = {}
