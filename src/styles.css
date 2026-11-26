@@ -804,3 +804,5 @@
  .owner-mobile-bottom-nav button:active{transform:scale(.96)}
  .owner-workspace-main{padding-bottom:8px}
 }
+
+@media(max-width:760px){.owner-mobile-nav-toggle{display:none}}
