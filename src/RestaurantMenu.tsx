@@ -41,7 +41,7 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
   const [descriptionTranslations, setDescriptionTranslations] = useState<Record<string,string>>({})
   const [itemAvailable, setItemAvailable] = useState(true)
   const [hasPortions, setHasPortions] = useState(false)
-  const [portionDrafts, setPortionDrafts] = useState<Array<{name:string;price:string}>>([{name:'Half Plate',price:''},{name:'Full Plate',price:''}])
+  const [portionDrafts, setPortionDrafts] = useState<Array<{id?:string;name:string;price:string}>>([{name:'Half Plate',price:''},{name:'Full Plate',price:''}])
   const [selectedAddonGroups, setSelectedAddonGroups] = useState<string[]>([])
   const [itemPrice, setItemPrice] = useState('')
   const [itemCategory, setItemCategory] = useState('')
@@ -125,7 +125,7 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
 
   function openEditItem(item: MenuItem) {
     setModalError('')
-    setEditing(item); setItemName(item.name.en || ''); setItemNameHi(item.name.hi || ''); setItemTranslations(Object.fromEntries(Object.entries(item.name).filter(([key])=>!['en','hi','kn'].includes(key)))); setItemDescription(item.description?.en || ''); setDescriptionTranslations(Object.fromEntries(Object.entries(item.description || {}).filter(([key])=>key!=='en'))); setItemAvailable(item.available); setHasPortions(menu.variants.some(v=>v.item_id===item.id&&v.active)); setPortionDrafts([]); setSelectedAddonGroups(menu.item_addon_groups.filter(link=>link.item_id===item.id).map(link=>link.group_id))
+    setEditing(item); setItemName(item.name.en || ''); setItemNameHi(item.name.hi || ''); setItemTranslations(Object.fromEntries(Object.entries(item.name).filter(([key])=>!['en','hi','kn'].includes(key)))); setItemDescription(item.description?.en || ''); setDescriptionTranslations(Object.fromEntries(Object.entries(item.description || {}).filter(([key])=>key!=='en'))); setItemAvailable(item.available); setHasPortions(menu.variants.some(v=>v.item_id===item.id&&v.active)); setPortionDrafts(menu.variants.filter(v=>v.item_id===item.id&&v.active).map(v=>({id:v.id,name:v.name.en||'',price:(Number(v.price_minor)/100).toFixed(2)}))); setSelectedAddonGroups(menu.item_addon_groups.filter(link=>link.item_id===item.id).map(link=>link.group_id))
     setItemPrice((Number(item.base_price_minor) / 100).toFixed(2))
     setItemPrep(String(item.prep_minutes)); setItemHsnSac(item.hsn_sac_code || ''); setItemCategory(item.category_id); setItemType(item.food_type); setStockTracking(item.stock_tracking); setStockQuantity(item.stock_quantity === null ? '' : String(item.stock_quantity)); setShowItem(true)
   }
@@ -164,7 +164,8 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
       const saved=editing?await request(`/menu/items/${editing.id}`,{method:'PATCH',body:JSON.stringify(body)}):await request('/menu/items',{method:'POST',body:JSON.stringify(body)})
       const savedItemId=editing?.id||saved.item?.id
       if(!savedItemId)throw new Error('The item was saved but its ID was not returned; refresh before adding options.')
-      if(!editing&&hasPortions){const valid=portionDrafts.filter(option=>option.name.trim()&&option.price.trim());if(valid.length<2)throw new Error('Add at least two portion names and prices.');for(const option of valid){const amount=Number(option.price);if(!Number.isFinite(amount)||amount<0||!Number.isInteger(amount*100))throw new Error('Each portion needs a valid price (up to 2 decimals).');await request(`/menu/items/${savedItemId}/variants`,{method:'POST',body:JSON.stringify({name:{en:option.name.trim()},price_minor:Math.round(amount*100)})})}}
+      const existingVariants=menu.variants.filter(v=>v.item_id===savedItemId&&v.active)
+      if(hasPortions){const valid=portionDrafts.filter(option=>option.name.trim()&&option.price.trim());if(valid.length<2)throw new Error('Add at least two portion names and prices.');for(const option of valid){const amount=Number(option.price);if(!Number.isFinite(amount)||amount<0||!Number.isInteger(amount*100))throw new Error('Each portion needs a valid price (up to 2 decimals).');const variantBody={name:{en:option.name.trim()},price_minor:Math.round(amount*100),active:true};if(option.id)await request(`/menu/variants/${option.id}`,{method:'PATCH',body:JSON.stringify(variantBody)});else await request(`/menu/items/${savedItemId}/variants`,{method:'POST',body:JSON.stringify(variantBody)})}}else if(editing){for(const variant of existingVariants)await request(`/menu/variants/${variant.id}`,{method:'PATCH',body:JSON.stringify({active:false})})}
       for(const groupId of selectedAddonGroups){if(!menu.item_addon_groups.some(link=>link.item_id===savedItemId&&link.group_id===groupId))await request(`/menu/items/${savedItemId}/addon-groups`,{method:'POST',body:JSON.stringify({group_id:groupId})})}
       setShowItem(false);setEditing(null);await load()
     } catch (cause) { setModalError(cause instanceof Error ? cause.message : 'Could not save food item.') }
