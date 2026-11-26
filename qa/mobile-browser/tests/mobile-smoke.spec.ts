@@ -59,7 +59,10 @@ test('guest menu supports category swipe, item quantity controls and a clear ord
   const dosa = page.locator('.guest-item').filter({ hasText: 'Masala Dosa' }).first()
   await expect(dosa).toBeVisible()
   await dosa.getByRole('button', { name: 'ADD +' }).click()
-  const customise = page.getByRole('heading', { name: 'Masala Dosa' })
+  // The customization dialog repeats the item name from the menu card.
+  // Scope the assertion to its level-2 dialog heading to avoid a strict-mode
+  // collision with the level-3 menu-card heading.
+  const customise = page.getByRole('heading', { name: 'Masala Dosa', level: 2 })
   await expect(customise).toBeVisible()
   await page.getByRole('button', { name: 'Add to order' }).click()
   const review = page.getByRole('button', { name: /Review order/ })
