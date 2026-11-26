@@ -13,6 +13,8 @@ export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: s
   const [state,setState] = useState<'idle'|'loading'|'ready'|'auth'|'forbidden'|'error'>('idle')
   const [error,setError] = useState('')
   const [busy,setBusy] = useState(false)
+  const [creating,setCreating] = useState(false)
+  const [createError,setCreateError] = useState('')
   const [label,setLabel] = useState('')
   const [number,setNumber] = useState('')
   const [kind,setKind] = useState<'dine_in'|'takeaway'>('dine_in')
@@ -56,19 +58,24 @@ export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: s
     return ()=>{ cancelled=true }
   },[created])
 
-  async function createTable(e:React.FormEvent) {
+  async function createTable(e:React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (!label.trim()) { setError('Enter a table name or label.'); return }
-    setBusy(true); setError('')
+    setCreateError('')
+    const cleanLabel=label.trim()
+    if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(endpoint)) { setCreateError('Restaurant workspace is not selected. Go back and open a restaurant before adding a table.'); return }
+    if (!cleanLabel) { setCreateError('Enter a table name or label.'); return }
+    if (kind==='dine_in' && number.trim() && (!Number.isInteger(Number(number)) || Number(number)<1 || Number(number)>9999)) { setCreateError('Table number must be a whole number between 1 and 9999.'); return }
+    setCreating(true); setError('')
     try {
-      const payload=await request('/tables',{method:'POST',body:JSON.stringify({label:label.trim(),table_type:kind,table_number:kind==='dine_in'&&number?Number(number):null})})
-      const origin=window.location.origin
-      const url=`${origin}/r/${encodeURIComponent(endpoint)}/${encodeURIComponent(payload.qr_token)}`
-      setCreated({label:payload.table.label,url})
-      setLabel(''); setNumber('')
-      const refreshed=await request('/tables'); setTables(refreshed.tables||[]); setState('ready')
-    } catch(e) { setError(e instanceof Error?e.message:'Could not create table.') }
-    finally { setBusy(false) }
+      const payload=await request('/tables',{method:'POST',body:JSON.stringify({label:cleanLabel,table_type:kind,table_number:kind==='dine_in'&&number.trim()?Number(number):null})})
+      if (!payload?.table?.id || !payload?.qr_token) throw new Error('The server returned an incomplete table response. Refresh the table list before retrying.')
+      const url=window.location.origin+'/r/'+encodeURIComponent(endpoint)+'/'+encodeURIComponent(payload.qr_token)
+      const newTable:TableRecord={...payload.table,table_number:payload.table.table_number??(kind==='dine_in'&&number.trim()?Number(number):null),label:payload.table.label||cleanLabel,table_type:payload.table.table_type||kind,active:payload.table.active!==false,session_id:null,opened_at:null,guest_count:null,open_requests:0,qr_url:payload.table.qr_url||url}
+      setTables(current=>[newTable,...current.filter(item=>item.id!==newTable.id)])
+      setState('ready'); setCreated({label:newTable.label,url}); setLabel(''); setNumber(''); setCreateError('')
+      void request('/tables').then(refreshed=>{if(Array.isArray(refreshed.tables))setTables(refreshed.tables)}).catch(()=>{})
+    } catch(e) { setCreateError(e instanceof Error?e.message:'Could not create table. Please try again.') }
+    finally { setCreating(false) }
   }
 
   async function saveTable(tableId:string) {
@@ -108,14 +115,16 @@ export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: s
     {state==='auth'&&<div className="restaurant-inline-error"><AlertCircle size={16}/>Owner sign-in required.</div>}
     {state==='forbidden'&&<div className="restaurant-inline-error"><AlertCircle size={16}/>Owner or manager access required.</div>}
     {error&&<p className="restaurant-table-message" role="status">{error}</p>}
-    <form className="restaurant-table-form" onSubmit={createTable}>
+    <form className="restaurant-table-form" onSubmit={createTable} noValidate>
       <h3><Plus size={17}/> Add a table</h3>
       <label>Table label<input value={label} onChange={e=>setLabel(e.target.value)} placeholder="e.g. Table 01 or Takeaway" maxLength={80} required/></label>
       <div className="restaurant-table-form-row">
         <label>Type<select value={kind} onChange={e=>setKind(e.target.value as 'dine_in'|'takeaway')}><option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option></select></label>
         {kind==='dine_in'&&<label>Table number<input type="number" min="1" max="9999" value={number} onChange={e=>setNumber(e.target.value)} placeholder="Optional"/></label>}
       </div>
-      <button className="button primary" disabled={busy||!endpoint}>Create table & issue QR link</button>
+      {createError&&<p className="restaurant-inline-error" role="alert"><AlertCircle size={15}/>{createError}</p>}
+      <button type="submit" className="button primary restaurant-table-create-button" disabled={creating||busy||!endpoint} aria-busy={creating}>{creating?<><RefreshCw size={15} className="owner-comms-spin"/>Creating table…</>:'Create table & issue QR link'}</button>
+      {!endpoint&&<p className="restaurant-table-hint">Select a restaurant workspace before creating tables.</p>}
     </form>
     {created&&<div className="restaurant-qr-backdrop" role="presentation" onClick={()=>setCreated(null)}><section className="restaurant-qr-issued" role="dialog" aria-modal="true" aria-label={`QR code for ${created.label}`} onClick={event=>event.stopPropagation()}><div className="restaurant-qr-title"><QrCode size={18}/><b>{created.persistent?'Table QR code':'New guest QR link issued'}: {created.label}</b><button type="button" className="restaurant-qr-close" onClick={()=>setCreated(null)} aria-label="Close QR dialog"><X size={19}/></button></div><p>{created.persistent?'This demo QR can be reopened from the table list at any time.':'This secure token is shown only once. Save or print this QR now.'}</p><div className="restaurant-qr-print-card"><div className="restaurant-qr-print-brand">SCAN TO VIEW MENU</div>{qrImage?<img className="restaurant-qr-image" src={qrImage} alt={`Guest menu QR code for ${created.label}`}/>:<div className="restaurant-qr-image-placeholder">{qrError||"Generating QR code…"}</div>}<b>{created.label}</b><small>Scan with your phone camera to open the menu</small></div><div className="restaurant-qr-url">{created.url}</div>{qrError&&<p role="status">{qrError}</p>}<div className="restaurant-qr-actions"><button className="button secondary" onClick={()=>void copy(created.url)}><Copy size={15}/>Copy link</button><button className="button secondary" onClick={()=>window.print()} disabled={!qrImage}><QrCode size={15}/>Print table QR</button><a className="button secondary" href={created.url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>Open guest menu</a></div></section></div>}
     <div className="restaurant-table-list-head"><h3>Restaurant tables</h3><span>{tables.length} records</span></div>
