@@ -122,7 +122,7 @@ export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: s
         <label>Type<select value={kind} onChange={e=>setKind(e.target.value as 'dine_in'|'takeaway')}><option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option></select></label>
         {kind==='dine_in'&&<label>Table number<input type="number" min="1" max="9999" value={number} onChange={e=>setNumber(e.target.value)} placeholder="Optional"/></label>}
       </div>
-      {createError&&<p className="restaurant-table-message restaurant-table-create-error" role="alert"><AlertCircle size={15}/>{createError}</p>}
+      {createError&&<p className="restaurant-inline-error" role="alert"><AlertCircle size={15}/>{createError}</p>}
       <button type="submit" className="button primary restaurant-table-create-button" disabled={creating||busy||!endpoint} aria-busy={creating}>{creating?<><RefreshCw size={15} className="owner-comms-spin"/>Creating table…</>:'Create table & issue QR link'}</button>
       {!endpoint&&<p className="restaurant-table-hint">Select a restaurant workspace before creating tables.</p>}
     </form>
