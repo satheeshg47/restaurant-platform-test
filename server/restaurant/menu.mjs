@@ -35,7 +35,7 @@ async function readBody(request) {
 function localizedName(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const keys = Object.keys(value)
-  return keys.length > 0 && keys.every(key => ['en', 'hi', 'kn'].includes(key)) &&
+  return keys.length > 0 && keys.every(key => ['en', 'hi', 'kn', 'ta', 'te', 'ml'].includes(key)) &&
     keys.every(key => typeof value[key] === 'string' && value[key].trim().length > 0 && value[key].length <= 120)
 }
 
