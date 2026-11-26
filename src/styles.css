@@ -791,3 +791,16 @@
 .app-open-workspace{border:1px solid #dcd8fa;background:#f5f3ff;color:#5b4fc4;border-radius:8px;padding:7px 10px;font-size:10px;font-weight:700;white-space:nowrap}
 .app-open-workspace:hover{background:#ece9ff}
 @media(max-width:760px){.app-row{flex-wrap:wrap;gap:9px}.app-open-workspace{margin-left:44px;min-height:38px;font-size:11px}.app-row .status{margin-left:auto}}
+
+/* Owner workspace mobile app navigation */
+.owner-mobile-bottom-nav{display:none}
+@media(max-width:760px){
+ .owner-workspace{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+ .owner-workspace-heading{gap:10px}
+ .owner-workspace-back{min-height:38px;white-space:nowrap}
+ .owner-mobile-bottom-nav{position:fixed;z-index:42;inset:auto 0 0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:7px 5px calc(7px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #e8ebf2;box-shadow:0 -8px 28px #1b29400d}
+ .owner-mobile-bottom-nav button{display:grid;justify-items:center;align-content:center;gap:4px;min-height:48px;border:0;background:transparent;color:#8590a2;font-size:10px;font-weight:700;border-radius:10px}
+ .owner-mobile-bottom-nav button.active{color:#5c50cb;background:#f2f0ff}
+ .owner-mobile-bottom-nav button:active{transform:scale(.96)}
+ .owner-workspace-main{padding-bottom:8px}
+}
