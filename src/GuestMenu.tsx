@@ -138,21 +138,17 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
   const categories = menu?.categories || []
 
   useEffect(() => {
-    if (!categories.length) return
-    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
-    const headings = sections.map(section => ({
-      section,
-      heading: section.querySelector<HTMLElement>('.guest-section-title'),
-    })).filter((entry): entry is { section: HTMLElement; heading: HTMLElement } => Boolean(entry.heading))
-    if (!headings.length) return
     const updateActiveCategory = () => {
       if (categoryScrollLock.current) return
+      const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
+      if (!sections.length) return
       const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
       const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
       const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.8)
-      let current = categories[0]?.id || ''
-      for (const entry of headings) {
-        if (entry.heading.getBoundingClientRect().top <= activeLine) current = entry.section.getAttribute('data-category-section') || current
+      let current = sections[0].getAttribute('data-category-section') || ''
+      for (const section of sections) {
+        const heading = section.querySelector<HTMLElement>('.guest-section-title')
+        if (heading && heading.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
         else break
       }
       if (current) setActiveCategory(previous => previous === current ? previous : current)
@@ -166,7 +162,11 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
       document.removeEventListener('scroll', updateActiveCategory, true)
       window.removeEventListener('resize', updateActiveCategory)
     }
-  }, [categories])
+  }, [])
+
+  useEffect(() => {
+    window.dispatchEvent(new Event('scroll'))
+  }, [menu])
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0)
   const cartTotal = useMemo(() => cart.reduce((sum, line) => {
     const variant = line.item.variants.find(value => value.id === line.variantId)
