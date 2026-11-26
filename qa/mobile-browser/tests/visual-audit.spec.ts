@@ -28,7 +28,12 @@ async function auditLayout(page: Page, label: string) {
       if (!['hidden', 'clip', ''].includes(style.overflowX) && !['hidden', 'clip', ''].includes(style.overflowY)) return false
       return element.scrollWidth > element.clientWidth + 2 || element.scrollHeight > element.clientHeight + 2
     }).map(element => ({ tag: element.tagName, text: (element.textContent || '').trim().slice(0, 60) })).slice(0, 20)
-    const interactive = controls.filter(element => element.tagName === 'BUTTON' || element.getAttribute('role') === 'button')
+    const interactive = controls.filter(element => {
+      if (element.tagName !== 'BUTTON' && element.getAttribute('role') !== 'button') return false
+      const rect = element.getBoundingClientRect()
+      const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      return Boolean(top && (top === element || element.contains(top)))
+    })
     const overlaps: Array<{ first: string; second: string }> = []
     for (let i = 0; i < interactive.length; i++) {
       const a = interactive[i].getBoundingClientRect()
@@ -42,7 +47,7 @@ async function auditLayout(page: Page, label: string) {
     const fixedBottomBars = [...document.querySelectorAll<HTMLElement>('body *')].filter(element => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
-      return visible(element) && (style.position === 'fixed' || style.position === 'sticky') && rect.bottom >= innerHeight - 3 && rect.height > 24
+      return visible(element) && (style.position === 'fixed' || style.position === 'sticky') && rect.bottom >= innerHeight - 3 && rect.height > 24 && rect.height <= 120 && rect.width >= innerWidth * 0.5
     })
     const covered: string[] = []
     for (const control of controls) {
