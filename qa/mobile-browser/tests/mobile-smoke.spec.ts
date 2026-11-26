@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test'
+import { createHash } from 'node:crypto'
 
+const tableOneToken = createHash('sha256').update('platform-core-demo-qr-1').digest('base64url')
 const routes = [
   { path: '/', label: 'Super Admin sign-in' },
   { path: '/owner?demo=1', label: 'Demo owner entry' },
+  { path: `/r/platform-demo-restaurant/${tableOneToken}`, label: 'Table 1 QR menu', expectedText: 'Masala Dosa' },
 ]
 
 for (const route of routes) {
@@ -15,7 +18,8 @@ for (const route of routes) {
     expect(response!.status(), 'The route should not return a server error').toBeLessThan(500)
 
     await expect(page.locator('body')).not.toBeEmpty()
-    await page.waitForTimeout(1200)
+    if ('expectedText' in route) await expect(page.getByText(route.expectedText).first()).toBeVisible({ timeout: 15000 })
+    else await page.waitForTimeout(1200)
 
     const dimensions = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
