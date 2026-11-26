@@ -3,6 +3,10 @@ name: Mobile browser QA
 on:
   push:
     branches: [feat/mobile-app-shell-and-browser-qa]
+  workflow_run:
+    workflows: ["Live deployment smoke test"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       base_url:
@@ -17,6 +21,7 @@ permissions:
 
 jobs:
   mobile-smoke:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:

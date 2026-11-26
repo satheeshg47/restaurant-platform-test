@@ -788,7 +788,7 @@
   @keyframes hub-card-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
 }
 
-.app-open-workspace{border:1px solid #dcd8fa;background:#f5f3ff;color:#5b4fc4;border-radius:8px;padding:7px 10px;font-size:10px;font-weight:700;white-space:nowrap}
+ .app-open-workspace{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #dcd8fa;background:#f5f3ff;color:#5b4fc4;border-radius:8px;padding:7px 10px;font-size:10px;font-weight:700;text-decoration:none;white-space:nowrap}
 .app-open-workspace:hover{background:#ece9ff}
 @media(max-width:760px){.app-row{flex-wrap:wrap;gap:9px}.app-open-workspace{margin-left:44px;min-height:38px;font-size:11px}.app-row .status{margin-left:auto}}
 
@@ -806,3 +806,47 @@
 }
 
 @media(max-width:760px){.owner-mobile-nav-toggle{display:none}}
+
+
+/* Restaurant workspace table layout and QR dialog fixes */
+.restaurant-tables,.restaurant-table-form,.restaurant-table-list,.restaurant-table-row{min-width:0;max-width:100%;}
+ .restaurant-table-row{display:grid;grid-template-columns:38px minmax(0,1fr) minmax(90px,auto) repeat(3,auto);align-items:center;gap:8px;width:100%;overflow:hidden;}
+.restaurant-table-copy,.restaurant-table-status{min-width:0;overflow-wrap:anywhere;}
+.restaurant-table-row>button{min-width:0;max-width:100%;white-space:normal;}
+.restaurant-qr-backdrop{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:16px;background:#11182780;overflow-y:auto;}
+.restaurant-qr-issued{width:min(460px,100%);max-height:min(92dvh,900px);overflow-y:auto;background:#fff;box-shadow:0 24px 70px #10182845;}
+.restaurant-qr-title{min-width:0;flex-wrap:wrap;}
+.restaurant-qr-title b{flex:1;min-width:0;overflow-wrap:anywhere;}
+.restaurant-qr-close{width:34px;height:34px;display:grid;place-items:center;flex:0 0 auto;border:0;border-radius:9px;background:#f2f3f6;color:#596579;}
+@media(max-width:600px){
+ .restaurant-table-row{grid-template-columns:32px minmax(0,1fr);gap:9px;padding:12px 0;}
+ .restaurant-table-status,.restaurant-table-row>button{grid-column:2;justify-self:start;max-width:100%;}
+ .restaurant-table-status{justify-items:start;text-align:left;}
+ .restaurant-table-row>button{width:auto;min-height:36px;}
+ .restaurant-qr-backdrop{align-items:end;padding:8px;}
+ .restaurant-qr-issued{width:100%;max-height:90dvh;border-radius:16px 16px 10px 10px;padding:14px;}
+}
+
+/* Guest menu horizontal category rail, item quantity stepper and service shortcuts */
+.guest-screen{overflow-x:clip;}
+.guest-categories{width:100%;max-width:780px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x;scrollbar-width:thin;}
+.guest-categories button{flex:0 0 auto;}
+.guest-quick-actions{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
+.guest-service-action{display:flex;align-items:center;justify-content:center;gap:7px;min-height:42px;flex:0 0 auto;border-radius:12px!important;padding:9px 13px!important;box-shadow:0 2px 8px #1f39200b;}
+.guest-service-action.waiter{background:#fff8e9!important;border-color:#f0dfb8!important;color:#805c19!important;}
+.guest-service-action.water{background:#edf7ff!important;border-color:#d6e9f7!important;color:#28658c!important;}
+.guest-service-action.bill{background:#f4f0ff!important;border-color:#e2dafa!important;color:#6550a0!important;}
+.guest-item-quantity{display:flex;align-items:center;gap:10px;justify-self:end;padding:4px;border:1px solid #cbd9c8;border-radius:10px;background:#fff;color:#315b38;}
+.guest-item-quantity button{width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:7px;background:#edf4eb;color:#315b38;}
+.guest-item-quantity button:disabled{opacity:.4;}
+.guest-item-quantity b{min-width:12px;text-align:center;font-size:12px;}
+.guest-cart-bar{min-height:64px;gap:12px;padding:10px 15px;}
+.guest-cart-bar>b{display:grid;justify-items:end;gap:2px;min-width:0;flex:1;}
+.guest-cart-bar .guest-cart-action-label{font-size:12px;font-weight:800;white-space:nowrap;}
+.guest-cart-bar small{font-size:11px;font-weight:600;opacity:.9;white-space:nowrap;}
+@media(max-width:420px){
+ .guest-item{grid-template-columns:72px minmax(0,1fr);}
+ .guest-item-quantity{grid-column:2;justify-self:start;}
+ .guest-cart-bar{left:10px;right:10px;width:auto;}
+ .guest-cart-bar>b{align-items:flex-end;}
+}

@@ -15,6 +15,18 @@ type Report = {
 const today = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date())
 const money = (minor:string|number) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(Number(minor)/100)
 function csvCell(value:unknown){const s=String(value??'');return '"'+s.replace(/"/g,'""')+'"'}
+function displaySnapshot(value:string){
+ const raw=String(value??'').trim()
+ if(!raw)return 'Unnamed item'
+ try{
+  const parsed=JSON.parse(raw) as Record<string,unknown>
+  if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){
+   const preferred=[parsed.en,parsed.kn,parsed.hi].find(item=>typeof item==='string'&&item.trim())
+   if(typeof preferred==='string')return preferred
+  }
+ }catch{}
+ return raw
+}
 export default function RestaurantReports({initialSlug=''}:{initialSlug?:string}={}){
  const [slug,setSlug]=useState(initialSlug)
  const [from,setFrom]=useState(today())
@@ -83,7 +95,7 @@ export default function RestaurantReports({initialSlug=''}:{initialSlug?:string}
    <div className="restaurant-report-grid">
     <div className="restaurant-report-panel"><h3>Daily sales</h3>{report.daily.length?report.daily.map(day=><div className="restaurant-report-row" key={day.day}><span>{day.day}<small>{day.order_count} orders</small></span><b>{money(day.sales_minor)}</b></div>):<p className="restaurant-report-empty">No orders in this period.</p>}</div>
     <div className="restaurant-report-panel"><h3>Payment methods</h3>{report.payments.length?report.payments.map(item=><div className="restaurant-report-row" key={item.method}><span>{item.method.toUpperCase()}<small>{item.payment_count} payments</small></span><b>{money(item.amount_minor)}</b></div>):<p className="restaurant-report-empty">No payments recorded.</p>}</div>
-    <div className="restaurant-report-panel restaurant-report-wide"><h3>Top-selling items</h3>{report.top_items.length?report.top_items.map((item,index)=><div className="restaurant-report-row" key={item.item_name_snapshot+'-'+item.variant_name_snapshot}><span><b className="restaurant-report-rank">{index+1}</b>{item.item_name_snapshot}{item.variant_name_snapshot&&<small>{item.variant_name_snapshot}</small>}</span><b>{item.quantity} sold · {money(item.sales_minor)}</b></div>):<p className="restaurant-report-empty">No item sales in this period.</p>}</div>
+    <div className="restaurant-report-panel restaurant-report-wide"><h3>Top-selling items</h3>{report.top_items.length?report.top_items.map((item,index)=><div className="restaurant-report-row" key={item.item_name_snapshot+'-'+item.variant_name_snapshot}><span><b className="restaurant-report-rank">{index+1}</b>{displaySnapshot(item.item_name_snapshot)}{item.variant_name_snapshot&&<small>{displaySnapshot(item.variant_name_snapshot)}</small>}</span><b>{item.quantity} sold · {money(item.sales_minor)}</b></div>):<p className="restaurant-report-empty">No item sales in this period.</p>}</div>
    </div>
    <p className="restaurant-settings-note">Sales exclude cancelled orders. Payment totals show recorded staff-confirmed collections; they may differ from order sales when balances remain unpaid. This report is operational, not a statutory GST return.</p>
   </>}
