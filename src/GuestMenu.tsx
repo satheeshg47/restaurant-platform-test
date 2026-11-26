@@ -141,29 +141,27 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     if (!categories.length) return
     const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
     if (!sections.length) return
-    let scheduled = false
     const updateActiveCategory = () => {
-      if (categoryScrollLock.current || scheduled) return
-      scheduled = true
-      window.requestAnimationFrame(() => {
-        scheduled = false
-        if (categoryScrollLock.current) return
-        const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
-        const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
-        const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.8)
-        let current = categories[0]?.id || ''
-        for (const section of sections) {
-          if (section.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
-          else break
-        }
-        if (current) setActiveCategory(current)
-      })
+      if (categoryScrollLock.current) return
+      const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
+      const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
+      const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.9)
+      let current = categories[0]?.id || ''
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
+        else break
+      }
+      if (current) setActiveCategory(previous => previous === current ? previous : current)
     }
     updateActiveCategory()
     window.addEventListener('scroll', updateActiveCategory, { passive: true })
+    document.addEventListener('scroll', updateActiveCategory, true)
+    window.addEventListener('scrollend', updateActiveCategory)
     window.addEventListener('resize', updateActiveCategory)
     return () => {
       window.removeEventListener('scroll', updateActiveCategory)
+      document.removeEventListener('scroll', updateActiveCategory, true)
+      window.removeEventListener('scrollend', updateActiveCategory)
       window.removeEventListener('resize', updateActiveCategory)
     }
   }, [categories])
