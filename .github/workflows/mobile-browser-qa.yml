@@ -25,6 +25,10 @@ jobs:
     env:
       CI: 'true'
       BASE_URL: ${{ github.event.inputs.base_url || 'https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev' }}
+      QA_ADMIN_STORAGE_STATE_B64: ${{ secrets.QA_ADMIN_STORAGE_STATE_B64 }}
+      QA_OWNER_STORAGE_STATE_B64: ${{ secrets.QA_OWNER_STORAGE_STATE_B64 }}
+      QA_COOK_STORAGE_STATE_B64: ${{ secrets.QA_COOK_STORAGE_STATE_B64 }}
+      QA_WAITER_STORAGE_STATE_B64: ${{ secrets.QA_WAITER_STORAGE_STATE_B64 }}
     steps:
       - uses: actions/checkout@v4
         name: Check out source
@@ -40,12 +44,16 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run mobile and desktop functional and visual audits
         run: npm test
-      - name: Upload screenshots, traces and HTML report
+      - name: Generate Admin and Restaurant app screenshot PDF
+        if: always()
+        run: node capture-guide.mjs
+      - name: Upload screenshots, PDF guide and HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-browser-qa-${{ github.run_number }}
+          name: platform-core-app-guide-${{ github.run_number }}
           path: |
+            qa/mobile-browser/guide-output/
             qa/mobile-browser/test-results/
             qa/mobile-browser/playwright-report/
           if-no-files-found: ignore
