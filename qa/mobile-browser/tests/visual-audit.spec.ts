@@ -105,7 +105,7 @@ test('guest customization and order review modals render and are screenshot-test
   const dosa = page.locator('.guest-item').filter({ hasText: 'Masala Dosa' }).first()
   await expect(dosa).toBeVisible({ timeout: 20000 })
   await dosa.getByRole('button', { name: 'ADD +' }).click()
-  await expect(page.getByRole('heading', { name: 'Masala Dosa' })).toBeVisible()
+  await expect(page.locator('.guest-modal').getByRole('heading', { name: 'Masala Dosa' })).toBeVisible()
   await auditLayout(page, 'guest-item-customization-modal')
   await page.screenshot({ path: `test-results/${test.info().project.name}-guest-customization-modal.png`, fullPage: true })
   await page.getByRole('button', { name: 'Add to order' }).click()
