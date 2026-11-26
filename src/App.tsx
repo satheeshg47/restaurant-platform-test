@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
-  Activity, AppWindow, ArrowUpRight, Bell, Boxes, Check, QrCode, BarChart3,
+  Activity, AppWindow, ArrowUpRight, Bell, Boxes, Check,
   ChevronDown, CircleHelp, CreditCard, Database, Download,
   FileCheck2, LayoutDashboard, LifeBuoy, LockKeyhole,
-  Menu, MoreHorizontal, Plus, Settings, ShieldCheck, Store, Utensils,
+  Menu, MoreHorizontal, Plus, Settings, ShieldCheck, Store,
   Users, X, Zap, ScrollText, MessageCircle
 } from 'lucide-react'
 import AuditLog from './AuditLog'
