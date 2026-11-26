@@ -152,7 +152,6 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     sections.forEach(section => observer.observe(section))
     return () => observer.disconnect()
   }, [categories])
-  const visibleCategory = categories.find(category => category.id === activeCategory) || categories[0]
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0)
   const cartTotal = useMemo(() => cart.reduce((sum, line) => {
     const variant = line.item.variants.find(value => value.id === line.variantId)
