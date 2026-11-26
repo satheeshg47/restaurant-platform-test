@@ -7,6 +7,31 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, ''
 type TableRecord = { id:string; table_number:number|null; label:string; table_type:'dine_in'|'takeaway'; active:boolean; session_id:string|null; opened_at:string|null; guest_count:number|null; open_requests:number; qr_url?:string|null }
 type CreatedQr = { label:string; url:string; persistent?:boolean }
 
+const fieldStyle: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  height: '42px',
+  minHeight: '42px',
+  boxSizing: 'border-box',
+  padding: '10px 12px',
+  border: '1px solid #D1D5DB',
+  borderRadius: '8px',
+  background: '#F9FAFB',
+  color: '#111827',
+  fontSize: '14px',
+  lineHeight: '20px',
+}
+
+const fieldLabelStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '6px',
+  minWidth: 0,
+  color: '#374151',
+  fontSize: '13px',
+  fontWeight: 600,
+}
+
 export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: string } = {}) {
   const [slug,setSlug] = useState(initialSlug)
   const [tables,setTables] = useState<TableRecord[]>([])
@@ -64,6 +89,7 @@ export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: s
     const cleanLabel=label.trim()
     if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(endpoint)) { setCreateError('Restaurant workspace is not selected. Go back and open a restaurant before adding a table.'); return }
     if (!cleanLabel) { setCreateError('Enter a table name or label.'); return }
+    if (cleanLabel.length>80) { setCreateError('Table label must be 80 characters or fewer.'); return }
     if (kind==='dine_in' && number.trim() && (!Number.isInteger(Number(number)) || Number(number)<1 || Number(number)>9999)) { setCreateError('Table number must be a whole number between 1 and 9999.'); return }
     setCreating(true); setError('')
     try {
@@ -106,27 +132,42 @@ export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: s
     catch { setError('Clipboard access is unavailable. Select and copy the link manually.') }
   }
 
-  return <section className="panel restaurant-tables">
-    <div className="panel-heading"><div><h2>Tables & QR access</h2><p>Create table records and issue secure guest QR links.</p></div><Table2 size={20}/></div>
-    {!initialSlug && <div className="restaurant-table-connect">
-      <label>Restaurant slug<input value={slug} onChange={e=>setSlug(e.target.value)} placeholder="your-restaurant" autoCapitalize="none"/></label>
-      <button className="button secondary" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/>{busy?'Loading':'Load tables'}</button>
+  return <section className="panel restaurant-tables" style={{paddingTop:'12px',paddingBottom:'14px'}}>
+    <div className="panel-heading" style={{paddingTop:'4px',paddingBottom:'10px',marginBottom:'10px',minHeight:'auto'}}>
+      <div><h2 style={{margin:'0 0 3px'}}>Tables & QR access</h2><p style={{margin:0}}>Create table records and issue secure guest QR links.</p></div>
+      <Table2 size={20}/>
+    </div>
+    {!initialSlug && <div className="restaurant-table-connect" style={{marginBottom:'12px',gap:'10px'}}>
+      <label style={fieldLabelStyle}>Restaurant slug<input style={fieldStyle} value={slug} onChange={e=>setSlug(e.target.value)} placeholder="your-restaurant" autoCapitalize="none"/></label>
+      <button type="button" className="button secondary" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/>{busy?'Loading':'Load tables'}</button>
     </div>}
     {state==='auth'&&<div className="restaurant-inline-error"><AlertCircle size={16}/>Owner sign-in required.</div>}
     {state==='forbidden'&&<div className="restaurant-inline-error"><AlertCircle size={16}/>Owner or manager access required.</div>}
     {error&&<p className="restaurant-table-message" role="status">{error}</p>}
-    <form className="restaurant-table-form" onSubmit={createTable} noValidate>
-      <h3><Plus size={17}/> Add a table</h3>
-      <label>Table label<input value={label} onChange={e=>setLabel(e.target.value)} placeholder="e.g. Table 01 or Takeaway" maxLength={80} required/></label>
-      <div className="restaurant-table-form-row">
-        <label>Type<select value={kind} onChange={e=>setKind(e.target.value as 'dine_in'|'takeaway')}><option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option></select></label>
-        {kind==='dine_in'&&<label>Table number<input type="number" min="1" max="9999" value={number} onChange={e=>setNumber(e.target.value)} placeholder="Optional"/></label>}
+    <form className="restaurant-table-form" onSubmit={createTable} noValidate style={{boxSizing:'border-box',width:'100%',padding:'14px',marginTop:0,marginBottom:'14px',display:'flex',flexDirection:'column',gap:'10px'}}>
+      <h3 style={{display:'flex',alignItems:'center',gap:'7px',margin:'0 0 2px',fontSize:'16px'}}><Plus size={17}/> Add a table</h3>
+      <label style={fieldLabelStyle}>Table label
+        <input style={fieldStyle} value={label} onChange={e=>{setLabel(e.target.value);if(createError)setCreateError('')}} placeholder="e.g. Table 01 or Takeaway" maxLength={80} required aria-invalid={Boolean(createError&&!label.trim())}/>
+      </label>
+      <div className="restaurant-table-form-row" style={{display:'flex',flexDirection:'row',alignItems:'flex-end',gap:'10px',width:'100%'}}>
+        <label style={{...fieldLabelStyle,flex:kind==='dine_in'?'6 1 0':'1 1 100%',width:kind==='dine_in'?'60%':'100%'}}>
+          Type
+          <select style={{...fieldStyle,appearance:'auto'}} value={kind} onChange={e=>{setKind(e.target.value as 'dine_in'|'takeaway');setCreateError('')}}>
+            <option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option>
+          </select>
+        </label>
+        {kind==='dine_in'&&<label style={{...fieldLabelStyle,flex:'4 1 0',width:'40%'}}>
+          Table number
+          <input style={{...fieldStyle,background:'#FFFFFF'}} type="number" min="1" max="9999" step="1" inputMode="numeric" value={number} onChange={e=>{setNumber(e.target.value);if(createError)setCreateError('')}} placeholder="Optional"/>
+        </label>}
       </div>
-      {createError&&<p className="restaurant-inline-error" role="alert"><AlertCircle size={15}/>{createError}</p>}
-      <button type="submit" className="button primary restaurant-table-create-button" disabled={creating||busy||!endpoint} aria-busy={creating}>{creating?<><RefreshCw size={15} className="owner-comms-spin"/>Creating table…</>:'Create table & issue QR link'}</button>
-      {!endpoint&&<p className="restaurant-table-hint">Select a restaurant workspace before creating tables.</p>}
+      {createError&&<p className="restaurant-inline-error" role="alert" style={{margin:0,padding:'9px 10px',borderRadius:'7px',display:'flex',alignItems:'flex-start',gap:'7px',lineHeight:1.4}}><AlertCircle size={15} style={{flexShrink:0,marginTop:'1px'}}/>{createError}</p>}
+      <button type="submit" className="button primary restaurant-table-create-button" disabled={creating||busy||!endpoint} aria-busy={creating} style={{width:'100%',minHeight:'42px',marginTop:'1px',justifyContent:'center'}}>
+        {creating?<><RefreshCw size={15} className="owner-comms-spin"/>Creating table…</>:'Create table & issue QR link'}
+      </button>
+      {!endpoint&&<p className="restaurant-table-hint" style={{margin:0}}>Select a restaurant workspace before creating tables.</p>}
     </form>
-    {created&&<div className="restaurant-qr-backdrop" role="presentation" onClick={()=>setCreated(null)}><section className="restaurant-qr-issued" role="dialog" aria-modal="true" aria-label={`QR code for ${created.label}`} onClick={event=>event.stopPropagation()}><div className="restaurant-qr-title"><QrCode size={18}/><b>{created.persistent?'Table QR code':'New guest QR link issued'}: {created.label}</b><button type="button" className="restaurant-qr-close" onClick={()=>setCreated(null)} aria-label="Close QR dialog"><X size={19}/></button></div><p>{created.persistent?'This demo QR can be reopened from the table list at any time.':'This secure token is shown only once. Save or print this QR now.'}</p><div className="restaurant-qr-print-card"><div className="restaurant-qr-print-brand">SCAN TO VIEW MENU</div>{qrImage?<img className="restaurant-qr-image" src={qrImage} alt={`Guest menu QR code for ${created.label}`}/>:<div className="restaurant-qr-image-placeholder">{qrError||"Generating QR code…"}</div>}<b>{created.label}</b><small>Scan with your phone camera to open the menu</small></div><div className="restaurant-qr-url">{created.url}</div>{qrError&&<p role="status">{qrError}</p>}<div className="restaurant-qr-actions"><button className="button secondary" onClick={()=>void copy(created.url)}><Copy size={15}/>Copy link</button><button className="button secondary" onClick={()=>window.print()} disabled={!qrImage}><QrCode size={15}/>Print table QR</button><a className="button secondary" href={created.url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>Open guest menu</a></div></section></div>}
+    {created&&<div className="restaurant-qr-backdrop" role="presentation" onClick={()=>setCreated(null)}><section className="restaurant-qr-issued" role="dialog" aria-modal="true" aria-label={`QR code for ${created.label}`} onClick={event=>event.stopPropagation()}><div className="restaurant-qr-title"><QrCode size={18}/><b>{created.persistent?'Table QR code':'New guest QR link issued'}: {created.label}</b><button type="button" className="restaurant-qr-close" onClick={()=>setCreated(null)} aria-label="Close QR dialog"><X size={19}/></button></div><p>{created.persistent?'This demo QR can be reopened from the table list at any time.':'This secure token is shown only once. Save or print this QR now.'}</p><div className="restaurant-qr-print-card"><div className="restaurant-qr-print-brand">SCAN TO VIEW MENU</div>{qrImage?<img className="restaurant-qr-image" src={qrImage} alt={`Guest menu QR code for ${created.label}`}/>:<div className="restaurant-qr-image-placeholder">{qrError||"Generating QR code…"}</div>}<b>{created.label}</b><small>Scan with your phone camera to open the menu</small></div><div className="restaurant-qr-url">{created.url}</div>{qrError&&<p role="status">{qrError}</p>}<div className="restaurant-qr-actions"><button type="button" className="button secondary" onClick={()=>void copy(created.url)}><Copy size={15}/>Copy link</button><button type="button" className="button secondary" onClick={()=>window.print()} disabled={!qrImage}><QrCode size={15}/>Print table QR</button><a className="button secondary" href={created.url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>Open guest menu</a></div></section></div>}
     <div className="restaurant-table-list-head"><h3>Restaurant tables</h3><span>{tables.length} records</span></div>
     {state==='ready'&&tables.length===0&&<div className="restaurant-table-empty"><Table2 size={22}/><b>No tables yet</b><span>Create the first dine-in or takeaway table above.</span></div>}
     <div className="restaurant-table-list">{tables.map(table=><article className="restaurant-table-row" key={table.id}>
