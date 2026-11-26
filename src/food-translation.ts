@@ -51,7 +51,7 @@ export async function translateMenuText(source: string, language: MenuLanguage) 
   }
   if (!prepared.trim()) return ''
   let translated = prepared
-  const glossaryOnly = protectedTerms.length > 0 && prepared.replace(/ZXQFOODTERM\\d+XZ/g, '').trim() === ''
+  const glossaryOnly = protectedTerms.length > 0 && prepared.replace(/ZXQFOODTERM\d+XZ/g, '').trim() === ''
   if (glossaryOnly) {
     translated = prepared
   } else if (prepared !== source) {
