@@ -914,3 +914,21 @@
 /* Cart quantity steppers also meet the minimum touch-target size. */
 .guest-item-quantity button{width:36px;height:36px;min-width:36px;min-height:36px}
 .guest-quantity button{width:36px;height:36px;min-width:36px;min-height:36px}
+
+/* Launch-readiness: guest menu navigation, sticky controls and modal layering. */
+.guest-header{position:sticky;top:0;z-index:24;min-height:64px;background:rgba(255,255,255,.97);backdrop-filter:blur(12px)}
+.guest-categories{position:sticky;top:64px;z-index:22;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-bottom:1px solid #e9edf2}
+.guest-category-section{scroll-margin-top:124px}
+.guest-categories button,.guest-header select,.guest-service-action,.guest-cart-bar,.guest-modal button{min-height:40px}
+.guest-modal-backdrop{z-index:100}
+.guest-cart-bar{z-index:40}
+.guest-welcome{padding-top:clamp(12px,2vw,24px);padding-bottom:clamp(12px,2vw,22px)}
+@media(max-width:760px){
+  .guest-header{min-height:58px;padding-top:8px;padding-bottom:8px}
+  .guest-categories{top:58px}
+  .guest-category-section{scroll-margin-top:112px}
+  .guest-welcome{padding-top:10px;padding-bottom:12px}
+  .guest-welcome h1{font-size:clamp(20px,5.5vw,25px);margin:4px 0}
+  .guest-welcome>p{margin:4px 0 8px}
+  .guest-service-action{min-height:40px}
+}
