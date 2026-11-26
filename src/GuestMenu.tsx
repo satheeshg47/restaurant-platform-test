@@ -50,6 +50,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
   const [selected, setSelected] = useState<MenuItem | null>(null)
   const [variantId, setVariantId] = useState('')
   const [addonIds, setAddonIds] = useState<string[]>([])
+  const [selectedQuantity, setSelectedQuantity] = useState(1)
   const [cart, setCart] = useState<CartLine[]>([])
   const [cartOpen, setCartOpen] = useState(false)
   const [sending, setSending] = useState(false)
@@ -164,6 +165,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     setSelected(item)
     setVariantId(item.variants.find(value => value.available)?.id || '')
     setAddonIds([])
+    setSelectedQuantity(1)
     setNotice('')
   }
   function toggleAddon(id: string, group: AddonGroup) {
@@ -191,9 +193,10 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
       const found = current.find(line => line.key === key)
       return found
         ? current.map(line => line.key === key ? { ...line, quantity: line.quantity + 1 } : line)
-        : [...current, { key, item: selected, variantId: variantId || null, addonIds: [...addonIds], quantity: 1 }]
+        : [...current, { key, item: selected, variantId: variantId || null, addonIds: [...addonIds], quantity: selectedQuantity }]
     })
     setSelected(null)
+    setSelectedQuantity(1)
     setNotice('')
   }
   function changeQuantity(key: string, delta: number) {
@@ -300,6 +303,8 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
         <div className="guest-modal-head"><div><span className="guest-kicker">CUSTOMISE</span><h2>{localized(selected.name, language)}</h2></div><button onClick={() => setSelected(null)} aria-label="Close"><X size={20}/></button></div>
         {selected.variants.length > 0 && <div className="guest-choice-group"><h3>Choose option <em>Required</em></h3>{selected.variants.filter(v => v.available).map(variant => <label key={variant.id}><input type="radio" name="guest-variant" checked={variantId === variant.id} onChange={() => setVariantId(variant.id)}/><span>{localized(variant.name, language)}</span><b>{money(variant.price_minor, currency)}</b></label>)}</div>}
         {selected.addon_groups.map(group => <div className="guest-choice-group" key={group.id}><h3>{localized(group.name, language)} <em>{group.required ? 'Required' : 'Optional'} · max {group.max_pick}</em></h3>{group.addons.filter(addon => addon.available).map(addon => <label key={addon.id}><input type="checkbox" checked={addonIds.includes(addon.id)} onChange={() => toggleAddon(addon.id, group)} /><span>{localized(addon.name, language)}</span><b>{Number(addon.price_minor) ? '+ ' + money(addon.price_minor, currency) : 'Free'}</b></label>)}</div>)}
+        {!selected.variants.some(variant => variant.available) && !selected.addon_groups.some(group => group.addons.some(addon => addon.available)) && <div className="guest-choice-group guest-default-portion"><h3>Portion <em>Standard</em></h3><div className="guest-default-portion-row"><span>Regular serving</span><b>{money(selected.base_price_minor, currency)}</b></div></div>}
+        <div className="guest-choice-group guest-modal-quantity"><h3>Quantity</h3><div className="guest-quantity"><button type="button" aria-label="Decrease selected quantity" disabled={selectedQuantity<=1} onClick={()=>setSelectedQuantity(value=>Math.max(1,value-1))}><Minus size={14}/></button><b>{selectedQuantity}</b><button type="button" aria-label="Increase selected quantity" onClick={()=>setSelectedQuantity(value=>Math.min(99,value+1))}><Plus size={14}/></button></div></div>
         {notice && <p className="guest-form-error">{notice}</p>}
         <button className="guest-primary" onClick={addSelected}>Add to order</button>
       </section></div>}
