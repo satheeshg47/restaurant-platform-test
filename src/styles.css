@@ -932,3 +932,19 @@
   .guest-welcome>p{margin:4px 0 8px}
   .guest-service-action{min-height:40px}
 }
+
+/* Role-workspace headers and primary actions remain reachable while scrolling. */
+.staff-portal-header{position:sticky;top:0;z-index:24;min-height:64px}
+.owner-workspace-heading{position:sticky;top:0;z-index:18;background:#f6f7fb;padding:12px 0;min-height:64px}
+.owner-workspace-heading button,.staff-portal-header button,.topbar button{min-height:40px;min-width:40px}
+.guest-modal-head{position:sticky;top:0;z-index:3;background:#fff;padding-top:6px;padding-bottom:10px}
+.guest-modal-quantity{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.guest-modal-quantity .guest-quantity{display:flex;align-items:center;gap:10px}
+.guest-default-portion-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid #e5e9ef;border-radius:10px;background:#fafbfc;font-size:13px}
+.guest-default-portion-row b{color:#26364c}
+.guest-modal-quantity .guest-quantity button{width:40px;height:40px;min-width:40px;min-height:40px}
+@media(max-width:760px){
+  .staff-portal-header{min-height:58px;padding-top:8px;padding-bottom:8px}
+  .owner-workspace-heading{top:0;min-height:58px;padding:8px 0}
+  .owner-workspace-heading h2{font-size:18px}
+}
