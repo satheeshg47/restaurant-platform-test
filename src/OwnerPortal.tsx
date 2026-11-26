@@ -48,7 +48,25 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
     setRefreshing(true)
     setError('')
     try {
-      if (new URLSearchParams(window.location.search).get('demo') === '1') {
+      const wantsDemo = new URLSearchParams(window.location.search).get('demo') === '1'
+      if (wantsDemo) {
+        // Reuse an already-provisioned demo before attempting to seed it again.
+        // Re-running the full 365-day demo seed on every visit is unnecessary
+        // and could make a healthy existing demo appear unavailable on retries.
+        const existingResponse = await apiFetch(base + '/owner/restaurants', {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+          cache: 'no-store',
+        })
+        const existingPayload = await existingResponse.json().catch(() => ({}))
+        const existingRestaurants = Array.isArray(existingPayload.restaurants) ? existingPayload.restaurants as Restaurant[] : []
+        if (existingResponse.ok && existingRestaurants.some(item => item.tenant_slug === 'platform-demo-restaurant')) {
+          setRestaurants(existingRestaurants)
+          setSelectedSlug('platform-demo-restaurant')
+          setActiveTool('menu')
+          return
+        }
+
         const provision = await apiFetch(base + '/admin/demo-restaurant/provision', {
           method: 'POST',
           headers: { Accept: 'application/json' },
