@@ -55,8 +55,11 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
           credentials: 'same-origin',
           cache: 'no-store',
         })
-        const provisionPayload = await provision.json().catch(() => ({}))
-        if (!provision.ok) throw new Error(provisionPayload.error || 'The demo restaurant could not be prepared.')
+        const provisionPayload = await provision.json().catch(() => ({})) as { error?: string; detail?: string }
+        if (!provision.ok) {
+          const reason = [provisionPayload.error || 'The demo restaurant could not be prepared.', provisionPayload.detail].filter(Boolean).join(': ')
+          throw new Error(reason)
+        }
       }
       const response = await apiFetch(base + '/owner/restaurants', {
         headers: { Accept: 'application/json' },
