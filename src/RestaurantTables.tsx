@@ -1,7 +1,7 @@
 import { apiFetch } from './auth'
 import { useCallback, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { Copy, ExternalLink, Plus, RefreshCw, Table2, QrCode, AlertCircle, Check, Pencil, Trash2, Save, X, Power } from 'lucide-react'
+import { Copy, ExternalLink, Plus, RefreshCw, Table2, QrCode, AlertCircle, Check, Pencil, Save, X, Power } from 'lucide-react'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 type TableRecord = { id:string; table_number:number|null; label:string; table_type:'dine_in'|'takeaway'; active:boolean; session_id:string|null; opened_at:string|null; guest_count:number|null; open_requests:number; qr_url?:string|null }
