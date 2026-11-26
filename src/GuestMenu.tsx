@@ -99,7 +99,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     categoryScrollLock.current = true
     if (categoryUnlockTimer.current) clearTimeout(categoryUnlockTimer.current)
     document.querySelector<HTMLElement>(`[data-category-section="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    categoryUnlockTimer.current = setTimeout(() => { categoryScrollLock.current = false }, 850)
+    categoryUnlockTimer.current = setTimeout(() => { categoryScrollLock.current = false; window.dispatchEvent(new Event('scroll')) }, 1200)
   }
 
   useEffect(() => { void loadMenu() }, [slug, token])
@@ -141,16 +141,31 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     if (!categories.length) return
     const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
     if (!sections.length) return
-    const observer = new IntersectionObserver(entries => {
-      if (categoryScrollLock.current) return
-      const visible = entries
-        .filter(entry => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-      const id = visible?.target.getAttribute('data-category-section')
-      if (id) setActiveCategory(id)
-    }, { root: null, rootMargin: '-112px 0px -58% 0px', threshold: [0, 0.15, 0.35, 0.6] })
-    sections.forEach(section => observer.observe(section))
-    return () => observer.disconnect()
+    let scheduled = false
+    const updateActiveCategory = () => {
+      if (categoryScrollLock.current || scheduled) return
+      scheduled = true
+      window.requestAnimationFrame(() => {
+        scheduled = false
+        if (categoryScrollLock.current) return
+        const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
+        const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
+        const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.4)
+        let current = categories[0]?.id || ''
+        for (const section of sections) {
+          if (section.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
+          else break
+        }
+        if (current) setActiveCategory(current)
+      })
+    }
+    updateActiveCategory()
+    window.addEventListener('scroll', updateActiveCategory, { passive: true })
+    window.addEventListener('resize', updateActiveCategory)
+    return () => {
+      window.removeEventListener('scroll', updateActiveCategory)
+      window.removeEventListener('resize', updateActiveCategory)
+    }
   }, [categories])
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0)
   const cartTotal = useMemo(() => cart.reduce((sum, line) => {
@@ -290,7 +305,11 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
           <div className="guest-section-title"><div><span className="guest-kicker">OUR MENU</span><h2>{localized(category.name, language)}</h2></div><span>{category.items?.length || 0} items</span></div>
           {(category.items || []).map(item => { const quantity = cart.filter(line => line.item.id === item.id).reduce((sum, line) => sum + line.quantity, 0); const firstLine = cart.find(line => line.item.id === item.id); return <article className={`guest-item ${!item.available ? 'unavailable' : ''}`} key={item.id}>
             {item.photo_url ? <img className="guest-item-photo" src={item.photo_url} alt={localized(item.name, language)} loading="lazy"/> : <div className="guest-item-photo guest-photo-placeholder"><Utensils size={23}/></div>}
-            <div className="guest-item-info"><div className="guest-food-tag"><i className={item.food_type === 'non_veg' ? 'nonveg' : item.food_type === 'egg' ? 'egg' : ''}/>{item.food_type === 'non_veg' ? 'NON-VEG' : item.food_type === 'egg' ? 'EGG' : 'VEG'}</div><h3>{localized(item.name, language)}</h3>{item.description && <p>{localized(item.description, language)}</p>}<div className="guest-item-bottom"><strong>{money(item.variants.filter(variant=>variant.available).length?Math.min(...item.variants.filter(variant=>variant.available).map(variant=>Number(variant.price_minor))):Number(item.base_price_minor), currency)}{item.variants.some(variant=>variant.available)?<small> · From</small>:null}</strong>{item.prep_minutes ? <span><Clock3 size={12}/> {item.prep_minutes} min</span> : null}</div></div>
+            <div className="guest-item-info"><div className="guest-food-tag"><i className={item.food_type === 'non_veg' ? 'nonveg' : item.food_type === 'egg' ? 'egg' : ''}/>{item.food_type === 'non_veg' ? 'NON-VEG' : item.food_type === 'egg' ? 'EGG' : 'VEG'}</div><h3>{localized(item.name, language)}</h3>{item.description && <p>{localized(item.description, language)}</p>}<div className="guest-item-bottom"><strong>{money(item.variants.filter(variant=>variant.available).length?Math.min(...item.variants.filter(variant=>variant.available).map(variant=>Number(variant.price_minor))):Number(item.base_price_minor), currency)}{item.variants.some(variant=>variant.available)?<small> · From</small>:null}</strong>{item.prep_minutes ? <span><Clock3 size={12}/> {item.prep_minutes} min</span> : null}</div><div className="guest-item-option-badges">
+              {item.variants.filter(variant=>variant.available).slice(0,2).map(variant=><span className="guest-option-badge portion" key={variant.id}>{localized(variant.name, language)} · {money(variant.price_minor, currency)}</span>)}
+              {item.variants.filter(variant=>variant.available).length>2&&<span className="guest-option-badge">+{item.variants.filter(variant=>variant.available).length-2} portions</span>}
+              {item.addon_groups.filter(group=>group.addons.some(addon=>addon.available)).slice(0,2).map(group=><span className="guest-option-badge addon" key={group.id}>+ {localized(group.name, language)}</span>)}
+            </div></div>
             {quantity > 0 ? <div className="guest-item-quantity"><button type="button" aria-label={`Remove one ${localized(item.name, language)}`} onClick={() => firstLine && changeQuantity(firstLine.key, -1)}><Minus size={14}/></button><b>{quantity}</b><button type="button" aria-label={`Add one ${localized(item.name, language)}`} disabled={!item.available || !menu.restaurant?.accepting_orders} onClick={() => openItem(item)}><Plus size={14}/></button></div> : <button className="guest-add-button" disabled={!item.available || !menu.restaurant?.accepting_orders} onClick={() => openItem(item)}>{item.available ? 'ADD +' : 'Sold out'}</button>}
           </article>})}
           {!category.items?.length && <div className="guest-empty">No items in this category yet.</div>}
