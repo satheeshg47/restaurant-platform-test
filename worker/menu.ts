@@ -27,7 +27,7 @@ function localized(value: unknown): string {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(400, 'invalid_localized_name')
   const source = value as Record<string, unknown>
   const keys = Object.keys(source)
-  if (!keys.length || keys.some(key => !['en','hi','kn'].includes(key))) fail(400, 'invalid_localized_name')
+  if (!keys.length || keys.some(key => !['en','hi','kn','ta','te','ml'].includes(key))) fail(400, 'invalid_localized_name')
   const result: Record<string,string> = {}
   for (const key of keys) {
     if (typeof source[key] !== 'string' || !source[key].trim() || source[key].trim().length > 120) fail(400, 'invalid_localized_name')
