@@ -92,21 +92,6 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     }
   }
 
-  useEffect(() => {
-    if (!categories.length) return
-    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
-    if (!sections.length) return
-    const observer = new IntersectionObserver(entries => {
-      if (categoryScrollLock.current) return
-      const visible = entries
-        .filter(entry => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-      const id = visible?.target.getAttribute('data-category-section')
-      if (id) setActiveCategory(id)
-    }, { root: null, rootMargin: '-112px 0px -58% 0px', threshold: [0, 0.15, 0.35, 0.6] })
-    sections.forEach(section => observer.observe(section))
-    return () => observer.disconnect()
-  }, [categories])
 
   function selectCategory(id: string) {
     setActiveCategory(id)
@@ -150,6 +135,22 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
 
   const currency = menu?.restaurant?.currency_code || 'INR'
   const categories = menu?.categories || []
+
+  useEffect(() => {
+    if (!categories.length) return
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
+    if (!sections.length) return
+    const observer = new IntersectionObserver(entries => {
+      if (categoryScrollLock.current) return
+      const visible = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      const id = visible?.target.getAttribute('data-category-section')
+      if (id) setActiveCategory(id)
+    }, { root: null, rootMargin: '-112px 0px -58% 0px', threshold: [0, 0.15, 0.35, 0.6] })
+    sections.forEach(section => observer.observe(section))
+    return () => observer.disconnect()
+  }, [categories])
   const visibleCategory = categories.find(category => category.id === activeCategory) || categories[0]
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0)
   const cartTotal = useMemo(() => cart.reduce((sum, line) => {
