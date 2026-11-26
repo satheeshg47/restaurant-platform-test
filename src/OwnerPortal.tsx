@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, BarChart3, Building2, CheckCircle2, ChefHat, LogOut, Menu as MenuIcon, QrCode, RefreshCw, Settings, Star, Store, Utensils, Users, X } from 'lucide-react'
+import { AlertCircle, BarChart3, Building2, CheckCircle2, ChefHat, LogOut, Menu as MenuIcon, QrCode, RefreshCw, Settings, Star, Store, Utensils, Users, X, MessageCircle, MoreHorizontal } from 'lucide-react'
 import OwnerCommunications from './OwnerCommunications'
 import { apiFetch } from './auth'
 import RestaurantMenu from './RestaurantMenu'
@@ -25,11 +25,11 @@ type Restaurant = {
 }
 
 type Props = { accessToken: string; apiBaseUrl?: string; onSignOut?: () => void }
-type OwnerTool = 'menu' | 'tables' | 'operations' | 'settings' | 'reports' | 'reviews' | 'staff'
+type OwnerTool = 'menu' | 'tables' | 'operations' | 'settings' | 'reports' | 'reviews' | 'staff' | 'support'
 const ownerTools: { id: OwnerTool; label: string; icon: typeof Store }[] = [
   { id: 'menu', label: 'Menu', icon: Utensils }, { id: 'tables', label: 'Tables & QR', icon: QrCode },
   { id: 'operations', label: 'Kitchen & service', icon: ChefHat }, { id: 'settings', label: 'Settings', icon: Settings },
-  { id: 'reports', label: 'Reports', icon: BarChart3 }, { id: 'reviews', label: 'Reviews', icon: Star }, { id: 'staff', label: 'Staff access', icon: Users },
+  { id: 'reports', label: 'Reports', icon: BarChart3 }, { id: 'reviews', label: 'Reviews', icon: Star }, { id: 'staff', label: 'Staff access', icon: Users }, { id: 'support', label: 'Support inbox', icon: MessageCircle },
 ]
 
 export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOut }: Props) {
@@ -105,7 +105,7 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
   useEffect(() => { void load() }, [load])
 
   return <div className="owner-portal-content">
-    <section className="owner-home panel" aria-live="polite">
+    {!selectedRestaurant && <section className="owner-home panel" aria-live="polite">
       <div className="owner-home-heading">
         <div><span className="owner-comms-kicker">OWNER WORKSPACE</span><h1>Your restaurants</h1><p>Active restaurants connected to your owner account.</p></div>
         <div className="owner-home-heading-actions"><button type="button" onClick={() => void load()} disabled={refreshing} aria-label="Refresh restaurants"><RefreshCw size={17} className={refreshing ? 'owner-comms-spin' : ''}/></button>{onSignOut && <button type="button" onClick={onSignOut} aria-label="Sign out"><LogOut size={16}/></button>}</div>
@@ -124,7 +124,8 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
         <button type="button" className="owner-home-open" onClick={() => { setSelectedSlug(restaurant.tenant_slug); setActiveTool('menu') }}>Open restaurant workspace</button>
       </article>)}</div>}
       {error && <button type="button" className="owner-home-retry" onClick={() => void load()}>Try again</button>}
-    </section>
+    </section>}
+    {!selectedRestaurant && <OwnerCommunications accessToken={accessToken} apiBaseUrl={apiBaseUrl}/>}
     {selectedRestaurant && <section className="owner-workspace">
       <div className="owner-workspace-heading"><div><span className="owner-comms-kicker">RESTAURANT WORKSPACE</span><h2>{selectedRestaurant.display_name || selectedRestaurant.tenant_name}</h2><p>Changes are saved to this restaurant's live workspace.</p></div><button type="button" className="owner-workspace-back" onClick={() => setSelectedSlug('')}>Back to restaurants</button></div>
       <div className="owner-workspace-layout">
@@ -142,9 +143,16 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
           {activeTool === 'reports' && <RestaurantReports initialSlug={selectedSlug}/>}
           {activeTool === 'reviews' && <RestaurantReviews initialSlug={selectedSlug}/>}
           {activeTool === 'staff' && <OwnerStaff tenantId={selectedRestaurant.tenant_id} apiBaseUrl={apiBaseUrl} demoMode={selectedSlug === 'platform-demo-restaurant'}/>}
+          {activeTool === 'support' && <OwnerCommunications accessToken={accessToken} apiBaseUrl={apiBaseUrl}/>}
         </div>
       </div>
+      <nav className="owner-mobile-bottom-nav" aria-label="Restaurant navigation">
+        <button className={activeTool === 'menu' ? 'active' : ''} onClick={() => setActiveTool('menu')}><Utensils size={19}/><span>Menu</span></button>
+        <button className={activeTool === 'tables' ? 'active' : ''} onClick={() => setActiveTool('tables')}><QrCode size={19}/><span>Tables</span></button>
+        <button className={activeTool === 'operations' ? 'active' : ''} onClick={() => setActiveTool('operations')}><ChefHat size={19}/><span>Kitchen</span></button>
+        <button className={activeTool === 'support' ? 'active' : ''} onClick={() => setActiveTool('support')}><MessageCircle size={19}/><span>Support</span></button>
+        <button onClick={() => setMobileNavOpen(true)}><MoreHorizontal size={19}/><span>More</span></button>
+      </nav>
     </section>}
-    <OwnerCommunications accessToken={accessToken} apiBaseUrl={apiBaseUrl}/>
   </div>
 }
