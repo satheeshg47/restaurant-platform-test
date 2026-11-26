@@ -150,7 +150,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
         if (categoryScrollLock.current) return
         const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
         const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
-        const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.5)
+        const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.6)
         let current = categories[0]?.id || ''
         for (const section of sections) {
           if (section.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
