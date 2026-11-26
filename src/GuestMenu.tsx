@@ -139,22 +139,33 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
 
   useEffect(() => {
     if (!categories.length) return
-    const headings = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section] .guest-section-title'))
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
+    const headings = sections.map(section => ({
+      section,
+      heading: section.querySelector<HTMLElement>('.guest-section-title'),
+    })).filter((entry): entry is { section: HTMLElement; heading: HTMLElement } => Boolean(entry.heading))
     if (!headings.length) return
-    const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
-    const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
-    const observer = new IntersectionObserver(entries => {
+    const updateActiveCategory = () => {
       if (categoryScrollLock.current) return
-      const visibleEntries = entries
-        .filter(entry => entry.isIntersecting)
-        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-      const visible = visibleEntries[visibleEntries.length - 1]
-      const section = visible?.target.closest<HTMLElement>('[data-category-section]')
-      const id = section?.getAttribute('data-category-section')
-      if (id) setActiveCategory(id)
-    }, { root: null, rootMargin: `-${Math.round(headerHeight + categoryHeight)}px 0px -20% 0px`, threshold: 0 })
-    headings.forEach(heading => observer.observe(heading))
-    return () => observer.disconnect()
+      const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
+      const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
+      const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.8)
+      let current = categories[0]?.id || ''
+      for (const entry of headings) {
+        if (entry.heading.getBoundingClientRect().top <= activeLine) current = entry.section.getAttribute('data-category-section') || current
+        else break
+      }
+      if (current) setActiveCategory(previous => previous === current ? previous : current)
+    }
+    updateActiveCategory()
+    window.addEventListener('scroll', updateActiveCategory, { passive: true })
+    document.addEventListener('scroll', updateActiveCategory, true)
+    window.addEventListener('resize', updateActiveCategory)
+    return () => {
+      window.removeEventListener('scroll', updateActiveCategory)
+      document.removeEventListener('scroll', updateActiveCategory, true)
+      window.removeEventListener('resize', updateActiveCategory)
+    }
   }, [categories])
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0)
   const cartTotal = useMemo(() => cart.reduce((sum, line) => {
