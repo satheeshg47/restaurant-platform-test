@@ -1,17 +1,16 @@
-# Platform Core — Mobile Browser QA
+# Platform Core — Playwright browser QA
 
-This folder runs real Chromium browser checks using Playwright's Android device profiles.
+Runs Chromium against the live Cloudflare Worker at exact viewports: mobile **390 × 844** and desktop **1440 × 900**.
 
-## What it checks
-
-- Super Admin entry and Demo Owner entry both return a document without a server error.
-- No uncaught browser JavaScript errors on the initial unauthenticated screen.
-- No horizontal page overflow at Pixel 7 and compact Android viewport sizes.
-- API health and readiness routes respond.
-- Full-page screenshots, traces and videos are retained in CI when a test fails.
+## Coverage
+- Super Admin entry, Owner entry, and demo restaurant Table 1 guest QR.
+- Guest menu and language selector (English, Hindi, Kannada, Tamil, Telugu, Malayalam).
+- Guest item-customization and order-review modal flow; the suite stops before submitting a real order.
+- API health and readiness.
+- Horizontal overflow, visible interactive targets below 36 × 36 px, clipped leaf text, overlapping interactive controls, and controls obscured by fixed bottom bars.
+- Full-page screenshots for each route plus screenshots of guest customization and order-review modals. Traces and videos are retained on failure.
 
 ## Run locally
-
 ```sh
 npm install
 npx playwright install --with-deps chromium
@@ -19,7 +18,9 @@ BASE_URL=https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev npm te
 ```
 
 ## GitHub Actions
+**Full browser QA** runs after the live deployment smoke test succeeds, weekly, or manually from Actions. The HTML report, screenshots, traces, and failure videos are uploaded as a 30-day artifact.
 
-Run **Mobile browser QA** manually from Actions or on its weekly schedule. Set `BASE_URL` to test a preview deployment by dispatching with a different value.
+## Authenticated role journeys — safety boundary
+The full Super Admin → Owner → Cook/Waiter → Guest → Kitchen/Waiter transaction flow is not run against the shared live demo by default. Creating workspaces, staff, orders, or closing sessions mutates business data. It requires a disposable QA tenant and least-privilege test identities. Add role-specific Playwright storage states as GitHub Actions secrets and run destructive workflows only against that isolated tenant. Never use production customer accounts or the production D1 database.
 
-The initial suite deliberately tests the public sign-in/entry surfaces and does not store account passwords. Authenticated restaurant workflows (menu, tables/QR, kitchen and owner workspace) should be added only after a dedicated least-privilege QA account is provisioned through GitHub Actions secrets. Never commit credentials or put them in chat.
+This suite does not claim authenticated role-isolation, staff-revocation, cross-table aggregation, or final-bill tests until that isolated environment is provisioned.

@@ -59,7 +59,7 @@ test('guest menu supports category swipe, item quantity controls and a clear ord
   const dosa = page.locator('.guest-item').filter({ hasText: 'Masala Dosa' }).first()
   await expect(dosa).toBeVisible()
   await dosa.getByRole('button', { name: 'ADD +' }).click()
-  const customise = page.getByRole('heading', { name: 'Masala Dosa' })
+  const customise = page.locator('.guest-modal').getByRole('heading', { name: 'Masala Dosa' })
   await expect(customise).toBeVisible()
   await page.getByRole('button', { name: 'Add to order' }).click()
   const review = page.getByRole('button', { name: /Review order/ })
