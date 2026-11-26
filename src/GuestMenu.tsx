@@ -99,7 +99,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     categoryScrollLock.current = true
     if (categoryUnlockTimer.current) clearTimeout(categoryUnlockTimer.current)
     document.querySelector<HTMLElement>(`[data-category-section="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    categoryUnlockTimer.current = setTimeout(() => { categoryScrollLock.current = false }, 1200)
+    categoryUnlockTimer.current = setTimeout(() => { categoryScrollLock.current = false; window.dispatchEvent(new Event('scroll')) }, 1200)
   }
 
   useEffect(() => { void loadMenu() }, [slug, token])
