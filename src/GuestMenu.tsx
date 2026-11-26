@@ -99,7 +99,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     categoryScrollLock.current = true
     if (categoryUnlockTimer.current) clearTimeout(categoryUnlockTimer.current)
     document.querySelector<HTMLElement>(`[data-category-section="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    categoryUnlockTimer.current = setTimeout(() => { categoryScrollLock.current = false }, 850)
+    categoryUnlockTimer.current = setTimeout(() => { categoryScrollLock.current = false }, 1200)
   }
 
   useEffect(() => { void loadMenu() }, [slug, token])
@@ -141,16 +141,31 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     if (!categories.length) return
     const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
     if (!sections.length) return
-    const observer = new IntersectionObserver(entries => {
-      if (categoryScrollLock.current) return
-      const visible = entries
-        .filter(entry => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-      const id = visible?.target.getAttribute('data-category-section')
-      if (id) setActiveCategory(id)
-    }, { root: null, rootMargin: '-112px 0px -58% 0px', threshold: [0, 0.15, 0.35, 0.6] })
-    sections.forEach(section => observer.observe(section))
-    return () => observer.disconnect()
+    let scheduled = false
+    const updateActiveCategory = () => {
+      if (categoryScrollLock.current || scheduled) return
+      scheduled = true
+      window.requestAnimationFrame(() => {
+        scheduled = false
+        if (categoryScrollLock.current) return
+        const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
+        const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
+        const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.4)
+        let current = categories[0]?.id || ''
+        for (const section of sections) {
+          if (section.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
+          else break
+        }
+        if (current) setActiveCategory(current)
+      })
+    }
+    updateActiveCategory()
+    window.addEventListener('scroll', updateActiveCategory, { passive: true })
+    window.addEventListener('resize', updateActiveCategory)
+    return () => {
+      window.removeEventListener('scroll', updateActiveCategory)
+      window.removeEventListener('resize', updateActiveCategory)
+    }
   }, [categories])
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0)
   const cartTotal = useMemo(() => cart.reduce((sum, line) => {
