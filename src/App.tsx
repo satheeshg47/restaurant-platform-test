@@ -153,10 +153,12 @@ function App() {
   if (adminAccess !== 'allowed') return <SignIn role="admin" error={adminAccess === 'forbidden' ? 'This identity is not the configured Super Admin.' : 'The administrator API is unavailable or not configured.'} bootstrapAvailable={bootstrapAvailable} encryptionReady={encryptionReady} onAuthenticated={handleNativeAuthenticated}/>
 
 
-  const pageTitle = section === 'Overview' ? 'Good evening' : section
+  const sectionLabel = ({ Overview: 'Dashboard', Applications: 'Apps', Owners: 'Subscribers', Communications: 'Messages', 'Update Centre': 'Updates' } as Partial<Record<Section, string>>)[section] || section
+  const pageTitle = sectionLabel
   const pageSubtitle = section === 'Overview'
     ? 'Your platform at a glance. Here’s what’s happening today.'
-    : `Manage your platform’s ${section.toLowerCase()}.`
+    : section === 'Admin Area' ? 'Platform-wide settings and operational controls.'
+    : `Manage your platform’s ${sectionLabel.toLowerCase()}.`
 
   return (
     <div className="shell">
@@ -171,9 +173,9 @@ function App() {
 
       {menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Close navigation"/>}
       <main className="main">
-        <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="breadcrumb">Platform <span>/</span> <b>{section}</b></div><div className="top-actions"><div className="environment"><i/> Pre-launch mode</div><button className="icon-button notification" onClick={() => notify('You’re all caught up.')} aria-label="Notifications"><Bell size={18}/><i/></button><button className="button secondary small" onClick={signOut}>Sign out</button></div></header>
+        <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="breadcrumb">Platform <span>/</span> <b>{sectionLabel}</b></div><div className="top-actions"><div className="environment"><i/> Pre-launch mode</div><button className="icon-button notification" onClick={() => notify('You’re all caught up.')} aria-label="Notifications"><Bell size={18}/><i/></button><button className="button secondary small" onClick={signOut}>Sign out</button></div></header>
         <div className="content">
-          <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}</div><h1>{pageTitle}{section === 'Overview' ? ', Admin' : ''}</h1><p>{pageSubtitle}</p></div><div className="welcome-actions">{section === 'Overview' && <button className="button secondary" onClick={() => { window.location.href = '/owner?demo=1' }}><Store size={16}/> Open demo</button>}{(section === 'Overview' || section === 'Applications') && <button className="button primary" onClick={() => setSection('Applications')}><Plus size={17}/> Add application</button>}{section === 'Admin Area' && <button className="button secondary" onClick={() => setSection('Security')}><Settings size={16}/> Security settings</button>}</div></div>
+          <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}</div><h1>{pageTitle}</h1><p>{pageSubtitle}</p></div><div className="welcome-actions">{section === 'Overview' && <button className="button secondary" onClick={() => { window.location.href = '/owner?demo=1' }}><Store size={16}/> Open demo</button>}{(section === 'Overview' || section === 'Applications') && <button className="button primary" onClick={() => setSection('Applications')}><Plus size={17}/> Add application</button>}{section === 'Admin Area' && <button className="button secondary" onClick={() => setSection('Security')}><Settings size={16}/> Security settings</button>}</div></div>
 
           {section === 'Overview' && <Overview setSection={setSection}/>}
           {section === 'Applications' && <Applications />}
