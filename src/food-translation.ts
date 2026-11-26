@@ -32,7 +32,7 @@ export function applyFoodGlossary(source: string, language: MenuLanguage) {
   let output = source
   const glossary = FOOD_GLOSSARY[language]
   for (const [english, translated] of Object.entries(glossary).sort((a, b) => b[0].length - a[0].length)) {
-    output = output.replace(new RegExp('(^|[^\\p{L}\\p{N}])' + english.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&') + '(?=$|[^\\p{L}\\p{N}])', 'giu'), (_match, prefix: string) => prefix + translated)
+    output = output.replace(new RegExp('(^|[^\\p{L}\\p{N}])' + english + '(?=$|[^\\p{L}\\p{N}])', 'giu'), (_match, prefix: string) => prefix + translated)
   }
   return output
 }
@@ -42,7 +42,7 @@ export async function translateMenuText(source: string, language: MenuLanguage) 
   const protectedTerms: string[] = []
   let prepared = source
   for (const [english, translated] of Object.entries(glossary).sort((a, b) => b[0].length - a[0].length)) {
-    const expression = new RegExp('(^|[^\\p{L}\\p{N}])' + english.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&') + '(?=$|[^\\p{L}\\p{N}])', 'giu')
+    const expression = new RegExp('(^|[^\\p{L}\\p{N}])' + english + '(?=$|[^\\p{L}\\p{N}])', 'giu')
     prepared = prepared.replace(expression, (_match, prefix: string) => {
       const token = 'ZXQFOODTERM' + protectedTerms.length + 'XZ'
       protectedTerms.push(translated)
