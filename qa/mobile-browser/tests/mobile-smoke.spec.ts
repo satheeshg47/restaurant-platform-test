@@ -69,3 +69,34 @@ test('guest menu supports category swipe, item quantity controls and a clear ord
   await expect(page.getByRole('button', { name: /Place order/ })).toBeVisible()
   // Do not submit a live demo order from the scheduled smoke suite.
 })
+
+
+test('guest category pills stay synchronized with scroll and sticky controls remain reachable', async ({ page }) => {
+  await page.goto(routes[2].path, { waitUntil: 'domcontentloaded' })
+  const rail = page.locator('.guest-categories')
+  await expect(rail).toBeVisible({ timeout: 20000 })
+  const pills = rail.locator('button')
+  const count = await pills.count()
+  expect(count).toBeGreaterThan(1)
+  const second = pills.nth(1)
+  await second.click()
+  await expect(second).toHaveClass(/active/)
+  await page.waitForTimeout(950)
+  const lastSection = page.locator('[data-category-section]').last()
+  await lastSection.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(300)
+  const lastId = await lastSection.getAttribute('data-category-section')
+  await expect(rail.locator('button.active')).toHaveAttribute('aria-current', 'location')
+  await expect(rail.locator('button.active')).toHaveText((await lastSection.locator('.guest-section-title h2').innerText()).trim())
+  const header = page.locator('.guest-header')
+  const geometry = await page.evaluate(() => {
+    const header = document.querySelector('.guest-header')!.getBoundingClientRect()
+    const categories = document.querySelector('.guest-categories')!.getBoundingClientRect()
+    return { headerTop: header.top, headerBottom: header.bottom, categoriesTop: categories.top }
+  })
+  expect(geometry.headerTop).toBeGreaterThanOrEqual(-1)
+  expect(geometry.headerTop).toBeLessThanOrEqual(1)
+  expect(geometry.categoriesTop).toBeGreaterThanOrEqual(geometry.headerBottom - 2)
+  expect(await header.isVisible()).toBeTruthy()
+  expect(lastId).toBeTruthy()
+})

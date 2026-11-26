@@ -914,3 +914,41 @@
 /* Cart quantity steppers also meet the minimum touch-target size. */
 .guest-item-quantity button{width:36px;height:36px;min-width:36px;min-height:36px}
 .guest-quantity button{width:36px;height:36px;min-width:36px;min-height:36px}
+
+/* Launch-readiness: guest menu navigation, sticky controls and modal layering. */
+.guest-header{position:sticky;top:0;z-index:24;min-height:64px;background:rgba(255,255,255,.97);backdrop-filter:blur(12px)}
+.guest-categories{position:sticky;top:64px;z-index:22;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-bottom:1px solid #e9edf2}
+.guest-category-section{scroll-margin-top:124px}
+.guest-categories button,.guest-header select,.guest-service-action,.guest-cart-bar,.guest-modal button{min-height:40px}
+.guest-modal-backdrop{z-index:100}
+.guest-cart-bar{z-index:40}
+.guest-welcome{padding-top:clamp(12px,2vw,24px);padding-bottom:clamp(12px,2vw,22px)}
+@media(max-width:760px){
+  .guest-header{min-height:58px;padding-top:8px;padding-bottom:8px}
+  .guest-categories{top:58px}
+  .guest-category-section{scroll-margin-top:112px}
+  .guest-welcome{padding-top:10px;padding-bottom:12px}
+  .guest-welcome h1{font-size:clamp(20px,5.5vw,25px);margin:4px 0}
+  .guest-welcome>p{margin:4px 0 8px}
+  .guest-service-action{min-height:40px}
+}
+
+/* Role-workspace headers and primary actions remain reachable while scrolling. */
+.staff-portal-header{position:sticky;top:0;z-index:24;min-height:64px}
+.owner-workspace-heading{position:sticky;top:0;z-index:18;background:#f6f7fb;padding:12px 0;min-height:64px}
+.owner-workspace-heading button,.staff-portal-header button,.topbar button{min-height:40px;min-width:40px}
+.guest-modal-head{position:sticky;top:0;z-index:3;background:#fff;padding-top:6px;padding-bottom:10px}
+.guest-modal-quantity{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.guest-modal-quantity .guest-quantity{display:flex;align-items:center;gap:10px}
+.guest-default-portion-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid #e5e9ef;border-radius:10px;background:#fafbfc;font-size:13px}
+.guest-default-portion-row b{color:#26364c}
+.guest-modal-quantity .guest-quantity button{width:40px;height:40px;min-width:40px;min-height:40px}
+@media(max-width:760px){
+  .staff-portal-header{min-height:58px;padding-top:8px;padding-bottom:8px}
+  .owner-workspace-heading{top:0;min-height:58px;padding:8px 0}
+  .owner-workspace-heading h2{font-size:18px}
+}
+
+.owner-home-heading{position:sticky;top:0;z-index:18;background:#fff;padding:10px 0;min-height:62px}
+.owner-home-heading-actions button,.owner-workspace-back,.owner-mobile-nav-toggle{min-height:40px;min-width:40px}
+@media(max-width:760px){.owner-home-heading{top:0;min-height:56px;padding:8px 0}.owner-home-heading h1{font-size:20px}}

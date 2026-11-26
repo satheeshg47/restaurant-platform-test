@@ -1,4 +1,5 @@
 import { apiFetch } from './auth'
+import { translateMenuText } from './food-translation'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, CirclePlus, Clock3, Leaf, LoaderCircle, Plus, RefreshCw, Save, Store, Utensils, X, ImagePlus } from 'lucide-react'
 
@@ -41,7 +42,7 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
   const [descriptionTranslations, setDescriptionTranslations] = useState<Record<string,string>>({})
   const [itemAvailable, setItemAvailable] = useState(true)
   const [hasPortions, setHasPortions] = useState(false)
-  const [portionDrafts, setPortionDrafts] = useState<Array<{id?:string;name:string;price:string}>>([{name:'Half Plate',price:''},{name:'Full Plate',price:''}])
+  const [portionDrafts, setPortionDrafts] = useState<Array<{id?:string;name:string;price:string;translations?:Record<string,string>}>>([{name:'Half Plate',price:''},{name:'Full Plate',price:''}])
   const [selectedAddonGroups, setSelectedAddonGroups] = useState<string[]>([])
   const [itemPrice, setItemPrice] = useState('')
   const [itemCategory, setItemCategory] = useState('')
@@ -61,12 +62,14 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
   const [groupName, setGroupName] = useState('')
   const [groupNameHi, setGroupNameHi] = useState('')
   const [groupNameKn, setGroupNameKn] = useState('')
+  const [groupTranslations, setGroupTranslations] = useState<Record<string,string>>({})
   const [groupMin, setGroupMin] = useState('0')
   const [groupMax, setGroupMax] = useState('1')
   const [addonGroup, setAddonGroup] = useState('')
   const [addonName, setAddonName] = useState('')
   const [addonNameHi, setAddonNameHi] = useState('')
   const [addonNameKn, setAddonNameKn] = useState('')
+  const [addonTranslations, setAddonTranslations] = useState<Record<string,string>>({})
   const [addonPrice, setAddonPrice] = useState('')
   const [showOptions, setShowOptions] = useState(false)
 
@@ -118,14 +121,14 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
 
   function openNewItem() {
     setModalError('')
-    setEditing(null); setItemName(''); setItemNameHi(''); setItemTranslations({}); setItemDescription(''); setDescriptionTranslations({}); setItemAvailable(true); setHasPortions(false); setPortionDrafts([{name:'Half Plate',price:''},{name:'Full Plate',price:''}]); setSelectedAddonGroups([]); setItemPrice(''); setItemPrep('10'); setItemHsnSac(''); setStockTracking(false); setStockQuantity('')
+    setEditing(null); setItemName(''); setItemNameHi(''); setItemTranslations({}); setItemDescription(''); setDescriptionTranslations({}); setItemAvailable(true); setHasPortions(false); setPortionDrafts([{name:'Half Plate',price:'',translations:{}},{name:'Full Plate',price:'',translations:{}}]); setSelectedAddonGroups([]); setItemPrice(''); setItemPrep('10'); setItemHsnSac(''); setStockTracking(false); setStockQuantity('')
     setItemCategory(menu.categories.find(category => category.active)?.id || '')
     setItemType('veg'); setShowItem(true)
   }
 
   function openEditItem(item: MenuItem) {
     setModalError('')
-    setEditing(item); setItemName(item.name.en || ''); setItemNameHi(item.name.hi || ''); setItemTranslations(Object.fromEntries(Object.entries(item.name).filter(([key])=>!['en','hi'].includes(key)))); setItemDescription(item.description?.en || ''); setDescriptionTranslations(Object.fromEntries(Object.entries(item.description || {}).filter(([key])=>key!=='en'))); setItemAvailable(item.available); setHasPortions(menu.variants.some(v=>v.item_id===item.id&&v.active)); setPortionDrafts(menu.variants.filter(v=>v.item_id===item.id&&v.active).map(v=>({id:v.id,name:v.name.en||'',price:(Number(v.price_minor)/100).toFixed(2)}))); setSelectedAddonGroups(menu.item_addon_groups.filter(link=>link.item_id===item.id).map(link=>link.group_id))
+    setEditing(item); setItemName(item.name.en || ''); setItemNameHi(item.name.hi || ''); setItemTranslations(Object.fromEntries(Object.entries(item.name).filter(([key])=>!['en','hi'].includes(key)))); setItemDescription(item.description?.en || ''); setDescriptionTranslations(Object.fromEntries(Object.entries(item.description || {}).filter(([key])=>key!=='en'))); setItemAvailable(item.available); setHasPortions(menu.variants.some(v=>v.item_id===item.id&&v.active)); setPortionDrafts(menu.variants.filter(v=>v.item_id===item.id&&v.active).map(v=>({id:v.id,name:v.name.en||'',price:(Number(v.price_minor)/100).toFixed(2),translations:Object.fromEntries(Object.entries(v.name).filter(([key])=>key!=='en'))}))); setSelectedAddonGroups(menu.item_addon_groups.filter(link=>link.item_id===item.id).map(link=>link.group_id))
     setItemPrice((Number(item.base_price_minor) / 100).toFixed(2))
     setItemPrep(String(item.prep_minutes)); setItemHsnSac(item.hsn_sac_code || ''); setItemCategory(item.category_id); setItemType(item.food_type); setStockTracking(item.stock_tracking); setStockQuantity(item.stock_quantity === null ? '' : String(item.stock_quantity)); setShowItem(true)
   }
@@ -135,19 +138,21 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
     if (!source) { setModalError('Enter the English food name before translating.'); return }
     setTranslating(true); setModalError('')
     try {
-      const url = 'https://translate.googleapis.com/translate_a/single?' + new URLSearchParams({ client: 'gtx', sl: 'en', tl: target, dt: 't', q: source }).toString()
-      const response = await fetch(url, { headers: { Accept: 'application/json' } })
-      if (!response.ok) throw new Error('Translation service is temporarily unavailable. You can type the translation manually.')
-      const payload = await response.json()
-      const translated = Array.isArray(payload?.[0]) ? payload[0].map((part: unknown[]) => String(part?.[0] || '')).join('').trim() : ''
-      if (!translated) throw new Error('No translation was returned. Please enter it manually.')
+      const translated = await translateMenuText(source, target)
       if (target === 'hi') setItemNameHi(translated)
       else setItemTranslations(current=>({...current,[target]:translated}))
-      if(itemDescription.trim()){const descriptionUrl='https://translate.googleapis.com/translate_a/single?'+new URLSearchParams({client:'gtx',sl:'en',tl:target,dt:'t',q:itemDescription.trim()}).toString();const descriptionResponse=await fetch(descriptionUrl,{headers:{Accept:'application/json'}});if(descriptionResponse.ok){const descriptionPayload=await descriptionResponse.json();const translatedDescription=Array.isArray(descriptionPayload?.[0])?descriptionPayload[0].map((part:unknown[])=>String(part?.[0]||'')).join('').trim():'';if(translatedDescription)setDescriptionTranslations(current=>({...current,[target]:translatedDescription}))}}
+      if (itemDescription.trim()) {
+        const translatedDescription = await translateMenuText(itemDescription.trim(), target)
+        setDescriptionTranslations(current=>({...current,[target]:translatedDescription}))
+      }
+      const translatedPortions = await Promise.all(portionDrafts.map(async option => ({
+        ...option,
+        translations: { ...(option.translations || {}), [target]: option.name.trim() ? await translateMenuText(option.name.trim(), target) : '' },
+      })))
+      setPortionDrafts(translatedPortions)
     } catch (cause) { setModalError(cause instanceof Error ? cause.message : 'Translation failed. Please enter the translation manually.') }
     finally { setTranslating(false) }
   }
-
   async function saveItem() {
     const price = Number(itemPrice)
     const prep = Number(itemPrep)
@@ -165,7 +170,7 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
       const savedItemId=editing?.id||saved.item?.id
       if(!savedItemId)throw new Error('The item was saved but its ID was not returned; refresh before adding options.')
       const existingVariants=menu.variants.filter(v=>v.item_id===savedItemId&&v.active)
-      if(hasPortions){const valid=portionDrafts.filter(option=>option.name.trim()&&option.price.trim());if(valid.length<2)throw new Error('Add at least two portion names and prices.');for(const option of valid){const amount=Number(option.price);if(!Number.isFinite(amount)||amount<0||!Number.isInteger(amount*100))throw new Error('Each portion needs a valid price (up to 2 decimals).');const variantBody={name:{en:option.name.trim()},price_minor:Math.round(amount*100),active:true};if(option.id)await request(`/menu/variants/${option.id}`,{method:'PATCH',body:JSON.stringify(variantBody)});else await request(`/menu/items/${savedItemId}/variants`,{method:'POST',body:JSON.stringify(variantBody)})}for(const oldVariant of existingVariants){if(!portionDrafts.some(option=>option.id===oldVariant.id))await request(`/menu/variants/${oldVariant.id}`,{method:'PATCH',body:JSON.stringify({active:false})})}}else if(editing){for(const variant of existingVariants)await request(`/menu/variants/${variant.id}`,{method:'PATCH',body:JSON.stringify({active:false})})}
+      if(hasPortions){const valid=portionDrafts.filter(option=>option.name.trim()&&option.price.trim());if(valid.length<2)throw new Error('Add at least two portion names and prices.');for(const option of valid){const amount=Number(option.price);if(!Number.isFinite(amount)||amount<0||!Number.isInteger(amount*100))throw new Error('Each portion needs a valid price (up to 2 decimals).');const variantBody={name:{en:option.name.trim(),...Object.fromEntries(Object.entries(option.translations||{}).filter(([,value])=>value.trim()))},price_minor:Math.round(amount*100),active:true};if(option.id)await request(`/menu/variants/${option.id}`,{method:'PATCH',body:JSON.stringify(variantBody)});else await request(`/menu/items/${savedItemId}/variants`,{method:'POST',body:JSON.stringify(variantBody)})}for(const oldVariant of existingVariants){if(!portionDrafts.some(option=>option.id===oldVariant.id))await request(`/menu/variants/${oldVariant.id}`,{method:'PATCH',body:JSON.stringify({active:false})})}}else if(editing){for(const variant of existingVariants)await request(`/menu/variants/${variant.id}`,{method:'PATCH',body:JSON.stringify({active:false})})}
       for(const groupId of selectedAddonGroups){if(!menu.item_addon_groups.some(link=>link.item_id===savedItemId&&link.group_id===groupId))await request(`/menu/items/${savedItemId}/addon-groups`,{method:'POST',body:JSON.stringify({group_id:groupId})})}
       setShowItem(false);setEditing(null);await load()
     } catch (cause) { setModalError(cause instanceof Error ? cause.message : 'Could not save food item.') }
@@ -231,6 +236,16 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
     finally { setBusy(false) }
   }
 
+  async function translateOption(source: string, update: (values: Record<string,string>) => void) {
+    if (!source.trim()) { setError('Enter the English option name before translating.'); return }
+    setTranslating(true); setError('')
+    try {
+      const entries = await Promise.all((['hi','kn','ta','te','ml'] as const).map(async language => [language, await translateMenuText(source.trim(), language)] as const))
+      update(Object.fromEntries(entries))
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not translate this option.') }
+    finally { setTranslating(false) }
+  }
+
   async function saveAddonGroup() {
     const min = Number(groupMin), max = Number(groupMax)
     if (!groupName.trim() || !Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max < min || max > 20) {
@@ -239,8 +254,8 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
     }
     setBusy(true); setError('')
     try {
-      const result = await request('/menu/addon-groups', { method:'POST', body:JSON.stringify({ name:{en:groupName.trim(), ...(groupNameHi.trim()?{hi:groupNameHi.trim()}:{}), ...(groupNameKn.trim()?{kn:groupNameKn.trim()}:{})}, min_pick:min, max_pick:max, required:min>0 }) })
-      setAddonGroup(result.addon_group.id); setGroupName(''); setGroupNameHi(''); setGroupNameKn(''); await load()
+      const result = await request('/menu/addon-groups', { method:'POST', body:JSON.stringify({ name:{en:groupName.trim(), ...groupTranslations, ...(groupNameHi.trim()?{hi:groupNameHi.trim()}:{}), ...(groupNameKn.trim()?{kn:groupNameKn.trim()}:{})}, min_pick:min, max_pick:max, required:min>0 }) })
+      setAddonGroup(result.addon_group.id); setGroupName(''); setGroupNameHi(''); setGroupNameKn(''); setGroupTranslations({}); await load()
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save add-on group.') }
     finally { setBusy(false) }
   }
@@ -253,8 +268,8 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
     }
     setBusy(true); setError('')
     try {
-      await request(`/menu/addon-groups/${addonGroup}/addons`, { method:'POST', body:JSON.stringify({ name:{en:addonName.trim(), ...(addonNameHi.trim()?{hi:addonNameHi.trim()}:{}), ...(addonNameKn.trim()?{kn:addonNameKn.trim()}:{})}, price_minor:Math.round(price*100) }) })
-      setAddonName(''); setAddonNameHi(''); setAddonNameKn(''); setAddonPrice(''); await load()
+      await request(`/menu/addon-groups/${addonGroup}/addons`, { method:'POST', body:JSON.stringify({ name:{en:addonName.trim(), ...addonTranslations, ...(addonNameHi.trim()?{hi:addonNameHi.trim()}:{}), ...(addonNameKn.trim()?{kn:addonNameKn.trim()}:{})}, price_minor:Math.round(price*100) }) })
+      setAddonName(''); setAddonNameHi(''); setAddonNameKn(''); setAddonTranslations({}); setAddonPrice(''); await load()
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save add-on.') }
     finally { setBusy(false) }
   }
@@ -326,14 +341,14 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
           </div>
           <div className="restaurant-option-block">
             <b>2. Create an add-on group</b><p>Example: Choose toppings. Set minimum and maximum selections.</p>
-            <label htmlFor="group-name">Group name · English</label><input id="group-name" className="modal-input" value={groupName} onChange={event=>setGroupName(event.target.value)} placeholder="Choose toppings"/><div className="restaurant-form-grid"><div><label htmlFor="group-name-hi">Hindi</label><input id="group-name-hi" className="modal-input" value={groupNameHi} onChange={event=>setGroupNameHi(event.target.value)} placeholder="टॉपिंग चुनें"/></div><div><label htmlFor="group-name-kn">Kannada</label><input id="group-name-kn" className="modal-input" value={groupNameKn} onChange={event=>setGroupNameKn(event.target.value)} placeholder="ಟಾಪಿಂಗ್ಸ್ ಆಯ್ಕೆಮಾಡಿ"/></div></div>
+            <label htmlFor="group-name">Group name · English</label><input id="group-name" className="modal-input" value={groupName} onChange={event=>setGroupName(event.target.value)} placeholder="Choose toppings"/><div className="restaurant-form-grid"><div><label htmlFor="group-name-hi">Hindi</label><input id="group-name-hi" className="modal-input" value={groupNameHi} onChange={event=>setGroupNameHi(event.target.value)} placeholder="टॉपिंग चुनें"/></div><div><label htmlFor="group-name-kn">Kannada</label><input id="group-name-kn" className="modal-input" value={groupNameKn} onChange={event=>setGroupNameKn(event.target.value)} placeholder="ಟಾಪಿಂಗ್ಸ್ ಆಯ್ಕೆಮಾಡಿ"/></div></div><button type="button" className="button secondary small" onClick={()=>void translateOption(groupName,setGroupTranslations)} disabled={translating||!groupName.trim()}>{translating?'Translating…':'Auto translate group name (5 languages)'}</button>
             <div className="restaurant-form-grid"><div><label htmlFor="group-min">Minimum picks</label><input id="group-min" className="modal-input" type="number" min="0" max="20" value={groupMin} onChange={event=>setGroupMin(event.target.value)}/></div><div><label htmlFor="group-max">Maximum picks</label><input id="group-max" className="modal-input" type="number" min="0" max="20" value={groupMax} onChange={event=>setGroupMax(event.target.value)}/></div></div>
             <button className="button primary small" onClick={()=>void saveAddonGroup()} disabled={busy}><Plus size={13}/>Create group</button>
           </div>
           <div className="restaurant-option-block">
             <b>3. Add an extra</b><p>Examples: Extra cheese, paneer, egg.</p>
             <label htmlFor="addon-group">Add-on group</label><select id="addon-group" className="modal-input" value={addonGroup} onChange={event=>setAddonGroup(event.target.value)}><option value="">Choose group</option>{menu.addon_groups.filter(g=>g.active).map(g=><option key={g.id} value={g.id}>{g.name.en||'Untitled group'}</option>)}</select>
-            <div className="restaurant-form-grid"><div><label htmlFor="addon-name">Extra · English</label><input id="addon-name" className="modal-input" value={addonName} onChange={event=>setAddonName(event.target.value)} placeholder="Extra cheese"/><label htmlFor="addon-name-hi">Hindi</label><input id="addon-name-hi" className="modal-input" value={addonNameHi} onChange={event=>setAddonNameHi(event.target.value)} placeholder="अतिरिक्त चीज़"/><label htmlFor="addon-name-kn">Kannada</label><input id="addon-name-kn" className="modal-input" value={addonNameKn} onChange={event=>setAddonNameKn(event.target.value)} placeholder="ಹೆಚ್ಚುವರಿ ಚೀಸ್"/></div><div><label htmlFor="addon-price">Price (₹)</label><input id="addon-price" className="modal-input" type="number" min="0" step="0.01" value={addonPrice} onChange={event=>setAddonPrice(event.target.value)} placeholder="0.00"/></div></div>
+            <div className="restaurant-form-grid"><div><label htmlFor="addon-name">Extra · English</label><input id="addon-name" className="modal-input" value={addonName} onChange={event=>setAddonName(event.target.value)} placeholder="Extra cheese"/><label htmlFor="addon-name-hi">Hindi</label><input id="addon-name-hi" className="modal-input" value={addonNameHi} onChange={event=>setAddonNameHi(event.target.value)} placeholder="अतिरिक्त चीज़"/><label htmlFor="addon-name-kn">Kannada</label><input id="addon-name-kn" className="modal-input" value={addonNameKn} onChange={event=>setAddonNameKn(event.target.value)} placeholder="ಹೆಚ್ಚುವರಿ ಚೀಸ್"/></div><button type="button" className="button secondary small" onClick={()=>void translateOption(addonName,setAddonTranslations)} disabled={translating||!addonName.trim()}>{translating?'Translating…':'Auto translate extra (5 languages)'}</button><div><label htmlFor="addon-price">Price (₹)</label><input id="addon-price" className="modal-input" type="number" min="0" step="0.01" value={addonPrice} onChange={event=>setAddonPrice(event.target.value)} placeholder="0.00"/></div></div>
             <button className="button primary small" onClick={()=>void saveAddon()} disabled={busy}><Plus size={13}/>Add extra</button>
             {menu.addons.filter(a=>a.group_id===addonGroup && a.active).map(a=><div className="restaurant-option-row" key={a.id}><span>{a.name.en||'Extra'} · {rupees(a.price_minor)}</span><button className={`restaurant-availability ${a.available?'on':'off'}`} onClick={()=>void toggleOption(`/menu/addons/${a.id}`,{available:!a.available})} disabled={busy}>{a.available?'Available':'Unavailable'}</button></div>)}
           </div>
@@ -362,7 +377,7 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
       <label htmlFor="item-hsn-sac">HSN / SAC code (4, 6 or 8 digits)</label><input className="modal-input" id="item-hsn-sac" inputMode="numeric" maxLength={8} value={itemHsnSac} onChange={event=>setItemHsnSac(event.target.value.replace(/[^0-9]/g,''))} placeholder="e.g. 996331"/>
       <div className="restaurant-stock-control"><label><input type="checkbox" checked={stockTracking} onChange={event=>setStockTracking(event.target.checked)}/> Track stock quantity</label>{stockTracking&&<div><label htmlFor="item-stock">Available quantity</label><input className="modal-input" id="item-stock" type="number" min="0" step="0.01" value={stockQuantity} onChange={event=>setStockQuantity(event.target.value)} placeholder="e.g. 25"/></div>}</div>
       <label className="restaurant-toggle-row"><input type="checkbox" checked={hasPortions} onChange={event=>setHasPortions(event.target.checked)}/> Has portions / variants (Half, Full, Small, Large)</label>
-      {hasPortions&&<div className="restaurant-portion-editor"><b>Portion options and prices</b>{portionDrafts.map((option,index)=><div className="restaurant-portion-row" key={index}><input className="modal-input" aria-label={'Portion '+(index+1)+' name'} value={option.name} onChange={event=>setPortionDrafts(current=>current.map((value,i)=>i===index?{...value,name:event.target.value}:value))} placeholder="e.g. Half Plate"/><input className="modal-input" aria-label={'Portion '+(index+1)+' price'} type="number" min="0" step="0.01" value={option.price} onChange={event=>setPortionDrafts(current=>current.map((value,i)=>i===index?{...value,price:event.target.value}:value))} placeholder="₹ price"/><button type="button" onClick={()=>setPortionDrafts(current=>current.filter((_,i)=>i!==index))} aria-label="Remove portion"><X size={15}/></button></div>)}<button type="button" className="button secondary small" onClick={()=>setPortionDrafts(current=>[...current,{name:'',price:''}])}><Plus size={13}/>Add portion</button>{editing&&<small>Existing portions are preserved. Manage their prices in Variants & extras.</small>}</div>}
+      {hasPortions&&<div className="restaurant-portion-editor"><b>Portion options and prices</b>{portionDrafts.map((option,index)=><div className="restaurant-portion-row" key={index}><input className="modal-input" aria-label={'Portion '+(index+1)+' name'} value={option.name} onChange={event=>setPortionDrafts(current=>current.map((value,i)=>i===index?{...value,name:event.target.value}:value))} placeholder="e.g. Half Plate"/><input className="modal-input" aria-label={'Portion '+(index+1)+' price'} type="number" min="0" step="0.01" value={option.price} onChange={event=>setPortionDrafts(current=>current.map((value,i)=>i===index?{...value,price:event.target.value}:value))} placeholder="₹ price"/><button type="button" onClick={()=>setPortionDrafts(current=>current.filter((_,i)=>i!==index))} aria-label="Remove portion"><X size={15}/></button></div>)}<button type="button" className="button secondary small" onClick={()=>setPortionDrafts(current=>[...current,{name:'',price:'',translations:{}}])}><Plus size={13}/>Add portion</button>{editing&&<small>Existing portions are preserved. Manage their prices in Variants & extras.</small>}</div>}
       <label>Add-on groups (optional)</label><div className="restaurant-addon-picker">{menu.addon_groups.filter(group=>group.active).map(group=><label key={group.id}><input type="checkbox" checked={selectedAddonGroups.includes(group.id)} onChange={event=>setSelectedAddonGroups(current=>event.target.checked?[...current,group.id]:current.filter(id=>id!==group.id))}/><span>{group.name.en||'Add-on group'}{group.required?' · Required':' · Optional'}</span></label>)}{menu.addon_groups.filter(group=>group.active).length===0&&<small>Create add-on groups in Manage options first.</small>}</div>
       <div className="modal-actions"><button className="button secondary" onClick={()=>setShowItem(false)}>Cancel</button><button className="button primary" onClick={()=>void saveItem()} disabled={busy||translating}><Save size={14}/>{busy?'Saving…':'Save item'}</button></div>
     </div></div>}
