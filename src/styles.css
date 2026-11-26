@@ -876,6 +876,7 @@
   .restaurant-table-show-qr:active{background:#E6E3FF;}
   .restaurant-table-icon-action{display:inline-grid;place-items:center;flex:0 0 40px;width:40px;height:40px;min-height:40px;padding:0;border:1px solid #E5E7EB;border-radius:10px;background:#FFFFFF;color:#697386;}
   .restaurant-table-icon-action.danger{border-color:#F2DEDE;background:#FFF7F7;color:#B75A5A;}
+  .restaurant-table-icon-action.activate{border-color:#D7EBDD;background:#F2FAF4;color:#347A4A;}
   .restaurant-table-icon-action:disabled{opacity:.38;cursor:not-allowed;}
   .restaurant-table-actions .button.small{min-height:40px;}
   .restaurant-table-row>button{max-width:none;white-space:nowrap;}

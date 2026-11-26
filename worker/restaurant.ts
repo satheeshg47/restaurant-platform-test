@@ -305,7 +305,22 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
   if (parts.length === 4 && UUID.test(tableId || '') && request.method === 'PATCH') {
     requireRole(actor, ['owner','manager'])
     const body = await readBody(request)
-    const label = typeof body.label === 'string' ? body.label.trim() : ''
+    const keys = Object.keys(body)
+    if (keys.length === 1 && typeof body.active === 'boolean') {
+      if (!body.active) {
+        const openSession = await env.DB.prepare(
+          "SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND status='open' LIMIT 1",
+        ).bind(actor.tenantId, tableId).first()
+        if (openSession) fail(409, 'table_has_open_session')
+      }
+      const result = await env.DB.prepare(
+        'UPDATE restaurant_tables SET active=? WHERE tenant_id=? AND id=? RETURNING id,table_number,label,table_type,active',
+      ).bind(body.active ? 1 : 0, actor.tenantId, tableId).all<Record<string, unknown>>()
+      if (!result.results[0]) fail(404, 'table_not_found')
+      return json(200, { table: { ...result.results[0], active: Boolean(result.results[0].active) } })
+    }
+    if (keys.length !== 1 || typeof body.label !== 'string') fail(400, 'invalid_table_update')
+    const label = body.label.trim()
     if (!label || label.length > 80) fail(400, 'invalid_table_label')
     const result = await env.DB.prepare(
       `UPDATE restaurant_tables SET label=? WHERE tenant_id=? AND id=? AND active=1
