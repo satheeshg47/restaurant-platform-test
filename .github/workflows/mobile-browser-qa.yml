@@ -1,6 +1,8 @@
 name: Mobile browser QA
 
 on:
+  push:
+    branches: [feat/mobile-app-shell-and-browser-qa]
   workflow_dispatch:
     inputs:
       base_url:
