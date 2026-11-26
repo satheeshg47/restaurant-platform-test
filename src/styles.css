@@ -850,3 +850,33 @@
  .guest-cart-bar{left:10px;right:10px;width:auto;}
  .guest-cart-bar>b{align-items:flex-end;}
 }
+
+
+/* Compact, scannable restaurant table cards on mobile */
+@media(max-width:600px){
+  .restaurant-tables{gap:14px;background:#F6F7F9;border-radius:14px;padding:10px;margin:-4px;}
+  .restaurant-table-list{display:grid;gap:8px;background:#F6F7F9;padding:0;}
+  .restaurant-table-row{
+    display:grid;grid-template-columns:minmax(0,1fr);gap:12px;
+    min-width:0;width:100%;max-width:100%;box-sizing:border-box;
+    padding:14px;background:#FFFFFF;border:1px solid #E5E7EB;
+    border-radius:12px;overflow:hidden;
+  }
+  .restaurant-table-card-header{display:flex;align-items:center;gap:10px;min-width:0;}
+  .restaurant-table-icon{width:36px;height:36px;flex:0 0 36px;border-radius:10px;background:#F1F0FC;color:#6258B8;}
+  .restaurant-table-copy{display:grid;gap:3px;min-width:0;flex:1;}
+  .restaurant-table-copy b{font-size:14px;line-height:1.25;font-weight:750;color:#20283A;}
+  .restaurant-table-copy small{font-size:11px;line-height:1.35;color:#7B8494;overflow-wrap:anywhere;}
+  .restaurant-table-copy .restaurant-table-requests{color:#8A6B31;}
+  .restaurant-table-active-badge{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:24px;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:750;white-space:nowrap;}
+  .restaurant-table-active-badge.active{background:#EAF7EF;color:#267348;}
+  .restaurant-table-active-badge.inactive{background:#F1F2F4;color:#737B89;}
+  .restaurant-table-actions{display:flex;align-items:center;gap:8px;min-width:0;width:100%;}
+  .restaurant-table-show-qr{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:1;min-width:0;min-height:40px;padding:8px 12px;border:1px solid #DCD9F8;border-radius:10px;background:#F0EEFF;color:#5B52B5;font-size:12px;font-weight:750;white-space:nowrap;}
+  .restaurant-table-show-qr:active{background:#E6E3FF;}
+  .restaurant-table-icon-action{display:inline-grid;place-items:center;flex:0 0 40px;width:40px;height:40px;min-height:40px;padding:0;border:1px solid #E5E7EB;border-radius:10px;background:#FFFFFF;color:#697386;}
+  .restaurant-table-icon-action.danger{border-color:#F2DEDE;background:#FFF7F7;color:#B75A5A;}
+  .restaurant-table-icon-action:disabled{opacity:.38;cursor:not-allowed;}
+  .restaurant-table-actions .button.small{min-height:40px;}
+  .restaurant-table-row>button{max-width:none;white-space:nowrap;}
+}
