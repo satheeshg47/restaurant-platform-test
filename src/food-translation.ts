@@ -51,7 +51,10 @@ export async function translateMenuText(source: string, language: MenuLanguage) 
   }
   if (!prepared.trim()) return ''
   let translated = prepared
-  if (prepared !== source) {
+  const glossaryOnly = protectedTerms.length > 0 && prepared.replace(/ZXQFOODTERM\\d+XZ/g, '').trim() === ''
+  if (glossaryOnly) {
+    translated = prepared
+  } else if (prepared !== source) {
     try {
       const url = 'https://translate.googleapis.com/translate_a/single?' + new URLSearchParams({ client: 'gtx', sl: 'en', tl: language, dt: 't', q: prepared }).toString()
       const response = await fetch(url, { headers: { Accept: 'application/json' } })
