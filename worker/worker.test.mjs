@@ -839,11 +839,27 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   const table = await tableResponse.json()
   assert.match(table.qr_token, /^[A-Za-z0-9_-]{43}$/)
 
+  const deactivated = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}`, {
+    method: 'PATCH', accessToken: ownerAccess, body: { active: false },
+  })
+  assert.equal(deactivated.status, 200)
+  assert.equal((await deactivated.json()).table.active, false)
+  const reactivated = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}`, {
+    method: 'PATCH', accessToken: ownerAccess, body: { active: true },
+  })
+  assert.equal(reactivated.status, 200)
+  assert.equal((await reactivated.json()).table.active, true)
+
   const opened = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions`, {
     method: 'POST', accessToken: ownerAccess, body: { guest_count: 4 },
   })
   assert.equal(opened.status, 201)
   const session = (await opened.json()).session
+  const blockedDeactivate = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}`, {
+    method: 'PATCH', accessToken: ownerAccess, body: { active: false },
+  })
+  assert.equal(blockedDeactivate.status, 409)
+  assert.equal((await blockedDeactivate.json()).error, 'table_has_open_session')
 
   const orderId = crypto.randomUUID()
   db.prepare(`INSERT INTO restaurant_orders(id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,source,idempotency_key)
