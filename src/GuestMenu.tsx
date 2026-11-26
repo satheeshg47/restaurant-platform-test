@@ -145,10 +145,10 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
     const observer = new IntersectionObserver(entries => {
       if (categoryScrollLock.current) return
-      const visible = entries
+      const visibleEntries = entries
         .filter(entry => entry.isIntersecting)
         .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-        .at(-1)
+      const visible = visibleEntries[visibleEntries.length - 1]
       const section = visible?.target.closest<HTMLElement>('[data-category-section]')
       const id = section?.getAttribute('data-category-section')
       if (id) setActiveCategory(id)
