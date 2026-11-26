@@ -948,3 +948,7 @@
   .owner-workspace-heading{top:0;min-height:58px;padding:8px 0}
   .owner-workspace-heading h2{font-size:18px}
 }
+
+.owner-home-heading{position:sticky;top:0;z-index:18;background:#fff;padding:10px 0;min-height:62px}
+.owner-home-heading-actions button,.owner-workspace-back,.owner-mobile-nav-toggle{min-height:40px;min-width:40px}
+@media(max-width:760px){.owner-home-heading{top:0;min-height:56px;padding:8px 0}.owner-home-heading h1{font-size:20px}}
