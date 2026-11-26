@@ -62,12 +62,14 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
   const [groupName, setGroupName] = useState('')
   const [groupNameHi, setGroupNameHi] = useState('')
   const [groupNameKn, setGroupNameKn] = useState('')
+  const [groupTranslations, setGroupTranslations] = useState<Record<string,string>>({})
   const [groupMin, setGroupMin] = useState('0')
   const [groupMax, setGroupMax] = useState('1')
   const [addonGroup, setAddonGroup] = useState('')
   const [addonName, setAddonName] = useState('')
   const [addonNameHi, setAddonNameHi] = useState('')
   const [addonNameKn, setAddonNameKn] = useState('')
+  const [addonTranslations, setAddonTranslations] = useState<Record<string,string>>({})
   const [addonPrice, setAddonPrice] = useState('')
   const [showOptions, setShowOptions] = useState(false)
 
@@ -234,6 +236,16 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
     finally { setBusy(false) }
   }
 
+  async function translateOption(source: string, update: (values: Record<string,string>) => void) {
+    if (!source.trim()) { setError('Enter the English option name before translating.'); return }
+    setTranslating(true); setError('')
+    try {
+      const entries = await Promise.all((['hi','kn','ta','te','ml'] as const).map(async language => [language, await translateMenuText(source.trim(), language)] as const))
+      update(Object.fromEntries(entries))
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not translate this option.') }
+    finally { setTranslating(false) }
+  }
+
   async function saveAddonGroup() {
     const min = Number(groupMin), max = Number(groupMax)
     if (!groupName.trim() || !Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max < min || max > 20) {
@@ -242,8 +254,8 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
     }
     setBusy(true); setError('')
     try {
-      const result = await request('/menu/addon-groups', { method:'POST', body:JSON.stringify({ name:{en:groupName.trim(), ...(groupNameHi.trim()?{hi:groupNameHi.trim()}:{}), ...(groupNameKn.trim()?{kn:groupNameKn.trim()}:{})}, min_pick:min, max_pick:max, required:min>0 }) })
-      setAddonGroup(result.addon_group.id); setGroupName(''); setGroupNameHi(''); setGroupNameKn(''); await load()
+      const result = await request('/menu/addon-groups', { method:'POST', body:JSON.stringify({ name:{en:groupName.trim(), ...groupTranslations, ...(groupNameHi.trim()?{hi:groupNameHi.trim()}:{}), ...(groupNameKn.trim()?{kn:groupNameKn.trim()}:{})}, min_pick:min, max_pick:max, required:min>0 }) })
+      setAddonGroup(result.addon_group.id); setGroupName(''); setGroupNameHi(''); setGroupNameKn(''); setGroupTranslations({}); await load()
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save add-on group.') }
     finally { setBusy(false) }
   }
@@ -256,8 +268,8 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
     }
     setBusy(true); setError('')
     try {
-      await request(`/menu/addon-groups/${addonGroup}/addons`, { method:'POST', body:JSON.stringify({ name:{en:addonName.trim(), ...(addonNameHi.trim()?{hi:addonNameHi.trim()}:{}), ...(addonNameKn.trim()?{kn:addonNameKn.trim()}:{})}, price_minor:Math.round(price*100) }) })
-      setAddonName(''); setAddonNameHi(''); setAddonNameKn(''); setAddonPrice(''); await load()
+      await request(`/menu/addon-groups/${addonGroup}/addons`, { method:'POST', body:JSON.stringify({ name:{en:addonName.trim(), ...addonTranslations, ...(addonNameHi.trim()?{hi:addonNameHi.trim()}:{}), ...(addonNameKn.trim()?{kn:addonNameKn.trim()}:{})}, price_minor:Math.round(price*100) }) })
+      setAddonName(''); setAddonNameHi(''); setAddonNameKn(''); setAddonTranslations({}); setAddonPrice(''); await load()
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save add-on.') }
     finally { setBusy(false) }
   }
@@ -329,14 +341,14 @@ export default function RestaurantMenu({ initialSlug = '' }: { initialSlug?: str
           </div>
           <div className="restaurant-option-block">
             <b>2. Create an add-on group</b><p>Example: Choose toppings. Set minimum and maximum selections.</p>
-            <label htmlFor="group-name">Group name · English</label><input id="group-name" className="modal-input" value={groupName} onChange={event=>setGroupName(event.target.value)} placeholder="Choose toppings"/><div className="restaurant-form-grid"><div><label htmlFor="group-name-hi">Hindi</label><input id="group-name-hi" className="modal-input" value={groupNameHi} onChange={event=>setGroupNameHi(event.target.value)} placeholder="टॉपिंग चुनें"/></div><div><label htmlFor="group-name-kn">Kannada</label><input id="group-name-kn" className="modal-input" value={groupNameKn} onChange={event=>setGroupNameKn(event.target.value)} placeholder="ಟಾಪಿಂಗ್ಸ್ ಆಯ್ಕೆಮಾಡಿ"/></div></div>
+            <label htmlFor="group-name">Group name · English</label><input id="group-name" className="modal-input" value={groupName} onChange={event=>setGroupName(event.target.value)} placeholder="Choose toppings"/><div className="restaurant-form-grid"><div><label htmlFor="group-name-hi">Hindi</label><input id="group-name-hi" className="modal-input" value={groupNameHi} onChange={event=>setGroupNameHi(event.target.value)} placeholder="टॉपिंग चुनें"/></div><div><label htmlFor="group-name-kn">Kannada</label><input id="group-name-kn" className="modal-input" value={groupNameKn} onChange={event=>setGroupNameKn(event.target.value)} placeholder="ಟಾಪಿಂಗ್ಸ್ ಆಯ್ಕೆಮಾಡಿ"/></div></div><button type="button" className="button secondary small" onClick={()=>void translateOption(groupName,setGroupTranslations)} disabled={translating||!groupName.trim()}>{translating?'Translating…':'Auto translate group name (5 languages)'}</button>
             <div className="restaurant-form-grid"><div><label htmlFor="group-min">Minimum picks</label><input id="group-min" className="modal-input" type="number" min="0" max="20" value={groupMin} onChange={event=>setGroupMin(event.target.value)}/></div><div><label htmlFor="group-max">Maximum picks</label><input id="group-max" className="modal-input" type="number" min="0" max="20" value={groupMax} onChange={event=>setGroupMax(event.target.value)}/></div></div>
             <button className="button primary small" onClick={()=>void saveAddonGroup()} disabled={busy}><Plus size={13}/>Create group</button>
           </div>
           <div className="restaurant-option-block">
             <b>3. Add an extra</b><p>Examples: Extra cheese, paneer, egg.</p>
             <label htmlFor="addon-group">Add-on group</label><select id="addon-group" className="modal-input" value={addonGroup} onChange={event=>setAddonGroup(event.target.value)}><option value="">Choose group</option>{menu.addon_groups.filter(g=>g.active).map(g=><option key={g.id} value={g.id}>{g.name.en||'Untitled group'}</option>)}</select>
-            <div className="restaurant-form-grid"><div><label htmlFor="addon-name">Extra · English</label><input id="addon-name" className="modal-input" value={addonName} onChange={event=>setAddonName(event.target.value)} placeholder="Extra cheese"/><label htmlFor="addon-name-hi">Hindi</label><input id="addon-name-hi" className="modal-input" value={addonNameHi} onChange={event=>setAddonNameHi(event.target.value)} placeholder="अतिरिक्त चीज़"/><label htmlFor="addon-name-kn">Kannada</label><input id="addon-name-kn" className="modal-input" value={addonNameKn} onChange={event=>setAddonNameKn(event.target.value)} placeholder="ಹೆಚ್ಚುವರಿ ಚೀಸ್"/></div><div><label htmlFor="addon-price">Price (₹)</label><input id="addon-price" className="modal-input" type="number" min="0" step="0.01" value={addonPrice} onChange={event=>setAddonPrice(event.target.value)} placeholder="0.00"/></div></div>
+            <div className="restaurant-form-grid"><div><label htmlFor="addon-name">Extra · English</label><input id="addon-name" className="modal-input" value={addonName} onChange={event=>setAddonName(event.target.value)} placeholder="Extra cheese"/><label htmlFor="addon-name-hi">Hindi</label><input id="addon-name-hi" className="modal-input" value={addonNameHi} onChange={event=>setAddonNameHi(event.target.value)} placeholder="अतिरिक्त चीज़"/><label htmlFor="addon-name-kn">Kannada</label><input id="addon-name-kn" className="modal-input" value={addonNameKn} onChange={event=>setAddonNameKn(event.target.value)} placeholder="ಹೆಚ್ಚುವರಿ ಚೀಸ್"/></div><button type="button" className="button secondary small" onClick={()=>void translateOption(addonName,setAddonTranslations)} disabled={translating||!addonName.trim()}>{translating?'Translating…':'Auto translate extra (5 languages)'}</button><div><label htmlFor="addon-price">Price (₹)</label><input id="addon-price" className="modal-input" type="number" min="0" step="0.01" value={addonPrice} onChange={event=>setAddonPrice(event.target.value)} placeholder="0.00"/></div></div>
             <button className="button primary small" onClick={()=>void saveAddon()} disabled={busy}><Plus size={13}/>Add extra</button>
             {menu.addons.filter(a=>a.group_id===addonGroup && a.active).map(a=><div className="restaurant-option-row" key={a.id}><span>{a.name.en||'Extra'} · {rupees(a.price_minor)}</span><button className={`restaurant-availability ${a.available?'on':'off'}`} onClick={()=>void toggleOption(`/menu/addons/${a.id}`,{available:!a.available})} disabled={busy}>{a.available?'Available':'Unavailable'}</button></div>)}
           </div>
