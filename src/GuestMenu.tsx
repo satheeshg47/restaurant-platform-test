@@ -23,7 +23,7 @@ type CartLine = { key: string; item: MenuItem; variantId: string | null; addonId
 function localized(value: Localized, language: string) {
   if (typeof value === 'string') return value
   if (!value) return ''
-  return value[language] || value.en || value.hi || value.kn || ''
+  return value[language] || value.en || value.hi || value.kn || value.ta || value.te || value.ml || ''
 }
 function money(value: number | string, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value || 0) / 100)
@@ -238,7 +238,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     <div className="guest-screen">
       <header className="guest-header">
         <div className="guest-brand"><div className="guest-brand-mark"><Utensils size={19}/></div><div><b>{menu.restaurant?.display_name || 'Restaurant'}</b><span>{menu.table?.label || 'Guest menu'}</span></div></div>
-        <select aria-label="Menu language" value={language} onChange={event => setLanguage(event.target.value)}><option value="en">English</option><option value="hi">हिन्दी</option><option value="kn">ಕನ್ನಡ</option></select>
+        <select aria-label="Menu language" value={language} onChange={event => setLanguage(event.target.value)}><option value="en">English</option><option value="hi">हिन्दी</option><option value="kn">ಕನ್ನಡ</option><option value="ta">தமிழ்</option><option value="te">తెలుగు</option><option value="ml">മലയാളം</option></select>
       </header>
       <section className="guest-welcome"><span className="guest-kicker">WELCOME</span><h1>What would you like today?</h1><p>Browse the menu and add your favourites to the order.</p><div className="guest-table-pill"><span/> {menu.table?.label || 'Your table'} {menu.session ? '· Service is open' : '· Waiting for service'}</div></section>
       {!menu.session && (reviewSessionId || lastOpenSessionId) && <section className="guest-review-card" aria-label="Share your feedback">
