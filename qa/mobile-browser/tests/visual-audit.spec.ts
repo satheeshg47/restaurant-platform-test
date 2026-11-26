@@ -115,9 +115,9 @@ test('guest customization and order review modals render and are screenshot-test
 test('guest language selector exposes all configured Indian languages', async ({ page }) => {
   await page.goto(screens[2].path, { waitUntil: 'domcontentloaded' })
   await expect(page.locator('.guest-categories')).toBeVisible({ timeout: 20000 })
-  const content = await page.locator('body').innerText()
-  for (const language of ['English', 'Hindi', 'Kannada', 'Tamil', 'Telugu', 'Malayalam']) {
-    expect(content.toLowerCase()).toContain(language.toLowerCase())
+  const options = (await page.locator('select[aria-label="Menu language"] option').allTextContents()).join(' ').toLowerCase()
+  for (const language of ['English', 'हिन्दी', 'ಕನ್ನಡ', 'தமிழ்', 'తెలుగు', 'മലയാളം']) {
+    expect(options).toContain(language.toLowerCase())
   }
 })
 
