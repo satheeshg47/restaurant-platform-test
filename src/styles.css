@@ -788,7 +788,7 @@
   @keyframes hub-card-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
 }
 
-.app-open-workspace{border:1px solid #dcd8fa;background:#f5f3ff;color:#5b4fc4;border-radius:8px;padding:7px 10px;font-size:10px;font-weight:700;white-space:nowrap}
+ .app-open-workspace{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #dcd8fa;background:#f5f3ff;color:#5b4fc4;border-radius:8px;padding:7px 10px;font-size:10px;font-weight:700;text-decoration:none;white-space:nowrap}
 .app-open-workspace:hover{background:#ece9ff}
 @media(max-width:760px){.app-row{flex-wrap:wrap;gap:9px}.app-open-workspace{margin-left:44px;min-height:38px;font-size:11px}.app-row .status{margin-left:auto}}
 
@@ -810,7 +810,7 @@
 
 /* Restaurant workspace table layout and QR dialog fixes */
 .restaurant-tables,.restaurant-table-form,.restaurant-table-list,.restaurant-table-row{min-width:0;max-width:100%;}
-.restaurant-table-row{display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;overflow:hidden;}
+ .restaurant-table-row{display:grid;grid-template-columns:38px minmax(0,1fr) minmax(90px,auto) repeat(3,auto);align-items:center;gap:8px;width:100%;overflow:hidden;}
 .restaurant-table-copy,.restaurant-table-status{min-width:0;overflow-wrap:anywhere;}
 .restaurant-table-row>button{min-width:0;max-width:100%;white-space:normal;}
 .restaurant-qr-backdrop{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:16px;background:#11182780;overflow-y:auto;}
