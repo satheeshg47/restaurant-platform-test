@@ -1,7 +1,7 @@
 import { apiFetch } from './auth'
 import { useCallback, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { Copy, ExternalLink, Plus, RefreshCw, Table2, QrCode, AlertCircle, Check, Pencil, Trash2, Save, X } from 'lucide-react'
+import { Copy, ExternalLink, Plus, RefreshCw, Table2, QrCode, AlertCircle, Check, Pencil, Trash2, Save, X, Power } from 'lucide-react'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 type TableRecord = { id:string; table_number:number|null; label:string; table_type:'dine_in'|'takeaway'; active:boolean; session_id:string|null; opened_at:string|null; guest_count:number|null; open_requests:number; qr_url?:string|null }
@@ -82,13 +82,15 @@ export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: s
     finally { setBusy(false) }
   }
 
-  async function removeTable(tableId:string,labelText:string) {
-    if (!window.confirm('Remove '+labelText+' from active tables? Past orders will be preserved.')) return
+  async function setTableActive(table:TableRecord,active:boolean) {
+    const action=active?'activate':'deactivate'
+    if (!active && table.session_id) { setError('Close the open session before deactivating this table.'); return }
+    if (!window.confirm((active?'Activate ':'Deactivate ')+table.label+'?'+(active?' The table and its QR link will become available again.':' Guests will no longer be able to use its QR link. Past orders will be preserved.'))) return
     setBusy(true); setError('')
     try {
-      await request('/tables/'+encodeURIComponent(tableId),{method:'DELETE'})
+      await request('/tables/'+encodeURIComponent(table.id),{method:'PATCH',body:JSON.stringify({active})})
       await load()
-    } catch(e) { setError(e instanceof Error?e.message:'Could not remove table.') }
+    } catch(e) { setError(e instanceof Error?e.message:'Could not '+action+' table.') }
     finally { setBusy(false) }
   }
 
@@ -132,7 +134,9 @@ export default function RestaurantTables({ initialSlug = '' }: { initialSlug?: s
         {editingId===table.id?<><button type="button" className="button secondary small" disabled={busy} onClick={()=>void saveTable(table.id)}><Save size={15}/>Save</button><button type="button" className="restaurant-table-icon-action" onClick={()=>setEditingId('')} aria-label="Cancel rename" title="Cancel"><X size={17}/></button></>:<>
           {table.qr_url&&<button type="button" className="restaurant-table-show-qr" onClick={()=>setCreated({label:table.label,url:new URL(table.qr_url!,window.location.origin).toString(),persistent:true})}><QrCode size={16}/>Show QR</button>}
           {table.active&&<button type="button" className="restaurant-table-icon-action" onClick={()=>{setEditingId(table.id);setEditLabel(table.label)}} aria-label={'Rename '+table.label} title="Rename"><Pencil size={17}/></button>}
-          {table.active&&<button type="button" className="restaurant-table-icon-action danger" disabled={busy||Boolean(table.session_id)} onClick={()=>void removeTable(table.id,table.label)} aria-label={'Remove '+table.label} title={table.session_id?'Close the session before removing':'Remove table'}><Trash2 size={17}/></button>}
+          {table.active
+            ? <button type="button" className="restaurant-table-icon-action danger" disabled={busy||Boolean(table.session_id)} onClick={()=>void setTableActive(table,false)} aria-label={'Deactivate '+table.label} title={table.session_id?'Close the session before deactivating':'Deactivate table'}><Power size={17}/></button>
+            : <button type="button" className="restaurant-table-icon-action activate" disabled={busy} onClick={()=>void setTableActive(table,true)} aria-label={'Activate '+table.label} title="Activate table"><Power size={17}/></button>}
         </>}
       </div>
     </article>)}</div>
