@@ -881,3 +881,24 @@
   .restaurant-table-actions .button.small{min-height:40px;}
   .restaurant-table-row>button{max-width:none;white-space:nowrap;}
 }
+
+/* Food item editor: mobile-safe scrolling, translation controls and menu options */
+.menu-item-backdrop{overflow:hidden}
+.menu-item-editor{display:flex;flex-direction:column;max-height:min(90dvh,900px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:22px}
+.menu-item-editor .modal-top{padding-top:5px;flex-shrink:0}
+.menu-item-editor .modal-actions{position:sticky;bottom:-22px;background:#fff;padding:13px 0 2px;margin-top:14px;z-index:2}
+.restaurant-translation-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:8px 0 14px}
+.restaurant-translation-grid>div{min-width:0}
+.restaurant-translation-grid .translate-inline{display:block;margin:5px 0 0;padding:3px 0;text-align:left}
+.restaurant-menu-translation-note{display:block;color:#68758a;margin:-6px 0 12px}
+.restaurant-dietary-pills{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.restaurant-dietary-pills button{border:1px solid #d9dee8;background:#fff;border-radius:999px;padding:9px 14px;font-size:12px;font-weight:700}
+.restaurant-dietary-pills button.selected{border-color:#6558d9;background:#f1efff;color:#5145b8}
+.restaurant-toggle-row{display:flex!important;align-items:center;gap:9px;margin:12px 0!important;font-size:12px!important}
+.restaurant-toggle-row input,.restaurant-addon-picker input{width:17px;height:17px;accent-color:#6558d9}
+.restaurant-portion-editor{display:grid;gap:9px;border:1px solid #e6e8ef;border-radius:10px;padding:12px;margin:4px 0 14px}
+.restaurant-portion-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,.7fr) 32px;gap:7px;align-items:center}
+.restaurant-portion-row button{height:38px;border:1px solid #e1e4eb;background:#fff;border-radius:7px}
+.restaurant-addon-picker{display:grid;gap:8px;margin:4px 0 14px}
+.restaurant-addon-picker label{display:flex;align-items:center;gap:8px;margin:0!important;padding:8px;border:1px solid #e8eaf0;border-radius:8px;font-size:12px!important}
+@media(max-width:760px){.menu-item-backdrop{display:flex;align-items:flex-end;padding:0}.menu-item-editor{width:100%;max-width:none;max-height:92dvh;border-radius:18px 18px 0 0;padding:22px 16px calc(18px + env(safe-area-inset-bottom))}.menu-item-editor .modal-top{padding-top:7px}.menu-item-editor .modal-actions{bottom:calc(-18px - env(safe-area-inset-bottom))}.restaurant-translation-grid{grid-template-columns:1fr}.restaurant-portion-row{grid-template-columns:minmax(0,1fr) 100px 32px}}

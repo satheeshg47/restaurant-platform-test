@@ -23,7 +23,7 @@ type CartLine = { key: string; item: MenuItem; variantId: string | null; addonId
 function localized(value: Localized, language: string) {
   if (typeof value === 'string') return value
   if (!value) return ''
-  return value[language] || value.en || value.hi || value.kn || ''
+  return value[language] || value.en || value.hi || value.kn || value.ta || value.te || value.ml || ''
 }
 function money(value: number | string, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value || 0) / 100)
@@ -238,7 +238,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     <div className="guest-screen">
       <header className="guest-header">
         <div className="guest-brand"><div className="guest-brand-mark"><Utensils size={19}/></div><div><b>{menu.restaurant?.display_name || 'Restaurant'}</b><span>{menu.table?.label || 'Guest menu'}</span></div></div>
-        <select aria-label="Menu language" value={language} onChange={event => setLanguage(event.target.value)}><option value="en">English</option><option value="hi">हिन्दी</option><option value="kn">ಕನ್ನಡ</option></select>
+        <select aria-label="Menu language" value={language} onChange={event => setLanguage(event.target.value)}><option value="en">English</option><option value="hi">हिन्दी</option><option value="kn">ಕನ್ನಡ</option><option value="ta">தமிழ்</option><option value="te">తెలుగు</option><option value="ml">മലയാളം</option></select>
       </header>
       <section className="guest-welcome"><span className="guest-kicker">WELCOME</span><h1>What would you like today?</h1><p>Browse the menu and add your favourites to the order.</p><div className="guest-table-pill"><span/> {menu.table?.label || 'Your table'} {menu.session ? '· Service is open' : '· Waiting for service'}</div></section>
       {!menu.session && (reviewSessionId || lastOpenSessionId) && <section className="guest-review-card" aria-label="Share your feedback">
@@ -259,7 +259,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
         <div className="guest-section-title"><div><span className="guest-kicker">OUR MENU</span><h2>{localized(visibleCategory?.name, language) || 'Menu'}</h2></div><span>{visibleCategory?.items?.length || 0} items</span></div>
         {(visibleCategory?.items || []).map(item => { const quantity = cart.filter(line => line.item.id === item.id).reduce((sum, line) => sum + line.quantity, 0); const firstLine = cart.find(line => line.item.id === item.id); return <article className={`guest-item ${!item.available ? 'unavailable' : ''}`} key={item.id}>
           {item.photo_url ? <img className="guest-item-photo" src={item.photo_url} alt={localized(item.name, language)} loading="lazy"/> : <div className="guest-item-photo guest-photo-placeholder"><Utensils size={23}/></div>}
-          <div className="guest-item-info"><div className="guest-food-tag"><i className={item.food_type === 'non_veg' ? 'nonveg' : item.food_type === 'egg' ? 'egg' : ''}/>{item.food_type === 'non_veg' ? 'NON-VEG' : item.food_type === 'egg' ? 'EGG' : 'VEG'}</div><h3>{localized(item.name, language)}</h3>{item.description && <p>{localized(item.description, language)}</p>}<div className="guest-item-bottom"><strong>{money(item.base_price_minor, currency)}</strong>{item.prep_minutes ? <span><Clock3 size={12}/> {item.prep_minutes} min</span> : null}</div></div>
+          <div className="guest-item-info"><div className="guest-food-tag"><i className={item.food_type === 'non_veg' ? 'nonveg' : item.food_type === 'egg' ? 'egg' : ''}/>{item.food_type === 'non_veg' ? 'NON-VEG' : item.food_type === 'egg' ? 'EGG' : 'VEG'}</div><h3>{localized(item.name, language)}</h3>{item.description && <p>{localized(item.description, language)}</p>}<div className="guest-item-bottom"><strong>{money(item.variants.filter(variant=>variant.available).length?Math.min(...item.variants.filter(variant=>variant.available).map(variant=>Number(variant.price_minor))):Number(item.base_price_minor), currency)}{item.variants.some(variant=>variant.available)?<small> · From</small>:null}</strong>{item.prep_minutes ? <span><Clock3 size={12}/> {item.prep_minutes} min</span> : null}</div></div>
           {quantity > 0 ? <div className="guest-item-quantity"><button type="button" aria-label={`Remove one ${localized(item.name, language)}`} onClick={() => firstLine && changeQuantity(firstLine.key, -1)}><Minus size={14}/></button><b>{quantity}</b><button type="button" aria-label={`Add one ${localized(item.name, language)}`} disabled={!item.available || !menu.restaurant?.accepting_orders} onClick={() => openItem(item)}><Plus size={14}/></button></div> : <button className="guest-add-button" disabled={!item.available || !menu.restaurant?.accepting_orders} onClick={() => openItem(item)}>{item.available ? 'ADD +' : 'Sold out'}</button>}
         </article>})}
         {!visibleCategory?.items?.length && <div className="guest-empty">No items in this category yet.</div>}
