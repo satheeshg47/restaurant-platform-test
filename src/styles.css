@@ -957,3 +957,6 @@
 .guest-option-badge{display:inline-flex;align-items:center;max-width:100%;padding:4px 7px;border:1px solid #e5e9ef;border-radius:999px;background:#f8fafc;color:#58677a;font-size:10px;line-height:1.25;overflow-wrap:anywhere}
 .guest-option-badge.portion{border-color:#dce8dc;background:#f2f8f1;color:#376044}
 .guest-option-badge.addon{border-color:#e6ddf5;background:#f8f4ff;color:#65508b}
+
+/* Let the final guest category scroll clear of the sticky header and bottom action bar. */
+.guest-screen{padding-bottom:25vh}
