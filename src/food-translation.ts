@@ -69,6 +69,6 @@ export async function translateMenuText(source: string, language: MenuLanguage) 
     translated = Array.isArray(payload?.[0]) ? payload[0].map((part: unknown[]) => String(part?.[0] || '')).join('').trim() : ''
     if (!translated) throw new Error('No translation was returned. Please enter the translation manually.')
   }
-  protectedTerms.forEach((value, index) => { translated = translated.replaceAll('ZXQFOODTERM' + index + 'XZ', value) })
+  protectedTerms.forEach((value, index) => { translated = translated.split('ZXQFOODTERM' + index + 'XZ').join(value) })
   return applyFoodGlossary(translated, language)
 }
