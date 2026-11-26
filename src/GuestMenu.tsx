@@ -139,31 +139,22 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
 
   useEffect(() => {
     if (!categories.length) return
-    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section]'))
-    if (!sections.length) return
-    const updateActiveCategory = () => {
+    const headings = Array.from(document.querySelectorAll<HTMLElement>('[data-category-section] .guest-section-title'))
+    if (!headings.length) return
+    const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
+    const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
+    const observer = new IntersectionObserver(entries => {
       if (categoryScrollLock.current) return
-      const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
-      const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
-      const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.9)
-      let current = categories[0]?.id || ''
-      for (const section of sections) {
-        if (section.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
-        else break
-      }
-      if (current) setActiveCategory(previous => previous === current ? previous : current)
-    }
-    updateActiveCategory()
-    window.addEventListener('scroll', updateActiveCategory, { passive: true })
-    document.addEventListener('scroll', updateActiveCategory, true)
-    window.addEventListener('scrollend', updateActiveCategory)
-    window.addEventListener('resize', updateActiveCategory)
-    return () => {
-      window.removeEventListener('scroll', updateActiveCategory)
-      document.removeEventListener('scroll', updateActiveCategory, true)
-      window.removeEventListener('scrollend', updateActiveCategory)
-      window.removeEventListener('resize', updateActiveCategory)
-    }
+      const visible = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        .at(-1)
+      const section = visible?.target.closest<HTMLElement>('[data-category-section]')
+      const id = section?.getAttribute('data-category-section')
+      if (id) setActiveCategory(id)
+    }, { root: null, rootMargin: `-${Math.round(headerHeight + categoryHeight)}px 0px -20% 0px`, threshold: 0 })
+    headings.forEach(heading => observer.observe(heading))
+    return () => observer.disconnect()
   }, [categories])
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0)
   const cartTotal = useMemo(() => cart.reduce((sum, line) => {
