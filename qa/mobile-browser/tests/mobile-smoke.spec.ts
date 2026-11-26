@@ -43,3 +43,29 @@ test('health and readiness endpoints respond', async ({ request }) => {
   const ready = await request.get('/api/ready')
   expect(ready.status()).toBeLessThan(500)
 })
+
+
+test('guest menu supports category swipe, item quantity controls and a clear order review action', async ({ page }) => {
+  const response = await page.goto(routes[2].path, { waitUntil: 'domcontentloaded' })
+  expect(response?.status()).toBeLessThan(500)
+  const categories = page.locator('.guest-categories')
+  await expect(categories).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Call waiter' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Request bill' })).toBeVisible()
+  const categoryRail = await categories.evaluate(element => ({ overflowX: getComputedStyle(element).overflowX, touchAction: getComputedStyle(element).touchAction }))
+  expect(categoryRail.overflowX).toBe('auto')
+  expect(categoryRail.touchAction).toContain('pan-x')
+
+  const dosa = page.locator('.guest-item').filter({ hasText: 'Masala Dosa' }).first()
+  await expect(dosa).toBeVisible()
+  await dosa.getByRole('button', { name: 'ADD +' }).click()
+  const customise = page.getByRole('heading', { name: 'Masala Dosa' })
+  await expect(customise).toBeVisible()
+  await page.getByRole('button', { name: 'Add to order' }).click()
+  const review = page.getByRole('button', { name: /Review order/ })
+  await expect(review).toBeVisible()
+  await review.click()
+  await expect(page.getByRole('heading', { name: 'Order summary' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Place order/ })).toBeVisible()
+  // Do not submit a live demo order from the scheduled smoke suite.
+})
