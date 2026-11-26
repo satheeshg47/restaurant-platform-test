@@ -87,7 +87,7 @@ test('guest category pills stay synchronized with scroll and sticky controls rem
     const title = element.querySelector('.guest-section-title')!
     const headerHeight = document.querySelector('.guest-header')!.getBoundingClientRect().height
     const categoryHeight = document.querySelector('.guest-categories')!.getBoundingClientRect().height
-    const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight * 0.9)
+    const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight - 16)
     window.scrollTo(0, window.scrollY + title.getBoundingClientRect().top - activeLine - 4)
   })
   await page.waitForTimeout(450)
