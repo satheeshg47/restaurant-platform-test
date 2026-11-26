@@ -179,8 +179,9 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
   }
   function addSelected() {
     if (!selected) return
-    if (selected.variants.length && !variantId) { setNotice('Choose an option to continue.'); return }
+    if (selected.variants.some(value => value.available) && !variantId) { setNotice('Choose an option to continue.'); return }
     for (const group of selected.addon_groups) {
+      if (!group.addons.some(addon => addon.available)) continue
       const count = addonIds.filter(id => group.addons.some(addon => addon.id === id)).length
       const minimum = group.required ? Math.max(1, group.min_pick) : group.min_pick
       if (count < minimum || count > group.max_pick) {
@@ -192,7 +193,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     setCart(current => {
       const found = current.find(line => line.key === key)
       return found
-        ? current.map(line => line.key === key ? { ...line, quantity: line.quantity + 1 } : line)
+        ? current.map(line => line.key === key ? { ...line, quantity: line.quantity + selectedQuantity } : line)
         : [...current, { key, item: selected, variantId: variantId || null, addonIds: [...addonIds], quantity: selectedQuantity }]
     })
     setSelected(null)
