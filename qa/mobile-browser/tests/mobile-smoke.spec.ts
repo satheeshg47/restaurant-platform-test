@@ -29,7 +29,7 @@ for (const route of routes) {
     expect(dimensions.height).toBeGreaterThan(100)
     expect(pageErrors, 'No uncaught browser JavaScript errors').toEqual([])
 
-    await page.screenshot({ path: `test-results/${route.label.toLowerCase().replaceAll(' ', '-')}.png`, fullPage: true })
+    await page.screenshot({ path: `test-results/${test.info().project.name}-${route.label.toLowerCase().replaceAll(' ', '-')}.png`, fullPage: true })
   })
 }
 
