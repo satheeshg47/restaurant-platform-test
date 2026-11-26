@@ -279,9 +279,14 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
     const menuItem = await db.prepare("SELECT id,category_id FROM restaurant_menu_items WHERE tenant_id=? ORDER BY sort_order LIMIT 1")
       .bind(tenantId).first<{ id: string; category_id: string }>()
     if (!menuItem) throw new Error('demo_menu_seed_failed')
-    // Every statement in seedHistory is idempotent, so a retry repairs a
-    // partially completed first-time seed instead of leaving an incomplete demo.
-    await seedHistory(db, tenantId, ownerId, cookId, waiterId, menuItem.id, menuItem.category_id)
+    // Seed the large sample history once. If a previous attempt failed before
+    // writing the marker, the next visit safely retries the idempotent seed.
+    const historySeeded = await db.prepare(
+      "SELECT id FROM restaurant_activity_events WHERE tenant_id=? AND action='demo.history.seeded' LIMIT 1",
+    ).bind(tenantId).first<{ id: string }>()
+    if (!historySeeded) {
+      await seedHistory(db, tenantId, ownerId, cookId, waiterId, menuItem.id, menuItem.category_id)
+    }
 
     await db.prepare(`
       INSERT INTO restaurant_activity_events(tenant_id,actor_staff_id,severity,action,detail)

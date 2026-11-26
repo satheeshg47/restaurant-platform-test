@@ -1,0 +1,50 @@
+name: Mobile browser QA
+
+on:
+  push:
+    branches: [feat/mobile-app-shell-and-browser-qa]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Web app URL to test
+        required: false
+        default: https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev
+  schedule:
+    - cron: '17 2 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: qa/mobile-browser
+    env:
+      CI: 'true'
+      BASE_URL: ${{ github.event.inputs.base_url || 'https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev' }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install QA dependencies
+        run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run mobile browser checks
+        run: npm test
+      - name: Upload screenshots, traces and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-browser-qa-${{ github.run_number }}
+          path: |
+            qa/mobile-browser/test-results/
+            qa/mobile-browser/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
-  Activity, AppWindow, ArrowUpRight, Bell, Boxes, Check, QrCode, BarChart3,
+  Activity, AppWindow, ArrowUpRight, Bell, Boxes, Check,
   ChevronDown, CircleHelp, CreditCard, Database, Download,
   FileCheck2, LayoutDashboard, LifeBuoy, LockKeyhole,
-  Menu, MoreHorizontal, Plus, Settings, ShieldCheck, Store, Utensils,
+  Menu, MoreHorizontal, Plus, Settings, ShieldCheck, Store,
   Users, X, Zap, ScrollText, MessageCircle
 } from 'lucide-react'
 import AuditLog from './AuditLog'
@@ -27,30 +27,20 @@ import StaffPortal from './StaffPortal'
 import SignIn from './SignIn'
 import { apiFetch, completeOidcLogin, setSessionToken as setApiSessionToken } from './auth'
 
-type Section = 'Overview' | 'Applications' | 'Restaurant Suite' | 'Tables & QR' | 'Kitchen & Service' | 'Restaurant Settings' | 'Restaurant Reports' | 'Customer Reviews' | 'Restaurant Data Export' | 'Owners' | 'Communications' | 'Subscriptions' | 'Update Centre' | 'Data & Backups' | 'Monitoring' | 'Security' | 'Audit Log'
+type Section = 'Overview' | 'Applications' | 'Restaurant Suite' | 'Tables & QR' | 'Kitchen & Service' | 'Restaurant Settings' | 'Restaurant Reports' | 'Customer Reviews' | 'Restaurant Data Export' | 'Owners' | 'Communications' | 'Subscriptions' | 'Update Centre' | 'Data & Backups' | 'Monitoring' | 'Security' | 'Audit Log' | 'Admin Area'
 type AppRecord = { id: string; name: string; category: string; status: 'Active' | 'Draft' | 'Paused'; initials: string; tone: string }
 type OverviewEvent = { id: string; action: string; resource_type: string; created_at: string }
 type NativeMembership = { tenant_id: string; tenant_name: string; tenant_slug: string; membership_role: string; staff_id: string | null; staff_role: 'cook' | 'waiter' | 'manager' | null; display_name: string | null }
 type NativeUser = { id: string; email: string | null; login_id: string; is_admin: boolean; tenant_role: string | null; memberships: NativeMembership[] }
 
-const nav: { label: Section; icon: typeof LayoutDashboard }[] = [
-  { label: 'Overview', icon: LayoutDashboard },
-  { label: 'Applications', icon: AppWindow },
-  { label: 'Restaurant Suite', icon: Store },
-  { label: 'Tables & QR', icon: QrCode },
-  { label: 'Kitchen & Service', icon: Utensils },
-  { label: 'Restaurant Settings', icon: Settings },
-  { label: 'Restaurant Reports', icon: BarChart3 },
-  { label: 'Customer Reviews', icon: MessageCircle },
-  { label: 'Restaurant Data Export', icon: Database },
-  { label: 'Owners', icon: Users },
-  { label: 'Communications', icon: MessageCircle },
-  { label: 'Subscriptions', icon: CreditCard },
-  { label: 'Update Centre', icon: FileCheck2 },
-  { label: 'Data & Backups', icon: Database },
-  { label: 'Monitoring', icon: Activity },
-  { label: 'Security', icon: ShieldCheck },
-  { label: 'Audit Log', icon: ScrollText },
+const nav: { label: string; section: Section; icon: typeof LayoutDashboard }[] = [
+  { label: 'Dashboard', section: 'Overview', icon: LayoutDashboard },
+  { label: 'Apps', section: 'Applications', icon: AppWindow },
+  { label: 'Subscribers', section: 'Owners', icon: Users },
+  { label: 'Messages', section: 'Communications', icon: MessageCircle },
+  { label: 'Subscriptions', section: 'Subscriptions', icon: CreditCard },
+  { label: 'Updates', section: 'Update Centre', icon: FileCheck2 },
+  { label: 'Admin area', section: 'Admin Area', icon: ShieldCheck },
 ]
 
 function App() {
@@ -163,27 +153,29 @@ function App() {
   if (adminAccess !== 'allowed') return <SignIn role="admin" error={adminAccess === 'forbidden' ? 'This identity is not the configured Super Admin.' : 'The administrator API is unavailable or not configured.'} bootstrapAvailable={bootstrapAvailable} encryptionReady={encryptionReady} onAuthenticated={handleNativeAuthenticated}/>
 
 
-  const pageTitle = section === 'Overview' ? 'Good evening' : section
+  const sectionLabel = ({ Overview: 'Dashboard', Applications: 'Apps', Owners: 'Subscribers', Communications: 'Messages', 'Update Centre': 'Updates' } as Partial<Record<Section, string>>)[section] || section
+  const pageTitle = sectionLabel
   const pageSubtitle = section === 'Overview'
     ? 'Your platform at a glance. Here’s what’s happening today.'
-    : `Manage your platform’s ${section.toLowerCase()}.`
+    : section === 'Admin Area' ? 'Platform-wide settings and operational controls.'
+    : `Manage your platform’s ${sectionLabel.toLowerCase()}.`
 
   return (
     <div className="shell">
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
         <div className="brand"><div className="brand-mark"><Boxes size={21} /></div><div><strong>platform<span>core</span></strong><small>CONTROL PLANE</small></div><button className="icon-button close-menu" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={18}/></button></div>
-        <div className="workspace-label">WORKSPACE</div>
+        <div className="workspace-label">CONTROL PLANE</div>
         <div className="workspace"><div className="workspace-avatar">P</div><div><b>Personal workspace</b><small>Super Admin</small></div><ChevronDown size={15}/></div>
-        <div className="nav-label">MANAGE</div>
-        <nav>{nav.map(item => { const Icon = item.icon; return <button key={item.label} className={`nav-item ${section === item.label ? 'active' : ''}`} onClick={() => { setSection(item.label); setMenuOpen(false) }}><Icon size={18}/><span>{item.label}</span>{item.label === 'Update Centre' && <i className="nav-dot"/>}</button> })}</nav>
-        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><LifeBuoy size={17}/></div><b>Need a hand?</b><p>Explore setup guides and platform help.</p><button onClick={() => notify('Help centre will be connected in a later build.')}>Open help centre <ArrowUpRight size={13}/></button></div><div className="profile"><div className="profile-avatar">SG</div><div className="profile-copy"><b>Super Admin</b><small>Owner access</small></div><button className="icon-button" onClick={() => setSection('Security')} aria-label="Account settings"><Settings size={17}/></button></div></div>
+        <div className="nav-label">NAVIGATION</div>
+        <nav>{nav.map(item => { const Icon = item.icon; return <button key={item.label} className={`nav-item ${section === item.section ? 'active' : ''}`} onClick={() => { setSection(item.section); setMenuOpen(false) }}><Icon size={18}/><span>{item.label}</span>{item.label === 'Updates' && <i className="nav-dot"/>}</button> })}</nav>
+        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><LifeBuoy size={17}/></div><b>Need a hand?</b><p>Explore setup guides and platform help.</p><button onClick={() => notify('Help centre will be connected in a later build.')}>Open help centre <ArrowUpRight size={13}/></button></div><div className="profile"><div className="profile-avatar">SG</div><div className="profile-copy"><b>Super Admin</b><small>Owner access</small></div><button className="icon-button" onClick={() => setSection('Admin Area')} aria-label="Account settings"><Settings size={17}/></button></div></div>
       </aside>
 
       {menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Close navigation"/>}
       <main className="main">
-        <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="breadcrumb">Platform <span>/</span> <b>{section}</b></div><div className="top-actions"><div className="environment"><i/> Pre-launch mode</div><button className="icon-button notification" onClick={() => notify('You’re all caught up.')} aria-label="Notifications"><Bell size={18}/><i/></button><button className="button secondary small" onClick={signOut}>Sign out</button></div></header>
+        <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="breadcrumb">Platform <span>/</span> <b>{sectionLabel}</b></div><div className="top-actions"><div className="environment"><i/> Pre-launch mode</div><button className="icon-button notification" onClick={() => notify('You’re all caught up.')} aria-label="Notifications"><Bell size={18}/><i/></button><button className="button secondary small" onClick={signOut}>Sign out</button></div></header>
         <div className="content">
-          <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}</div><h1>{pageTitle}{section === 'Overview' ? ', Admin' : ''}</h1><p>{pageSubtitle}</p></div><div className="welcome-actions"><button className="button secondary" onClick={() => { window.location.href = '/owner?demo=1' }}><Store size={16}/> Demo Restaurant</button><button className="button secondary" onClick={() => setSection('Restaurant Data Export')}><Download size={16}/> Export</button><button className="button primary" onClick={() => setSection('Applications')}><Plus size={17}/> Add application</button></div></div>
+          <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}</div><h1>{pageTitle}</h1><p>{pageSubtitle}</p></div><div className="welcome-actions">{section === 'Overview' && <button className="button secondary" onClick={() => { window.location.href = '/owner?demo=1' }}><Store size={16}/> Open demo</button>}{(section === 'Overview' || section === 'Applications') && <button className="button primary" onClick={() => setSection('Applications')}><Plus size={17}/> Add application</button>}{section === 'Admin Area' && <button className="button secondary" onClick={() => setSection('Security')}><Settings size={16}/> Security settings</button>}</div></div>
 
           {section === 'Overview' && <Overview setSection={setSection}/>}
           {section === 'Applications' && <Applications />}
@@ -202,10 +194,18 @@ function App() {
           {section === 'Monitoring' && <Monitoring />}
           {section === 'Security' && <Placeholder icon={LockKeyhole} title="Security & access" description="Native username/password authentication, TOTP enrollment, recovery codes and server-side session validation are implemented. The initial Super Admin account and encryption secrets still need to be provisioned." items={['OIDC administrator sign-in: verified','MFA and passkey enforcement: pending','Tenant and role authorization: enforced in Worker routes','Administrative audit trail: enabled; immutability not claimed']}/>}
           {section === 'Audit Log' && <AuditLog />}
+          {section === 'Admin Area' && <AdminArea setSection={setSection}/>}
           <footer className="footer"><span>Platform Core <b>·</b> v0.1.0 preview</span><span><i className="footer-dot"/> Pre-launch workspace · Production D1 schema installed</span></footer>
         </div>
       </main>
 
+      <nav className="mobile-bottom-nav" aria-label="Primary navigation">
+        <button className={section === 'Overview' ? 'active' : ''} onClick={() => setSection('Overview')}><LayoutDashboard size={19}/><span>Home</span></button>
+        <button className={section === 'Applications' ? 'active' : ''} onClick={() => setSection('Applications')}><AppWindow size={19}/><span>Apps</span></button>
+        <button className={section === 'Owners' ? 'active' : ''} onClick={() => setSection('Owners')}><Users size={19}/><span>People</span></button>
+        <button className={section === 'Communications' ? 'active' : ''} onClick={() => setSection('Communications')}><MessageCircle size={19}/><span>Inbox</span></button>
+        <button onClick={() => setMenuOpen(true)}><MoreHorizontal size={19}/><span>More</span></button>
+      </nav>
       {notice && <div className="toast"><Check size={16}/>{notice}</div>}
     </div>
   )
@@ -411,6 +411,20 @@ function Overview({ setSection }: { setSection: (s: Section)=>void }) {
     </div></section>
     <div className="notice-strip"><div className="notice-symbol"><Zap size={17}/></div><div><b>Pre-launch workspace is active</b><p>Administrator sign-in, API health and the production D1 schema are connected. Live workspace records are loaded from D1. Complete offsite backup and recovery checks before customer onboarding.</p></div><button onClick={()=>setSection('Data & Backups')}>View setup <ArrowUpRight size={13}/></button></div>
   </>
+}
+
+function AdminArea({ setSection }: { setSection: (s: Section) => void }) {
+  const tools: { title: string; description: string; section: Section; icon: typeof Settings }[] = [
+    { title: 'Security & access', description: 'Administrator identity, MFA and access controls.', section: 'Security', icon: LockKeyhole },
+    { title: 'Data & backups', description: 'Database health, exports and recovery readiness.', section: 'Data & Backups', icon: Database },
+    { title: 'Monitoring', description: 'Service health, platform metrics and incidents.', section: 'Monitoring', icon: Activity },
+    { title: 'Audit log', description: 'Review important administrative actions.', section: 'Audit Log', icon: ScrollText },
+    { title: 'Data export', description: 'Export and validate tenant data when required.', section: 'Restaurant Data Export', icon: Download },
+  ]
+  return <section className="admin-hub">
+    <div className="admin-hub-intro panel"><span className="eyebrow">CONTROL PLANE SETTINGS</span><h2>Administration</h2><p>Platform-wide controls live here. Restaurant operations such as menu, tables and QR codes belong inside each restaurant workspace—not in Super Admin navigation.</p></div>
+    <div className="admin-hub-grid">{tools.map(tool => { const Icon = tool.icon; return <button className="admin-hub-card panel" key={tool.section} onClick={() => setSection(tool.section)}><span className="admin-hub-icon"><Icon size={20}/></span><span><b>{tool.title}</b><small>{tool.description}</small></span><ArrowUpRight size={17}/></button> })}</div>
+  </section>
 }
 
 function Placeholder({ icon: Icon, title, description, items }: { icon: typeof Users; title: string; description: string; items: string[] }) {
