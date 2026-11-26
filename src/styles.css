@@ -909,3 +909,8 @@
 .guest-categories button{min-height:40px;padding-top:10px;padding-bottom:10px}
 .guest-add-button{min-width:56px;min-height:40px;padding:10px 12px}
 .guest-modal-head>button{width:40px;height:40px;min-width:40px;min-height:40px}
+
+
+/* Cart quantity steppers also meet the minimum touch-target size. */
+.guest-item-quantity button{width:36px;height:36px;min-width:36px;min-height:36px}
+.guest-quantity button{width:36px;height:36px;min-width:36px;min-height:36px}
