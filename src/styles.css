@@ -787,3 +787,7 @@
   .admin-hub-card:nth-child(5){animation-delay:140ms}
   @keyframes hub-card-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
 }
+
+.app-open-workspace{border:1px solid #dcd8fa;background:#f5f3ff;color:#5b4fc4;border-radius:8px;padding:7px 10px;font-size:10px;font-weight:700;white-space:nowrap}
+.app-open-workspace:hover{background:#ece9ff}
+@media(max-width:760px){.app-row{flex-wrap:wrap;gap:9px}.app-open-workspace{margin-left:44px;min-height:38px;font-size:11px}.app-row .status{margin-left:auto}}
