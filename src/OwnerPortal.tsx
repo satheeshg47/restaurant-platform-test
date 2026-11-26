@@ -125,6 +125,7 @@ export default function OwnerPortal({ accessToken, apiBaseUrl = '/api', onSignOu
       </article>)}</div>}
       {error && <button type="button" className="owner-home-retry" onClick={() => void load()}>Try again</button>}
     </section>}
+    {!selectedRestaurant && <OwnerCommunications accessToken={accessToken} apiBaseUrl={apiBaseUrl}/>}
     {selectedRestaurant && <section className="owner-workspace">
       <div className="owner-workspace-heading"><div><span className="owner-comms-kicker">RESTAURANT WORKSPACE</span><h2>{selectedRestaurant.display_name || selectedRestaurant.tenant_name}</h2><p>Changes are saved to this restaurant's live workspace.</p></div><button type="button" className="owner-workspace-back" onClick={() => setSelectedSlug('')}>Back to restaurants</button></div>
       <div className="owner-workspace-layout">
