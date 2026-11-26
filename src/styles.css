@@ -902,3 +902,10 @@
 .restaurant-addon-picker{display:grid;gap:8px;margin:4px 0 14px}
 .restaurant-addon-picker label{display:flex;align-items:center;gap:8px;margin:0!important;padding:8px;border:1px solid #e8eaf0;border-radius:8px;font-size:12px!important}
 @media(max-width:760px){.menu-item-backdrop{display:flex;align-items:flex-end;padding:0}.menu-item-editor{width:100%;max-width:none;max-height:92dvh;border-radius:18px 18px 0 0;padding:22px 16px calc(18px + env(safe-area-inset-bottom))}.menu-item-editor .modal-top{padding-top:7px}.menu-item-editor .modal-actions{bottom:calc(-18px - env(safe-area-inset-bottom))}.restaurant-translation-grid{grid-template-columns:1fr}.restaurant-portion-row{grid-template-columns:minmax(0,1fr) 100px 32px}}
+
+
+/* Keep guest-facing controls comfortably tappable on phones and tablets. */
+.guest-header select{min-height:40px;padding:10px 12px}
+.guest-categories button{min-height:40px;padding-top:10px;padding-bottom:10px}
+.guest-add-button{min-width:56px;min-height:40px;padding:10px 12px}
+.guest-modal-head>button{width:40px;height:40px;min-width:40px;min-height:40px}
