@@ -279,7 +279,7 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
         .bind(userId, admin.issuer, admin.subject, admin.email || null),
       db.prepare("INSERT OR IGNORE INTO tenant_applications(tenant_id,application_id,status) VALUES(?,?,'active')")
         .bind(tenantId, application.id),
-      db.prepare("INSERT OR IGNORE INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'owner','active')")
+      db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'admin','active') ON CONFLICT(tenant_id,user_id) DO UPDATE SET role='admin',status='active'")
         .bind(tenantId, userId),
       db.prepare(`INSERT OR IGNORE INTO restaurant_profiles
         (tenant_id,display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,tax_inclusive,accepting_orders,city,state_name,state_code,invoice_prefix)
