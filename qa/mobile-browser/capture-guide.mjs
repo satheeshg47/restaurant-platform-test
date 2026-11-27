@@ -164,16 +164,31 @@ async function guestCapture(browser, viewport) {
 }
 async function staffCapture(browser, viewport, envName, role) {
   const state = await readState(envName)
-  if (!state) return
   const mobile = viewport.width < 500
   const vp = mobile ? 'Mobile 390×844' : 'Desktop 1440×900'
-  const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile, storageState: state })
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile, ...(state ? { storageState: state } : {}) })
   const page = await context.newPage()
+  // The repository's demo tenant provisions isolated, read-only demo staff identities.
+  // Prefer an explicitly supplied QA session; otherwise sign in with the seeded demo role.
+  if (!state) {
+    const credentials = role === 'cook'
+      ? { login_id: 'demo.cook', password: 'DemoCook#2026!' }
+      : { login_id: 'demo.waiter', password: 'DemoWaiter#2026!' }
+    await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
+    await page.evaluate(async credentials => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(credentials),
+      })
+      return response.ok
+    }, credentials).catch(() => false)
+  }
   await page.goto(baseURL + '/staff', { waitUntil: 'domcontentloaded' }).catch(() => {})
   await settle(page)
   const title = role === 'cook' ? 'Cook / Kitchen staff' : 'Waiter / Service staff'
   if (await page.locator('.staff-portal').count()) await savePage(page, title, 'Restaurant Staff', vp)
-  else addScreen(title, 'Restaurant Staff', vp, '', 'not-available', 'The supplied staff session did not open the expected role workspace.')
+  else addScreen(title, 'Restaurant Staff', vp, '', 'not-available', 'The demo or supplied staff session did not open the expected role workspace.')
   await context.close()
 }
 function esc(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }

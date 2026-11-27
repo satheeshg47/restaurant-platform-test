@@ -71,6 +71,33 @@ test('guest menu supports category swipe, item quantity controls and a clear ord
 })
 
 
+for (const staff of [
+  { role: 'cook', login_id: 'demo.cook', password: 'DemoCook#2026!' },
+  { role: 'waiter', login_id: 'demo.waiter', password: 'DemoWaiter#2026!' },
+]) {
+  test(`seeded demo ${staff.role} can sign in and sees only its assigned staff role`, async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    const login = await page.evaluate(async credentials => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(credentials),
+      })
+      return { status: response.status, body: await response.json().catch(() => ({})) }
+    }, staff)
+    expect(login.status).toBe(200)
+    const session = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/session', { credentials: 'same-origin' })
+      return response.json()
+    })
+    expect(session.authenticated).toBe(true)
+    expect(session.user.memberships.some((membership: any) => membership.staff_role === staff.role)).toBe(true)
+    await page.goto('/staff', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.staff-portal')).toBeVisible({ timeout: 15000 })
+    await page.screenshot({ path: `test-results/${test.info().project.name}-${staff.role}-staff-portal.png` })
+  })
+}
+
 test('guest category pills stay synchronized with scroll and sticky controls remain reachable', async ({ page }) => {
   await page.goto(routes[2].path, { waitUntil: 'domcontentloaded' })
   const rail = page.locator('.guest-categories')
