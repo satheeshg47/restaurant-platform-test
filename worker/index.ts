@@ -8,7 +8,7 @@ import { handleAdminSubscriptions } from './admin-subscriptions.ts'
 import { handleAdminMonitoring } from './admin-monitoring.ts'
 import { handleRestaurantRoutes } from './restaurant.ts'
 import { handleOwnerRestaurants } from './owner-portal.ts'
-import { handleDemoProvision } from './demo.ts'
+import { handleDemoProvision, pruneDemoHistory } from './demo.ts'
 import type { Env, Identity } from './types.ts'
 import { validateReleaseManifest } from './release-manifest.ts'
 
@@ -271,5 +271,12 @@ export default {
       return withSecurityHeaders(await handleApi(request, env))
     }
     return withSecurityHeaders(await env.ASSETS.fetch(request))
+  },
+  async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }) {
+    const demoDb = env.DEMO_DB
+    if (!demoDb) return
+    ctx.waitUntil(pruneDemoHistory(demoDb).catch(error => {
+      console.error('demo_retention_prune_failed', error instanceof Error ? error.message : 'unknown_error')
+    }))
   },
 }
