@@ -32,6 +32,7 @@
     "OIDC_JWKS_URL": "https://dev-iamsatheeshgkotegar.us.auth0.com/.well-known/jwks.json",
     "OIDC_CLIENT_ID": "PZuFV2NqKcO0yVvwTIHNWSkt8EWl19CX"
   },
+  "triggers": { "crons": ["0 3 * * *"] },
   "observability": {
     "enabled": true,
     "traces": {
