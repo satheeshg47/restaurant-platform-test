@@ -42,8 +42,9 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
   expect(owner.tenant_role).toBe('owner')
   await ownerPage.goto('/owner')
   await expect(ownerPage.locator('.owner-portal-content')).toBeVisible({ timeout: 15000 })
-  if (await ownerPage.locator('.owner-home-open').count()) await ownerPage.locator('.owner-home-open').first().click()
-  await expect(ownerPage.locator('.owner-workspace-sidebar')).toHaveCount(1)
+  await expect(ownerPage.locator('.owner-home-open').first()).toBeVisible({ timeout: 20000 })
+  await ownerPage.locator('.owner-home-open').first().click()
+  await expect(ownerPage.locator('.owner-workspace-sidebar')).toHaveCount(1, { timeout: 20000 })
 
   const restaurants = await api(ownerPage, 'GET', '/api/owner/restaurants')
   expect(restaurants.status).toBe(200)
