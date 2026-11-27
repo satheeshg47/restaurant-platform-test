@@ -17,9 +17,9 @@ jobs:
   authenticated-e2e:
     name: Mobile and desktop role journeys
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEMO_BISTRO_PREVIEW_URL != '' }}
+    if: ${{ always() }}
     env:
-      BASE_URL: ${{ inputs.base_url || vars.DEMO_BISTRO_PREVIEW_URL }}
+      BASE_URL: ${{ inputs.base_url || vars.DEMO_BISTRO_PREVIEW_URL || 'https://feat-demo-bistro-closed-loop-e2e-restaurant-platform-test.iamsatheeshgkotegar.workers.dev' }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
