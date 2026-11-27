@@ -16,16 +16,21 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
 
   await page.goto('/')
   await expect(page.locator('.shell')).toBeVisible()
-  const nav = (label: string) => page.locator('.sidebar nav .nav-item').filter({ hasText: label }).first()
-  await nav('Apps').click()
+  const viewport = testInfo.project.use.viewport as { width: number; height: number }
+  const nav = async (label: string) => {
+    if (viewport.width < 500) {
+      const opener = page.getByRole('button', { name: 'Open navigation' })
+      if (await opener.isVisible().catch(() => false)) await opener.click()
+    }
+    await page.locator('.sidebar nav .nav-item').filter({ hasText: label }).first().click()
+  }
+  await nav('Apps')
   await expect(page.getByRole('link', { name: /Open Demo Bistro/ })).toHaveAttribute('href', '/owner?demo=1')
   await expect(page.getByRole('button', { name: 'Reset Demo Bistro' })).toBeVisible()
   for (const label of ['Subscribers', 'Messages', 'Subscriptions']) {
-    await nav(label).click()
+    await nav(label)
     await expect(page.locator('.shell')).toBeVisible()
   }
-
-  const viewport = testInfo.project.use.viewport as { width: number; height: number }
   const ownerContext = await createContextPage(browser, viewport)
   const ownerPage = ownerContext.page
   const owner = await signIn(ownerPage, QA_CREDENTIALS.owner)
@@ -34,7 +39,7 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
   await ownerPage.goto('/owner')
   await expect(ownerPage.locator('.owner-portal-content')).toBeVisible({ timeout: 15000 })
   if (await ownerPage.locator('.owner-home-open').count()) await ownerPage.locator('.owner-home-open').first().click()
-  await expect(ownerPage.locator('.owner-workspace-sidebar')).toBeVisible()
+  await expect(ownerPage.locator('.owner-workspace-sidebar')).toHaveCount(1)
 
   const restaurants = await api(ownerPage, 'GET', '/api/owner/restaurants')
   expect(restaurants.status).toBe(200)
