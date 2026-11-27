@@ -144,7 +144,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
       if (!sections.length) return
       const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
       const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
-      const atDocumentEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4
+      const atDocumentEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80
       let current = sections[0].getAttribute('data-category-section') || ''
       if (atDocumentEnd) {
         current = sections[sections.length - 1].getAttribute('data-category-section') || current
