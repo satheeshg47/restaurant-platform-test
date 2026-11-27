@@ -97,9 +97,12 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
     const total=inclusive?grossSubtotal:grossSubtotal+tax
     if (!Number.isSafeInteger(total)) bad(400,'invalid_order')
     const orderId=crypto.randomUUID()
-    const numberRow=await env.DB.prepare('SELECT COALESCE(MAX(order_number),0)+1 AS next_number FROM restaurant_orders WHERE tenant_id=?').bind(tenantId).first<{next_number:number}>()
-    const orderNumber=Number(numberRow?.next_number || 1)
-    const statements=[env.DB.prepare(`INSERT INTO restaurant_orders(id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,special_instructions,source,idempotency_key,tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot) VALUES(?,?,?,?,?,'new',?,?,?,?,'qr',?,?,?,?)`).bind(orderId,tenantId,orderNumber,table.id,sessionId,subtotal,tax,total,note,key,mode,rate,Number(inclusive))]
+    // Allocate the next tenant-scoped order number inside the INSERT statement.
+    // Reading MAX(order_number) before the write lets two simultaneous QR
+    // orders select the same number and causes one otherwise-valid order to fail.
+    const statements=[env.DB.prepare(`INSERT INTO restaurant_orders(id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,special_instructions,source,idempotency_key,tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot)
+      SELECT ?,?,COALESCE(MAX(order_number),0)+1,?,?,'new',?,?,?,?,'qr',?,?,?,?
+      FROM restaurant_orders WHERE tenant_id=?`).bind(orderId,tenantId,table.id,sessionId,subtotal,tax,total,note,key,mode,rate,Number(inclusive),tenantId)]
     for(const line of prepared) {
       statements.push(env.DB.prepare(`INSERT INTO restaurant_order_items(id,tenant_id,order_id,item_id,variant_id,category_id,item_name_snapshot,variant_name_snapshot,addons_snapshot,quantity,unit_price_minor,addons_price_minor,line_total_minor) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(line.id,tenantId,orderId,line.itemId,line.variantId,line.categoryId,line.name,line.variantName,line.addons,line.qty,line.unit,line.addonUnit,line.line))
       const baseBatchKey = `guest:${line.itemId}:${line.variantId || ''}:${line.addons}`
@@ -123,6 +126,9 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
     }
     const result=await env.DB.batch(statements)
     if(result.some(r=>!r.success)) bad(409,'order_placement_conflict')
-    return json(201,{order:{id:orderId,order_number:orderNumber,status:'new',subtotal_minor:subtotal,tax_minor:tax,total_minor:total}})
+    const savedOrder=await env.DB.prepare('SELECT order_number FROM restaurant_orders WHERE tenant_id=? AND id=?')
+      .bind(tenantId,orderId).first<{order_number:number}>()
+    if(!savedOrder) bad(500,'order_placement_failed')
+    return json(201,{order:{id:orderId,order_number:Number(savedOrder.order_number),status:'new',subtotal_minor:subtotal,tax_minor:tax,total_minor:total}})
   } catch(e) { return error(e) }
 }
