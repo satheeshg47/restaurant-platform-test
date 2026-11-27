@@ -5,6 +5,8 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
   const healthResponse = await request.get('/api/health')
   expect(healthResponse.ok()).toBeTruthy()
   const health = await healthResponse.json()
+  const readyResponse = await request.get('/api/ready')
+  expect(readyResponse.ok(), 'Preview schema must be fully migrated before browser QA').toBeTruthy()
   test.skip(health.environment !== 'preview', 'Demo workspace mutations run only against isolated preview D1.')
 
   const admin = await signIn(page, QA_CREDENTIALS.admin)
