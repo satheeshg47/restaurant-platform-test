@@ -29,6 +29,7 @@ export interface Env {
   AUTH_BOOTSTRAP_SECRET?: string
   ENVIRONMENT?: string
   DEMO_OWNER_LOGIN_ID?: string
+  DEMO_ADMIN_LOGIN_ID?: string
 }
 
 export interface Identity {

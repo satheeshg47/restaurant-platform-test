@@ -8,7 +8,7 @@ import { handleAdminSubscriptions } from './admin-subscriptions.ts'
 import { handleAdminMonitoring } from './admin-monitoring.ts'
 import { handleRestaurantRoutes } from './restaurant.ts'
 import { handleOwnerRestaurants } from './owner-portal.ts'
-import { handleDemoProvision } from './demo.ts'
+import { handleDemoProvision, pruneDemoHistory } from './demo.ts'
 import type { Env, Identity } from './types.ts'
 import { validateReleaseManifest } from './release-manifest.ts'
 
@@ -50,7 +50,7 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
     return json(status, { error: status === 503 ? 'admin_auth_not_configured' : status === 403 ? 'forbidden' : 'unauthorized' })
   }
 
-  if (path === '/admin/demo-restaurant/provision') return handleDemoProvision(request, env, admin)
+  if (path === '/admin/demo-restaurant/provision' || path === '/admin/demo-restaurant/reset') return handleDemoProvision(request, env, admin)
 
   if (path === '/admin/session' && request.method === 'GET') {
     return json(200, { authenticated: true, admin })
@@ -245,7 +245,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
             'platform_admin_accounts','platform_auth_rate_limits','tenant_membership_permissions'
           )) AS required_tables`,
       ).first<{ latest_migration: string | null; required_tables: number }>()
-      if (schema?.latest_migration !== '0009_totp_replay_protection.sql' || Number(schema.required_tables) !== 50) {
+      if (!schema?.latest_migration || schema.latest_migration < '0009_totp_replay_protection.sql' || Number(schema.required_tables) !== 50) {
         return json(503, { status: 'not_ready', checks: { database: 'ok', schema: 'incomplete' }, required_migration: '0009_totp_replay_protection.sql' })
       }
       return json(200, { status: 'ready', checks: { database: 'ok', schema: 'complete' }, latest_migration: schema.latest_migration })
@@ -271,5 +271,12 @@ export default {
       return withSecurityHeaders(await handleApi(request, env))
     }
     return withSecurityHeaders(await env.ASSETS.fetch(request))
+  },
+  async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }) {
+    const demoDb = env.DEMO_DB
+    if (!demoDb) return
+    ctx.waitUntil(pruneDemoHistory(demoDb).catch(error => {
+      console.error('demo_retention_prune_failed', error instanceof Error ? error.message : 'unknown_error')
+    }))
   },
 }

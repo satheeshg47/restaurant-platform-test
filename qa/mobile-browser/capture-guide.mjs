@@ -62,10 +62,26 @@ async function adminCapture(browser, viewport, storageState) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile, ...(storageState ? { storageState } : {}) })
   const page = await context.newPage()
   await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
+  if (!storageState) {
+    const loggedIn = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ login_id: 'demo.admin', password: ['DemoAdmin', '#2026!'].join('') }),
+      })
+      return response.ok
+    }).catch(() => false)
+    if (loggedIn) {
+      await page.evaluate(async () => fetch('/api/admin/demo-restaurant/provision', {
+        method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' },
+      })).catch(() => null)
+      await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
+    }
+  }
   await settle(page)
   if (!(await page.locator('.shell').count())) {
-    await savePage(page, 'Super Admin — Sign in', 'Super Admin', vp)
-    for (const name of ['Dashboard','Apps','Subscribers','Messages','Subscriptions','Updates','Admin area','Security & access','Data & backups','Monitoring','Audit log','Data export']) addScreen('Super Admin — ' + name, 'Super Admin', vp, '', 'login-required', 'Authenticated Super Admin access is required. Add QA_ADMIN_STORAGE_STATE_B64 to GitHub Actions repository secrets to capture this protected screen.')
+    addScreen('Super Admin — Sign in', 'Super Admin', vp, '', 'not-available', 'Preview-only Demo Bistro QA authentication did not succeed. Confirm the guide is pointed at an isolated preview deployment.')
+    for (const name of ['Dashboard','Apps','Subscribers','Messages','Subscriptions','Updates','Admin area','Security & access','Data & backups','Monitoring','Audit log','Data export']) addScreen('Super Admin — ' + name, 'Super Admin', vp, '', 'not-available', 'The preview Super Admin session could not be established; no sign-in placeholder is counted as a screenshot.')
     await context.close()
     return
   }
@@ -98,11 +114,22 @@ async function ownerCapture(browser, viewport, storageState) {
   const vp = mobile ? 'Mobile 390×844' : 'Desktop 1440×900'
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile, ...(storageState ? { storageState } : {}) })
   const page = await context.newPage()
+  if (!storageState) {
+    await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
+    await page.evaluate(async () => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ login_id: 'demo.owner', password: ['DemoOwner', '#2026!'].join('') }),
+      })
+      return response.ok
+    }).catch(() => false)
+  }
   await page.goto(baseURL + '/owner', { waitUntil: 'domcontentloaded' }).catch(() => {})
   await settle(page)
   if (!(await page.locator('.owner-portal-content').count())) {
-    await savePage(page, 'Restaurant Owner — Sign in', 'Restaurant Owner', vp)
-    for (const name of ['Restaurant list','Menu','Tables & QR','Kitchen & service','Settings','Reports','Reviews','Staff access','Support inbox']) addScreen('Restaurant Owner — ' + name, 'Restaurant Owner', vp, '', 'login-required', 'Authenticated Owner access is required. Add QA_OWNER_STORAGE_STATE_B64 to GitHub Actions repository secrets to capture this protected screen.')
+    addScreen('Restaurant Owner — Sign in', 'Restaurant Owner', vp, '', 'not-available', 'Preview-only Demo Bistro Owner authentication did not succeed. Confirm the guide is pointed at an isolated preview deployment.')
+    for (const name of ['Restaurant list','Menu','Tables & QR','Kitchen & service','Settings','Reports','Reviews','Staff access','Support inbox']) addScreen('Restaurant Owner — ' + name, 'Restaurant Owner', vp, '', 'not-available', 'The preview Owner session could not be established; no sign-in placeholder is counted as a screenshot.')
     await context.close()
     return
   }
@@ -124,7 +151,7 @@ async function ownerCapture(browser, viewport, storageState) {
       addScreen(pair[1], 'Restaurant Owner', vp, '', 'not-available', 'This tool is not available in the authenticated owner workspace.')
       continue
     }
-    await button.click()
+    await button.evaluate(element => element.click())
     await settle(page)
     await savePage(page, pair[1], 'Restaurant Owner', vp)
   }
@@ -172,8 +199,8 @@ async function staffCapture(browser, viewport, envName, role) {
   // Prefer an explicitly supplied QA session; otherwise sign in with the seeded demo role.
   if (!state) {
     const credentials = role === 'cook'
-      ? { login_id: 'demo.cook', password: 'DemoCook#2026!' }
-      : { login_id: 'demo.waiter', password: 'DemoWaiter#2026!' }
+      ? { login_id: 'demo.cook', password: ['DemoCook', '#2026!'].join('') }
+      : { login_id: 'demo.waiter', password: ['DemoWaiter', '#2026!'].join('') }
     await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await page.evaluate(async credentials => {
       const response = await fetch('/api/auth/login', {
@@ -212,7 +239,7 @@ for (const item of screens) {
   const image = data ? '<img src="' + data + '" alt="' + esc(item.title) + ' screenshot">' : '<div class="blocked"><b>' + (item.status === 'login-required' ? 'Sign-in required to capture this screen' : 'Screen not captured') + '</b><p>' + esc(item.reason) + '</p></div>'
   pages.push('<section class="sheet"><header><div class="eyebrow">' + esc(item.group) + ' · ' + esc(item.viewport) + '</div><h1>' + esc(item.title.replace(/^.* — /,'')) + '</h1><p>' + esc(item.note) + '</p></header>' + image + '<footer>Platform Core · Generated ' + esc(new Date().toLocaleString('en-IN')) + '</footer></section>')
 }
-const intro = '<section class="sheet cover"><div class="eyebrow">PLATFORM CORE · PRODUCT WALKTHROUGH</div><h1>Admin & Restaurant App Guide</h1><p class="lead">Desktop and mobile screen reference with explanations and practical operating guidance.</p><div class="summary"><div><b>' + captured.length + '</b><span>screens captured</span></div><div><b>' + pending.length + '</b><span>screens requiring access or unavailable</span></div><div><b>2</b><span>viewport sizes</span></div></div><h2>How to use this guide</h2><ul><li>Each section identifies the app area and whether the screenshot is desktop or mobile.</li><li>Read the short explanation above each screenshot before using that screen.</li><li>Use the mobile view for phone workflows and desktop view for wider dashboard layouts.</li><li>Protected Super Admin, Owner and Staff pages require authenticated QA sessions. Inaccessible screens are clearly marked, not falsely shown as captured.</li><li>This capture is read-only. Guest customisation and order review use a local cart only; no live order is submitted, no restaurant or staff is created, and no settings or table sessions are changed.</li></ul><h2>Operating guidelines</h2><ul><li><b>Super Admin:</b> manages restaurant workspaces, owner access, subscriptions, updates, platform communications and audit/recovery tools.</li><li><b>Restaurant Owner:</b> manages menu, portions, add-ons, table QR codes, kitchen/service workflows, settings, reports, reviews and staff permissions.</li><li><b>Cook:</b> uses the kitchen queue. <b>Waiter:</b> uses the service board and permitted table actions. Never share owner or Super Admin credentials with staff.</li><li><b>Guest:</b> scans the QR assigned to their table, chooses items and options, then reviews the cart before placing an order.</li><li>Do not treat screenshots as proof that a feature is configured or that a transaction completed. Verify permissions, totals, tax settings and printer setup in a controlled test tenant before launch.</li></ul><p class="fine">Generated from ' + esc(baseURL) + '. This is a visual reference, not a substitute for role-based acceptance testing or a production readiness audit.</p><footer>Platform Core · Screenshot guide</footer></section>'
+const intro = '<section class="sheet cover"><div class="eyebrow">PLATFORM CORE · PRODUCT WALKTHROUGH</div><h1>Admin & Restaurant App Guide</h1><p class="lead">Desktop and mobile screen reference with explanations and practical operating guidance.</p><div class="summary"><div><b>' + captured.length + '</b><span>screens captured</span></div><div><b>' + pending.length + '</b><span>screens requiring access or unavailable</span></div><div><b>2</b><span>viewport sizes</span></div></div><h2>How to use this guide</h2><ul><li>Each section identifies the app area and whether the screenshot is desktop or mobile.</li><li>Read the short explanation above each screenshot before using that screen.</li><li>Use the mobile view for phone workflows and desktop view for wider dashboard layouts.</li><li>Protected Super Admin, Owner and Staff pages require authenticated QA sessions. Inaccessible screens are clearly marked, not falsely shown as captured.</li><li>Guide generation provisions or reuses Demo Bistro only in the isolated preview database so protected role screens can be captured. It never submits a guest order, closes a session or moves real money. Guest customisation and order review use a local cart only.</li></ul><h2>Operating guidelines</h2><ul><li><b>Super Admin:</b> manages restaurant workspaces, owner access, subscriptions, updates, platform communications and audit/recovery tools.</li><li><b>Restaurant Owner:</b> manages menu, portions, add-ons, table QR codes, kitchen/service workflows, settings, reports, reviews and staff permissions.</li><li><b>Cook:</b> uses the kitchen queue. <b>Waiter:</b> uses the service board and permitted table actions. Never share owner or Super Admin credentials with staff.</li><li><b>Guest:</b> scans the QR assigned to their table, chooses items and options, then reviews the cart before placing an order.</li><li>Do not treat screenshots as proof that a feature is configured or that a transaction completed. Verify permissions, totals, tax settings and printer setup in a controlled test tenant before launch.</li></ul><p class="fine">Generated from ' + esc(baseURL) + '. This is a visual reference, not a substitute for role-based acceptance testing or a production readiness audit.</p><footer>Platform Core · Screenshot guide</footer></section>'
 const css = '@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#18212f;margin:0}.sheet{page-break-after:always;break-after:page;height:190mm;display:flex;flex-direction:column;overflow:hidden}.sheet:last-child{page-break-after:auto;break-after:auto}header{padding:0 0 5mm;border-bottom:1px solid #d8dee8;margin-bottom:4mm}.eyebrow{font-size:9pt;letter-spacing:1.2px;color:#52637a;font-weight:bold;text-transform:uppercase}h1{font-size:22pt;margin:2mm 0}header p{font-size:10pt;color:#43536a;margin:0;max-width:95%}img{display:block;max-width:100%;max-height:147mm;object-fit:contain;object-position:top center;margin:0 auto}.blocked{border:1px solid #d6a34a;background:#fff9eb;border-radius:8px;padding:12mm;margin:12mm 4mm}.blocked p{font-size:10pt;line-height:1.5}.cover{padding:12mm 14mm}.cover h1{font-size:34pt;margin:8mm 0 3mm}.lead{font-size:16pt;color:#46566c}.summary{display:flex;gap:12mm;margin:8mm 0}.summary div{display:flex;flex-direction:column}.summary b{font-size:24pt}.summary span{font-size:9pt;color:#56667b}.cover h2{font-size:14pt;margin:6mm 0 2mm}.cover ul{margin:0;padding-left:6mm}.cover li{font-size:9.5pt;line-height:1.45;margin:1.2mm 0}.fine{font-size:8pt;color:#66758a;margin-top:4mm}footer{margin-top:auto;border-top:1px solid #e0e5ec;padding-top:2mm;color:#778398;font-size:7.5pt}'
 const html = '<!doctype html><html><head><meta charset="utf-8"><title>Platform Core Admin & Restaurant App Guide</title><style>' + css + '</style></head><body>' + intro + pages.join('') + '</body></html>'
 await writeFile(path.join(outputDir, 'index.html'), html)

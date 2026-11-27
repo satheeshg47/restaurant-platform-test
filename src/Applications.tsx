@@ -20,6 +20,8 @@ export default function Applications() {
   const [applications, setApplications] = useState<Application[]>([])
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [resettingDemo, setResettingDemo] = useState(false)
+  const [demoNotice, setDemoNotice] = useState('')
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
@@ -79,6 +81,24 @@ export default function Applications() {
     }
   }, [])
 
+  const resetDemo = async () => {
+    setResettingDemo(true)
+    setDemoNotice('')
+    setError('')
+    try {
+      const response = await apiFetch(`${API_BASE}/admin/demo-restaurant/reset`, {
+        method: 'POST', headers: { Accept: 'application/json' }, cache: 'no-store',
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Demo Bistro could not be reset.')
+      setDemoNotice('Demo Bistro has been reset and re-seeded in the isolated demo database.')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Demo Bistro reset failed.')
+    } finally {
+      setResettingDemo(false)
+    }
+  }
+
   useEffect(() => { void refresh() }, [refresh])
 
   const messages: Record<Exclude<ViewState, 'loading' | 'ready'>, { title: string; description: string }> = {
@@ -123,9 +143,14 @@ export default function Applications() {
           <div className="app-icon violet">{app.name.slice(0, 2).toUpperCase()}</div>
           <div className="app-info"><b>{app.name}</b><small>{app.app_key} · Added {new Date(app.created_at).toLocaleDateString()}</small></div>
           <span className={`status ${app.status.toLowerCase()}`}>{app.status}</span>
-          {app.app_key === 'restaurant' && app.status === 'active' && <a className="app-open-workspace" href="/owner?demo=1" target="_blank" rel="noreferrer">Open demo workspace <span aria-hidden="true">↗</span></a>}
+          {app.app_key === 'restaurant' && app.status === 'active' && <>
+            <a className="app-open-workspace" href="/owner?demo=1" target="_blank" rel="noreferrer">Open Demo Bistro <span aria-hidden="true">↗</span></a>
+            <button className="button secondary small" type="button" onClick={() => void resetDemo()} disabled={resettingDemo}>{resettingDemo ? 'Resetting…' : 'Reset Demo Bistro'}</button>
+          </>}
         </div>)}</div>)}
-      <div className="registry-footnote">Read-only registry view · No browser token storage · No sample records</div>
+      {demoNotice && <p className="registry-footnote" role="status">{demoNotice}</p>}
+      {error && state === 'ready' && <p className="registry-footnote" role="alert">{error}</p>}
+      <div className="registry-footnote">Demo Bistro is isolated from live restaurant workspaces · Demo payments are simulated</div>
     </section>
   )
 }

@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "restaurant-platform-qa",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-17",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "restaurant-platform-qa",
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "database/d1/migrations"
+    },
+    {
+      "binding": "DEMO_DB",
+      "database_name": "restaurant-platform-qa",
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "database/d1/migrations"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "preview",
+    "DEMO_OWNER_LOGIN_ID": "demo.owner",
+    "DEMO_ADMIN_LOGIN_ID": "demo.admin",
+    "OIDC_ISSUER": "https://dev-iamsatheeshgkotegar.us.auth0.com/",
+    "OIDC_AUDIENCE": "https://platform-core-api",
+    "OIDC_JWKS_URL": "https://dev-iamsatheeshgkotegar.us.auth0.com/.well-known/jwks.json",
+    "OIDC_CLIENT_ID": "PZuFV2NqKcO0yVvwTIHNWSkt8EWl19CX"
+  }
+}

@@ -1,53 +1,74 @@
 # Platform Core — Playwright browser QA
 
-Runs Chromium against the live Cloudflare Worker at exact viewports: mobile **390 × 844** and desktop **1440 × 900**.
+Runs Chromium at exact mobile **390 × 844** and desktop **1440 × 900** viewports.
 
-## Coverage
-- Super Admin entry, Owner entry, and demo restaurant Table 1 guest QR.
-- Guest menu and language selector (English, Hindi, Kannada, Tamil, Telugu, Malayalam).
-- Guest item-customization and order-review modal flow; the suite stops before submitting a real order.
-- API health and readiness.
-- Horizontal overflow, visible interactive targets below 36 × 36 px, clipped leaf text, overlapping interactive controls, and controls obscured by fixed bottom bars.
-- Full-page screenshots for each route plus screenshots of guest customization and order-review modals. Traces and videos are retained on failure.
+## Authenticated Demo Bistro coverage
+
+The dedicated preview D1 database is used for all mutating QA. The suite refuses to run unless `GET /api/health` reports `environment: preview`.
+
+- Preview-only Super Admin, Restaurant Owner, Cook and Waiter sessions.
+- Admin Apps → **Open Demo Bistro** one-click workspace entry and reset/re-seed control.
+- Editable multilingual menu, portions and add-ons.
+- Table creation, QR token validation and table label changes.
+- Staff creation, role assignment, access revocation and denied-login verification.
+- Guest QR ordering from two tables at once.
+- Kitchen batch aggregation across tables while retaining per-table allocations.
+- Kitchen status progression: new → accepted → preparing → ready.
+- Waiter service requests, ready-item service, billing, cash payment and session close.
+- Sales/report and customer-review updates after the completed transaction.
+- Real authenticated screenshots for Super Admin, Owner, Cook and Waiter on both viewports.
+- Regenerated landscape PDF walkthrough, source screenshots and manifest.
+
+All payments in Demo Bistro are simulated. The suite never connects to a payment gateway or moves real money.
+
+## Preview-only QA accounts
+
+The disposable preview environment provisions the following demo-only identities automatically:
+
+| Role | Login ID | Preview password |
+|---|---|---|
+| Super Admin | `demo.admin` | `DemoAdmin#2026!` |
+| Restaurant Owner | `demo.owner` | `DemoOwner#2026!` |
+| Cook | `demo.cook` | `DemoCook#2026!` |
+| Waiter | `demo.waiter` | `DemoWaiter#2026!` |
+
+These credentials are intentionally limited to the isolated preview database. Never copy them into production or use them for real restaurant data.
 
 ## Run locally
+
+Install the app and browser dependencies, then point at an HTTPS Cloudflare preview deployment:
+
 ```sh
 npm install
+npm run build
+cd qa/mobile-browser
+npm install
 npx playwright install --with-deps chromium
-BASE_URL=https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev npm test
+BASE_URL=https://YOUR-ISOLATED-PREVIEW-URL npm test
+BASE_URL=https://YOUR-ISOLATED-PREVIEW-URL npm run guide
 ```
 
+The tests refuse non-preview environments. They reset Demo Bistro before each journey, so do not point them at production.
+
 ## GitHub Actions
-**Full browser QA** runs after the live deployment smoke test succeeds, weekly, or manually from Actions. The HTML report, screenshots, traces, and failure videos are uploaded as a 30-day artifact.
 
-## Authenticated role journeys — safety boundary
-The full Super Admin → Owner → Cook/Waiter → Guest → Kitchen/Waiter transaction flow is not run against the shared live demo by default. Creating workspaces, staff, orders, or closing sessions mutates business data. It requires a disposable QA tenant and least-privilege test identities. Add role-specific Playwright storage states as GitHub Actions secrets and run destructive workflows only against that isolated tenant. Never use production customer accounts or the production D1 database.
+The **Demo Bistro authenticated browser QA** workflow runs on pushes to the QA branch when repository variable `DEMO_BISTRO_PREVIEW_URL` is configured. It can also be started manually with the isolated preview URL as an input.
 
-This suite does not claim authenticated role-isolation, staff-revocation, cross-table aggregation, or final-bill tests until that isolated environment is provisioned.
-
+The workflow verifies the target environment before any mutation, runs mobile and desktop journeys, regenerates the PDF and uploads the report, screenshots, traces and guide as a 30-day artifact.
 
 ## Screenshot PDF guide
 
-After each successful live deployment smoke test (and on manual or scheduled runs), the workflow also generates:
+The generated assets are:
 
-- `guide-output/platform-core-app-guide.pdf` — landscape A4 guide with desktop and mobile screenshots, a short explanation for each screen, and operating guidelines.
-- `guide-output/screenshots/` — original PNG screenshots used in the PDF.
-- `guide-output/manifest.json` — capture status for every expected screen.
-- `guide-output/index.html` — printable HTML source for the PDF.
+- `guide-output/platform-core-app-guide.pdf` — landscape A4 walkthrough.
+- `guide-output/screenshots/` — original PNG screenshots.
+- `guide-output/manifest.json` — capture status for each screen.
+- `guide-output/index.html` — printable source.
 
-Download the artifact named `platform-core-app-guide-<run number>` from the **Full browser QA** workflow's Actions run. The artifact contains the PDF, source screenshots, Playwright traces/results and HTML report.
+The guide generator automatically establishes the preview-only demo role sessions. Storage-state secrets are optional; do not commit browser session JSON or passwords.
 
-### Authenticated page coverage
+## Retention and isolation
 
-The public guest QR menu can be captured without a login. Super Admin, Owner and Staff pages are protected, so the workflow never stores passwords or attempts to bypass sign-in. To include the real authenticated pages, create Playwright storage-state JSON files from dedicated, least-privilege QA accounts and add their base64-encoded contents as GitHub Actions repository secrets:
+Demo records are stored through the dedicated `DEMO_DB` binding. The configured retention period is 365 days; a daily Cloudflare scheduled task prunes expired closed-session history and related transactional records. The Admin reset action clears and re-seeds the Demo Bistro workspace.
 
-- `QA_ADMIN_STORAGE_STATE_B64` — dedicated Super Admin QA session.
-- `QA_OWNER_STORAGE_STATE_B64` — owner QA session for a disposable/demo restaurant.
-- `QA_COOK_STORAGE_STATE_B64` — optional Cook session.
-- `QA_WAITER_STORAGE_STATE_B64` — optional Waiter session.
-
-A storage-state file is the JSON output of Playwright's `browserContext.storageState()`; base64-encode the complete JSON before saving it as a repository secret. Keep these accounts isolated from real customer data, rotate/revoke them when no longer needed, and do not commit the JSON files. Without these secrets, the PDF includes the sign-in screens and clearly marks protected pages as login-required rather than claiming they were captured.
-
-### Read-only safety
-
-The screenshot generator navigates and captures screens only. It does not create tenants, invite staff, change settings, submit a guest order, close a table session or mutate production business records. The guest cart is used only to show item customization and order review.
+The preview deployment uses its isolated D1 binding. The production business database is not a QA target. Keep the production `DB` and preview `DEMO_DB` bindings separate when publishing.
