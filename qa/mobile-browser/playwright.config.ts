@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test'
 const baseURL = process.env.BASE_URL || 'https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev'
 export default defineConfig({
   testDir: './tests', fullyParallel: false, forbidOnly: Boolean(process.env.CI),
+  workers: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   use: { baseURL, trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'retain-on-failure', actionTimeout: 10000, navigationTimeout: 30000 },
