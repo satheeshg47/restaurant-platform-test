@@ -383,3 +383,32 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
     return json(500, { error: 'demo_provision_failed', detail: error instanceof Error ? error.message : 'unknown_error' })
   }
 }
+
+export async function pruneDemoHistory(db: Env['DB']): Promise<void> {
+  const tenant = await db.prepare("SELECT id FROM tenants WHERE slug=? LIMIT 1")
+    .bind(DEMO_SLUG).first<{ id: string }>()
+  if (!tenant) return
+  const setting = await db.prepare("SELECT setting_value FROM restaurant_settings WHERE tenant_id=? AND setting_key='demo_retention_days'")
+    .bind(tenant.id).first<{ setting_value: string }>()
+  const days = Math.max(1, Math.min(3650, Number.parseInt(setting?.setting_value || '365', 10) || 365))
+  const oldSessions = "SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND status='closed' AND closed_at<strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('-%d days',?))"
+  await db.batch([
+    db.prepare('DELETE FROM restaurant_refunds WHERE tenant_id=? AND session_id IN (' + oldSessions + ')').bind(tenant.id, tenant.id, days),
+    db.prepare('DELETE FROM restaurant_invoices WHERE tenant_id=? AND session_id IN (' + oldSessions + ')').bind(tenant.id, tenant.id, days),
+    db.prepare('DELETE FROM restaurant_reviews WHERE tenant_id=? AND session_id IN (' + oldSessions + ')').bind(tenant.id, tenant.id, days),
+    db.prepare('DELETE FROM restaurant_service_requests WHERE tenant_id=? AND session_id IN (' + oldSessions + ')').bind(tenant.id, tenant.id, days),
+    db.prepare('DELETE FROM restaurant_payments WHERE tenant_id=? AND session_id IN (' + oldSessions + ')').bind(tenant.id, tenant.id, days),
+    db.prepare('DELETE FROM restaurant_batch_allocations WHERE tenant_id=? AND order_item_id IN (SELECT oi.id FROM restaurant_order_items oi JOIN restaurant_orders o ON o.tenant_id=oi.tenant_id AND o.id=oi.order_id WHERE oi.tenant_id=? AND o.session_id IN (' + oldSessions + '))')
+      .bind(tenant.id, tenant.id, tenant.id, days),
+    db.prepare('DELETE FROM restaurant_order_items WHERE tenant_id=? AND order_id IN (SELECT id FROM restaurant_orders WHERE tenant_id=? AND session_id IN (' + oldSessions + '))')
+      .bind(tenant.id, tenant.id, tenant.id, days),
+    db.prepare("DELETE FROM restaurant_kitchen_batches WHERE tenant_id=? AND created_at<strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('-%d days',?)) AND NOT EXISTS (SELECT 1 FROM restaurant_batch_allocations a WHERE a.tenant_id=restaurant_kitchen_batches.tenant_id AND a.batch_id=restaurant_kitchen_batches.id)")
+      .bind(tenant.id, days),
+    db.prepare('DELETE FROM restaurant_orders WHERE tenant_id=? AND session_id IN (' + oldSessions + ')').bind(tenant.id, tenant.id, days),
+    db.prepare("DELETE FROM restaurant_table_sessions WHERE tenant_id=? AND status='closed' AND closed_at<strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('-%d days',?))")
+      .bind(tenant.id, days),
+    db.prepare("DELETE FROM restaurant_stock_events WHERE tenant_id=? AND created_at<strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('-%d days',?))").bind(tenant.id, days),
+    db.prepare("DELETE FROM restaurant_daily_summaries WHERE tenant_id=? AND business_date<date('now',printf('-%d days',?))").bind(tenant.id, days),
+    db.prepare("DELETE FROM restaurant_activity_events WHERE tenant_id=? AND created_at<strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('-%d days',?)) AND action<>'demo.history.seeded'").bind(tenant.id, days),
+  ])
+}
