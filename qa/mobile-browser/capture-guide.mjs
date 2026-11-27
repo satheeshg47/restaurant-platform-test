@@ -151,7 +151,7 @@ async function ownerCapture(browser, viewport, storageState) {
       addScreen(pair[1], 'Restaurant Owner', vp, '', 'not-available', 'This tool is not available in the authenticated owner workspace.')
       continue
     }
-    await button.click()
+    await button.click({ force: true })
     await settle(page)
     await savePage(page, pair[1], 'Restaurant Owner', vp)
   }
