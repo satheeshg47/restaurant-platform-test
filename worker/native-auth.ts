@@ -275,7 +275,8 @@ async function login(request: Request, env: Env): Promise<Response> {
   const previewDemoAdmin = env.ENVIRONMENT === 'preview' &&
     Number(user.is_admin) === 1 &&
     user.login_id === (env.DEMO_ADMIN_LOGIN_ID || 'demo.admin')
-  if ((Number(user.is_admin) && !previewDemoAdmin) || (Number(user.is_owner) && !previewDemoOwner)) {
+  const previewDemoIdentity = previewDemoAdmin || previewDemoOwner
+  if ((Number(user.is_admin) || Number(user.is_owner)) && !previewDemoIdentity) {
     if (!user.totp_enabled) {
       if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
       const secret = createTotpSecret()
