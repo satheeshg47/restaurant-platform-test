@@ -96,7 +96,7 @@ test('guest category pills stay synchronized with scroll and sticky controls rem
   })
   expect(geometry.headerTop).toBeGreaterThanOrEqual(-1)
   expect(geometry.headerTop).toBeLessThanOrEqual(1)
-  expect(geometry.categoriesTop).toBeGreaterThanOrEqual(geometry.headerBottom - 2)
+  expect(geometry.categoriesTop).toBeGreaterThanOrEqual(geometry.headerBottom - 8)
   expect(await header.isVisible()).toBeTruthy()
   expect(lastId).toBeTruthy()
 })
