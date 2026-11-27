@@ -5,6 +5,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } })
 const fail = (status: number, code: string): never => { throw Object.assign(new Error(code), { status }) }
 const now = "strftime('%Y-%m-%dT%H:%M:%fZ','now')"
+function parseAddonSnapshot(value: unknown): { id?: string; name: string; price_minor?: number | string }[] {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((entry: any) => {
+      const rawName = entry?.name
+      const name = typeof rawName === 'string' ? rawName : rawName?.en || (rawName && typeof rawName === 'object' ? Object.values(rawName)[0] : '') || 'Add-on'
+      return { id: typeof entry?.id === 'string' ? entry.id : undefined, name: String(name), price_minor: entry?.price_minor }
+    })
+  } catch { return [] }
+}
 
 async function body(request: Request): Promise<Record<string, unknown>> {
   const raw = await request.text()
@@ -56,7 +67,8 @@ async function refreshBatch(env: Env, tenantId: string, batchId: string, staffId
 async function queue(env: Env, actor: Actor) {
   const result = await env.DB.prepare(`SELECT b.id AS batch_id,b.batch_key,b.status AS batch_status,b.item_name_snapshot,b.variant_name_snapshot,b.addons_snapshot,b.total_quantity,b.created_at AS batch_created_at,b.claimed_by,a.id AS allocation_id,a.quantity AS allocation_quantity,a.status AS allocation_status,oi.id AS order_item_id,oi.order_id,oi.category_id,oi.customization,oi.status AS item_status,oi.accepted_by,oi.preparation_started_at,oi.ready_at,o.order_number,o.special_instructions,o.created_at AS order_created_at,t.id AS table_id,t.label AS table_label FROM restaurant_kitchen_batches b JOIN restaurant_batch_allocations a ON a.tenant_id=b.tenant_id AND a.batch_id=b.id JOIN restaurant_order_items oi ON oi.tenant_id=a.tenant_id AND oi.id=a.order_item_id JOIN restaurant_orders o ON o.tenant_id=oi.tenant_id AND o.id=oi.order_id JOIN restaurant_tables t ON t.tenant_id=o.tenant_id AND t.id=o.table_id WHERE b.tenant_id=? AND b.status IN ('new','accepted','preparing','ready') AND oi.status IN ('new','accepted','preparing','ready') ORDER BY b.created_at,o.order_number,oi.created_at`).bind(actor.tenantId).all<Record<string,unknown>>()
   const scope = await cookScope(env,actor)
-  return scope?.length ? result.results.filter(r=>scope.includes(String(r.category_id))) : result.results
+  const visible = scope?.length ? result.results.filter(r=>scope.includes(String(r.category_id))) : result.results
+  return visible.map(row => ({ ...row, addons_snapshot: parseAddonSnapshot(row.addons_snapshot) }))
 }
 async function kitchenStatus(request: Request, env: Env, actor: Actor, itemId: string) {
   if (!UUID.test(itemId)) fail(404,'order_item_not_found')
@@ -103,7 +115,7 @@ async function waiterBoard(env: Env, actor: Actor) {
   const tables = await env.DB.prepare(`SELECT t.id,t.table_number,t.label,t.table_type,s.id AS session_id,s.opened_at,s.guest_count,(SELECT count(*) FROM restaurant_order_items oi JOIN restaurant_orders o ON o.tenant_id=oi.tenant_id AND o.id=oi.order_id WHERE oi.tenant_id=t.tenant_id AND o.session_id=s.id AND oi.status='ready') AS ready_items,(SELECT count(*) FROM restaurant_service_requests r WHERE r.tenant_id=t.tenant_id AND r.session_id=s.id AND r.status='open') AS open_requests,COALESCE((SELECT sum(o.total_minor) FROM restaurant_orders o WHERE o.tenant_id=t.tenant_id AND o.session_id=s.id AND o.status<>'cancelled'),0) AS total_due_minor,COALESCE((SELECT sum(p.amount_minor) FROM restaurant_payments p WHERE p.tenant_id=t.tenant_id AND p.session_id=s.id),0) AS paid_minor,COALESCE((SELECT sum(r.amount_minor) FROM restaurant_refunds r WHERE r.tenant_id=t.tenant_id AND r.session_id=s.id AND r.was_paid=1),0) AS refunded_minor FROM restaurant_tables t LEFT JOIN restaurant_table_sessions s ON s.tenant_id=t.tenant_id AND s.table_id=t.id AND s.status='open' WHERE t.tenant_id=? AND t.active=1 ORDER BY t.table_type,t.table_number,t.label`).bind(actor.tenantId).all()
   const ready = await env.DB.prepare(`SELECT oi.id AS order_item_id,oi.order_id,oi.item_name_snapshot,oi.variant_name_snapshot,oi.addons_snapshot,oi.customization,oi.quantity,o.order_number,o.session_id,t.id AS table_id,t.label AS table_label FROM restaurant_order_items oi JOIN restaurant_orders o ON o.tenant_id=oi.tenant_id AND o.id=oi.order_id JOIN restaurant_tables t ON t.tenant_id=o.tenant_id AND t.id=o.table_id WHERE oi.tenant_id=? AND oi.status='ready' ORDER BY oi.ready_at,o.order_number`).bind(actor.tenantId).all()
   const requests = await env.DB.prepare(`SELECT r.id,r.session_id,r.table_id,r.request_type,r.note,r.created_at,t.label AS table_label FROM restaurant_service_requests r JOIN restaurant_tables t ON t.tenant_id=r.tenant_id AND t.id=r.table_id WHERE r.tenant_id=? AND r.status='open' ORDER BY r.created_at`).bind(actor.tenantId).all()
-  return { tables:tables.results,ready_items:ready.results,service_requests:requests.results }
+  return { tables:tables.results,ready_items:ready.results.map(row => ({ ...row, addons_snapshot: parseAddonSnapshot(row.addons_snapshot) })),service_requests:requests.results }
 }
 async function serveItem(env: Env, actor: Actor, itemId: string) {
   if (!UUID.test(itemId)) fail(404,'order_item_not_found')
