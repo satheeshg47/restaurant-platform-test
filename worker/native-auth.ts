@@ -220,6 +220,14 @@ async function ensurePreviewDemoAdmin(env: Env): Promise<void> {
   const db = env.DEMO_DB
   const userId = 'demo-platform-admin'
   const loginId = env.DEMO_ADMIN_LOGIN_ID || 'demo.admin'
+  const existing = await db.prepare(`SELECT c.login_id,c.credential_status,aa.status AS admin_status
+    FROM platform_user_credentials c
+    JOIN platform_admin_accounts aa ON aa.user_id=c.user_id
+    WHERE c.user_id=? LIMIT 1`).bind(userId).first<{ login_id: string; credential_status: string; admin_status: string }>()
+  // Avoid writing and re-hashing on every demo admin login. This helper runs
+  // before each preview sign-in, and repeated upserts quickly exhaust D1's
+  // free daily row-write quota during browser QA.
+  if (existing && existing.login_id === loginId && existing.credential_status === 'active' && existing.admin_status === 'active') return
   const passwordHash = await hashPassword('DemoAdmin#2026!')
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)").bind(userId, userId),
