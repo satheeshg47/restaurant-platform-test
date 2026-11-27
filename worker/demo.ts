@@ -325,8 +325,8 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
 
     const demoOwnerId = await ensureDemoOwnerAccount(db, tenantId)
     const cookId = await ensureDemoStaffAccount(db, tenantId, 'cook', 'demo.cook', 'Demo Cook', 'DemoCook#2026!')
-    const waiterId = await ensureDemoStaffAccount(db, tenantId, 'waiter', 'demo.waiter', 'DemoWaiter#2026!')
-    await ensureDemoStaffAccount(db, tenantId, 'manager', 'demo.manager', 'DemoManager#2026!')
+    const waiterId = await ensureDemoStaffAccount(db, tenantId, 'waiter', 'demo.waiter', 'Demo Waiter', 'DemoWaiter#2026!')
+    await ensureDemoStaffAccount(db, tenantId, 'manager', 'demo.manager', 'Demo Manager', 'DemoManager#2026!')
     const masalaDosa = await db.prepare("SELECT id FROM restaurant_menu_items WHERE tenant_id=? AND id=?")
       .bind(tenantId, 'demo-menu-item-1-' + tenantId).first<{ id: string }>()
     if (masalaDosa) await ensureDemoMenuOptions(db, tenantId, masalaDosa.id)
