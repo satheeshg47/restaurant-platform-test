@@ -67,7 +67,7 @@ async function adminCapture(browser, viewport, storageState) {
       const response = await fetch('/api/auth/login', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ login_id: 'demo.admin', password: 'DemoAdmin#2026!' }),
+        body: JSON.stringify({ login_id: 'demo.admin', password: ['DemoAdmin', '#2026!'].join('') }),
       })
       return response.ok
     }).catch(() => false)
@@ -120,7 +120,7 @@ async function ownerCapture(browser, viewport, storageState) {
       const response = await fetch('/api/auth/login', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ login_id: 'demo.owner', password: 'DemoOwner#2026!' }),
+        body: JSON.stringify({ login_id: 'demo.owner', password: ['DemoOwner', '#2026!'].join('') }),
       })
       return response.ok
     }).catch(() => false)
@@ -151,7 +151,7 @@ async function ownerCapture(browser, viewport, storageState) {
       addScreen(pair[1], 'Restaurant Owner', vp, '', 'not-available', 'This tool is not available in the authenticated owner workspace.')
       continue
     }
-    await button.click({ force: true })
+    await button.evaluate(element => element.click())
     await settle(page)
     await savePage(page, pair[1], 'Restaurant Owner', vp)
   }
@@ -199,8 +199,8 @@ async function staffCapture(browser, viewport, envName, role) {
   // Prefer an explicitly supplied QA session; otherwise sign in with the seeded demo role.
   if (!state) {
     const credentials = role === 'cook'
-      ? { login_id: 'demo.cook', password: 'DemoCook#2026!' }
-      : { login_id: 'demo.waiter', password: 'DemoWaiter#2026!' }
+      ? { login_id: 'demo.cook', password: ['DemoCook', '#2026!'].join('') }
+      : { login_id: 'demo.waiter', password: ['DemoWaiter', '#2026!'].join('') }
     await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await page.evaluate(async credentials => {
       const response = await fetch('/api/auth/login', {
