@@ -72,7 +72,7 @@ async function ensureDemoMenuOptions(db: Env['DB'], tenantId: string, itemId: st
     await db.prepare("INSERT INTO restaurant_addons(id,tenant_id,group_id,name,price_minor,available,sort_order,active) VALUES(?,?,?,?,?,1,?,1) ON CONFLICT(id) DO UPDATE SET name=excluded.name,price_minor=excluded.price_minor,available=1,sort_order=excluded.sort_order,active=1")
       .bind('demo-addon-' + addon.sort + '-' + tenantId, tenantId, groupId, JSON.stringify(addon.name), addon.price, addon.sort).run()
   }
-  await db.prepare("INSERT INTO restaurant_item_addon_groups(tenant_id,item_id,group_id,sort_order) VALUES(?,?,?,1) ON CONFLICT(tenant_id,item_id,group_id) DO UPDATE SET sort_order=1")
+  await db.prepare("INSERT INTO restaurant_item_addon_groups(tenant_id,item_id,group_id) VALUES(?,?,?) ON CONFLICT(tenant_id,item_id,group_id) DO NOTHING")
     .bind(tenantId, itemId, groupId).run()
 }
 
