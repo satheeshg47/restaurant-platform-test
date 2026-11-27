@@ -25,8 +25,13 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
     await page.locator('.sidebar nav .nav-item').filter({ hasText: label }).first().click()
   }
   await nav('Apps')
-  await expect(page.getByRole('link', { name: /Open Demo Bistro/ })).toHaveAttribute('href', '/owner?demo=1')
-  await expect(page.getByRole('button', { name: 'Reset Demo Bistro' })).toBeVisible()
+  const demoLink = page.getByRole('link', { name: /Open Demo Bistro/ })
+  await expect(demoLink).toHaveAttribute('href', '/owner?demo=1')
+  await page.getByRole('button', { name: 'Reset Demo Bistro' }).click()
+  await expect(page.getByRole('status')).toContainText('Demo Bistro has been reset and re-seeded')
+  const [demoWindow] = await Promise.all([page.waitForEvent('popup'), demoLink.click()])
+  await expect(demoWindow.locator('.owner-workspace-sidebar')).toHaveCount(1, { timeout: 20000 })
+  await demoWindow.close()
   for (const label of ['Subscribers', 'Messages', 'Subscriptions']) {
     await nav(label)
     await expect(page.locator('.shell')).toBeVisible()
