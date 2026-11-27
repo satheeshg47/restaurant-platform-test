@@ -28,12 +28,82 @@ async function ensureDemoStaffAccount(db: Env['DB'], tenantId: string, role: 'co
   const passwordHash = await hashPassword(password)
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)").bind(userId, userId),
-    db.prepare("INSERT OR IGNORE INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status) VALUES(?,?,?,?,'active')")
+    db.prepare("INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status) VALUES(?,?,?,?,'active') ON CONFLICT(user_id) DO UPDATE SET login_id=excluded.login_id,login_id_normalized=excluded.login_id_normalized,password_hash=excluded.password_hash,credential_status='active',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')")
       .bind(userId, loginId, loginId.toLowerCase(), passwordHash),
-    db.prepare("INSERT OR IGNORE INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'staff','active')").bind(tenantId, userId),
-    db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,?,1)").bind(staffId, tenantId, userId, loginId.toLowerCase(), displayName, role),
+    db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'staff','active') ON CONFLICT(tenant_id,user_id) DO UPDATE SET role='staff',status='active'").bind(tenantId, userId),
+    db.prepare("INSERT INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,?,1) ON CONFLICT(id) DO UPDATE SET username=excluded.username,display_name=excluded.display_name,role=excluded.role,active=1").bind(staffId, tenantId, userId, loginId.toLowerCase(), displayName, role),
   ])
   return staffId
+}
+
+async function ensureDemoOwnerAccount(db: Env['DB'], tenantId: string): Promise<string> {
+  const userId = 'demo-user-owner-' + tenantId
+  const staffId = 'demo-staff-owner-' + tenantId
+  const loginId = 'demo.owner'
+  const passwordHash = await hashPassword('DemoOwner#2026!')
+  await db.batch([
+    db.prepare("INSERT OR IGNORE INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)").bind(userId, userId),
+    db.prepare("INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status) VALUES(?,?,?,?,'active') ON CONFLICT(user_id) DO UPDATE SET login_id=excluded.login_id,login_id_normalized=excluded.login_id_normalized,password_hash=excluded.password_hash,credential_status='active',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'))")
+      .bind(userId, loginId, loginId, passwordHash),
+    db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'owner','active') ON CONFLICT(tenant_id,user_id) DO UPDATE SET role='owner',status='active'").bind(tenantId, userId),
+    db.prepare("INSERT INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,'owner',1) ON CONFLICT(id) DO UPDATE SET username=excluded.username,display_name=excluded.display_name,role='owner',active=1")
+      .bind(staffId, tenantId, userId, loginId, 'Demo Bistro Owner'),
+  ])
+  return staffId
+}
+
+async function ensureDemoMenuOptions(db: Env['DB'], tenantId: string, itemId: string): Promise<void> {
+  const variants = [
+    { name: { en: 'Regular', hi: 'सामान्य', kn: 'ಸಾಮಾನ್ಯ' }, price: 8500, sort: 1 },
+    { name: { en: 'Large', hi: 'बड़ा', kn: 'ದೊಡ್ಡ' }, price: 11000, sort: 2 },
+  ]
+  for (const variant of variants) {
+    await db.prepare("INSERT INTO restaurant_menu_variants(id,tenant_id,item_id,name,price_minor,sort_order,available,active) VALUES(?,?,?,?,?,?,1,1) ON CONFLICT(id) DO UPDATE SET name=excluded.name,price_minor=excluded.price_minor,sort_order=excluded.sort_order,available=1,active=1")
+      .bind('demo-variant-' + variant.sort + '-' + tenantId, tenantId, itemId, JSON.stringify(variant.name), variant.price, variant.sort).run()
+  }
+  const groupId = 'demo-addon-group-' + tenantId
+  await db.prepare("INSERT INTO restaurant_addon_groups(id,tenant_id,name,required,min_pick,max_pick,sort_order,active) VALUES(?,?,?,0,0,2,1,1) ON CONFLICT(id) DO UPDATE SET name=excluded.name,required=0,min_pick=0,max_pick=2,sort_order=1,active=1")
+    .bind(groupId, tenantId, JSON.stringify({ en: 'Extras', hi: 'अतिरिक्त', kn: 'ಹೆಚ್ಚುವರಿ' })).run()
+  const addons = [
+    { name: { en: 'Extra Ghee', hi: 'अतिरिक्त घी', kn: 'ಹೆಚ್ಚುವರಿ ತುಪ್ಪ' }, price: 1500, sort: 1 },
+    { name: { en: 'Cheese', hi: 'पनीर', kn: 'ಚೀಸ್' }, price: 2000, sort: 2 },
+  ]
+  for (const addon of addons) {
+    await db.prepare("INSERT INTO restaurant_addons(id,tenant_id,group_id,name,price_minor,available,sort_order,active) VALUES(?,?,?,?,?,1,?,1) ON CONFLICT(id) DO UPDATE SET name=excluded.name,price_minor=excluded.price_minor,available=1,sort_order=excluded.sort_order,active=1")
+      .bind('demo-addon-' + addon.sort + '-' + tenantId, tenantId, groupId, JSON.stringify(addon.name), addon.price, addon.sort).run()
+  }
+  await db.prepare("INSERT INTO restaurant_item_addon_groups(tenant_id,item_id,group_id,sort_order) VALUES(?,?,?,1) ON CONFLICT(tenant_id,item_id,group_id) DO UPDATE SET sort_order=1")
+    .bind(tenantId, itemId, groupId).run()
+}
+
+async function clearDemoTenantData(db: Env['DB'], tenantId: string): Promise<void> {
+  await db.batch([
+    db.prepare('DELETE FROM restaurant_refunds WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_invoices WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_reviews WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_service_requests WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_payments WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_batch_allocations WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_order_items WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_kitchen_batches WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_orders WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_table_sessions WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_stock_events WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_daily_summaries WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_activity_events WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_invoice_counters WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_staff_assignments WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_settings WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_tables WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_item_addon_groups WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_addons WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_addon_groups WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_menu_variants WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_menu_items WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_menu_categories WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_profiles WHERE tenant_id=?').bind(tenantId),
+    db.prepare('DELETE FROM restaurant_tenant_controls WHERE tenant_id=?').bind(tenantId),
+  ])
 }
 
 async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, cookId: string, waiterId: string, menuItemId: string, categoryId: string): Promise<void> {
@@ -188,6 +258,8 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
   try {
     const existing = await db.prepare("SELECT id FROM tenants WHERE slug=? LIMIT 1")
       .bind(DEMO_SLUG).first<{ id: string }>()
+    const resetRequested = new URL(request.url).pathname.endsWith('/reset')
+    if (resetRequested && existing) await clearDemoTenantData(db, existing.id)
     const application = await db.prepare("SELECT id FROM applications WHERE app_key='restaurant' AND status='active' LIMIT 1")
       .first<{ id: string }>()
     if (!application) return json(503, { error: 'restaurant_application_not_configured_in_demo_db' })
@@ -210,7 +282,7 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
         .bind(tenantId, userId),
       db.prepare(`INSERT OR IGNORE INTO restaurant_profiles
         (tenant_id,display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,tax_inclusive,accepting_orders,city,state_name,state_code,invoice_prefix)
-        VALUES(?,'Platform Demo Restaurant','INR','Asia/Kolkata','en','gst',5,5,0,1,'Bengaluru','Karnataka','29','DM')`)
+        VALUES(?,'Demo Bistro','INR','Asia/Kolkata','en','gst',5,5,0,1,'Bengaluru','Karnataka','29','DM')`)
         .bind(tenantId),
       db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,'owner',1)")
         .bind(ownerId, tenantId, userId, ownerUsername, 'Demo Owner'),
@@ -251,9 +323,15 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
         .bind(hindi,kannada,tenantId,'demo-menu-item-'+(i+1)+'-'+tenantId).run()
     }
 
+    const demoOwnerId = await ensureDemoOwnerAccount(db, tenantId)
     const cookId = await ensureDemoStaffAccount(db, tenantId, 'cook', 'demo.cook', 'Demo Cook', 'DemoCook#2026!')
-    const waiterId = await ensureDemoStaffAccount(db, tenantId, 'waiter', 'demo.waiter', 'Demo Waiter', 'DemoWaiter#2026!')
-    await ensureDemoStaffAccount(db, tenantId, 'manager', 'demo.manager', 'Demo Manager', 'DemoManager#2026!')
+    const waiterId = await ensureDemoStaffAccount(db, tenantId, 'waiter', 'demo.waiter', 'DemoWaiter#2026!')
+    await ensureDemoStaffAccount(db, tenantId, 'manager', 'demo.manager', 'DemoManager#2026!')
+    const masalaDosa = await db.prepare("SELECT id FROM restaurant_menu_items WHERE tenant_id=? AND id=?")
+      .bind(tenantId, 'demo-menu-item-1-' + tenantId).first<{ id: string }>()
+    if (masalaDosa) await ensureDemoMenuOptions(db, tenantId, masalaDosa.id)
+    await db.prepare("INSERT INTO restaurant_settings(tenant_id,setting_key,setting_value,updated_by) VALUES(?,'demo_retention_days','365',?) ON CONFLICT(tenant_id,setting_key) DO UPDATE SET setting_value='365',updated_by=excluded.updated_by,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')")
+      .bind(tenantId, demoOwnerId).run()
 
     const tableTokens: Array<{ label: string; url: string }> = []
     const qrMap: Record<string, string> = {}
@@ -295,8 +373,9 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
 
     return json(200, {
       provisioned: true,
-      tenant: { id: tenantId, name: 'Platform Demo Restaurant', slug: DEMO_SLUG },
+      tenant: { id: tenantId, name: 'Demo Bistro', slug: DEMO_SLUG },
       history: { days: 365, orders: 1095, payments: 'simulated', reviews: 'sampled with owner replies' },
+      retention: { days: 365, policy: 'Demo records older than 365 days are pruned by the daily scheduled retention task.' },
       qr_codes: tableTokens,
       note: 'All demo records are stored only in the isolated demo database. Payments are simulated; no real money is moved.',
     })
