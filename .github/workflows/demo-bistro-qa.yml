@@ -75,6 +75,7 @@ jobs:
         working-directory: qa/mobile-browser
         run: npm test
       - name: Capture authenticated screens and regenerate walkthrough PDF
+        if: always()
         working-directory: qa/mobile-browser
         run: npm run guide
       - name: Upload QA report, screenshots and walkthrough
