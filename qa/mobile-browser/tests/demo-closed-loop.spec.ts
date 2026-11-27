@@ -13,7 +13,7 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
   const admin = await signIn(page, QA_CREDENTIALS.admin)
   expect(admin.is_admin).toBe(true)
   const reset = await api(page, 'POST', '/api/admin/demo-restaurant/reset')
-  expect(reset.status).toBe(200)
+  expect(reset.status, JSON.stringify(reset.body)).toBe(200)
   expect(reset.body.retention.days).toBe(365)
 
   const ownerContext = await createContextPage(browser, viewport)
