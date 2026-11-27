@@ -132,3 +132,35 @@ test('API health and readiness are successful', async ({ request }) => {
   const ready = await request.get('/api/ready')
   expect(ready.status()).toBe(200)
 })
+
+
+for (const staff of [
+  { role: 'cook', login_id: 'demo.cook', password: 'DemoCook#2026!' },
+  { role: 'waiter', login_id: 'demo.waiter', password: 'DemoWaiter#2026!' },
+]) {
+  test(`visual audit: ${staff.role} header stays pinned and controls remain reachable`, async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    const login = await page.evaluate(async credentials => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(credentials),
+      })
+      return { status: response.status }
+    }, staff)
+    expect(login.status).toBe(200)
+    await page.goto('/staff', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.staff-portal')).toBeVisible({ timeout: 15000 })
+    await auditLayout(page, `staff-${staff.role}`)
+    const header = page.locator('.staff-portal-header')
+    await expect(header).toBeVisible()
+    const style = await header.evaluate(element => getComputedStyle(element).position)
+    expect(style).toBe('sticky')
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' as ScrollBehavior }))
+    await page.waitForTimeout(100)
+    const top = await header.evaluate(element => element.getBoundingClientRect().top)
+    expect(top).toBeGreaterThanOrEqual(-1)
+    expect(top).toBeLessThanOrEqual(1)
+    await page.screenshot({ path: `test-results/${test.info().project.name}-${staff.role}-sticky-header.png`, fullPage: true })
+  })
+}
