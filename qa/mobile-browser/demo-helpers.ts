@@ -59,8 +59,8 @@ export async function placeGuestOrder(page: Page, token: string) {
   await page.getByRole('button', { name: /Review order/ }).click()
   await page.getByRole('button', { name: /Place order/ }).click()
   const response = await responsePromise
-  expect(response.status()).toBe(201)
   const payload = await response.json()
+  expect(response.status(), JSON.stringify(payload)).toBe(201)
   await expect(page.locator('.guest-success')).toBeVisible()
   return payload.order as { id: string; order_number: number; total_minor: number }
 }
