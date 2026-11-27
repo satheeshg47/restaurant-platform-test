@@ -5,6 +5,8 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
   const healthResponse = await request.get('/api/health')
   expect(healthResponse.ok()).toBeTruthy()
   const health = await healthResponse.json()
+  const readyResponse = await request.get('/api/ready')
+  expect(readyResponse.ok(), 'Preview schema must be fully migrated before browser QA').toBeTruthy()
   test.skip(health.environment !== 'preview', 'Mutating Demo Bistro QA is restricted to the isolated preview D1 database.')
 
   const viewport = testInfo.project.use.viewport as { width: number; height: number }
