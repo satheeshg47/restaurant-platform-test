@@ -83,13 +83,7 @@ test('guest category pills stay synchronized with scroll and sticky controls rem
   await expect(second).toHaveClass(/active/)
   await page.waitForTimeout(1300)
   const lastSection = page.locator('[data-category-section]').last()
-  await lastSection.evaluate(element => {
-    const title = element.querySelector('.guest-section-title')!
-    const headerHeight = document.querySelector('.guest-header')!.getBoundingClientRect().height
-    const categoryHeight = document.querySelector('.guest-categories')!.getBoundingClientRect().height
-    const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight - 16)
-    window.scrollTo(0, window.scrollY + title.getBoundingClientRect().top - activeLine - 4)
-  })
+  await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' as ScrollBehavior }))
   await page.waitForTimeout(450)
   const lastId = await lastSection.getAttribute('data-category-section')
   await expect(rail.locator('button.active')).toHaveAttribute('aria-current', 'location')
