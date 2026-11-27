@@ -94,6 +94,15 @@ for (const staff of [
     expect(session.user.memberships.some((membership: any) => membership.staff_role === staff.role)).toBe(true)
     await page.goto('/staff', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.staff-portal')).toBeVisible({ timeout: 15000 })
+    if (staff.role === 'waiter') {
+      await expect(page.getByRole('heading', { name: 'Service board' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Tables & QR access' })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: /Create table & issue QR link/ })).toHaveCount(0)
+    }
+    if (staff.role === 'cook') {
+      await expect(page.getByRole('heading', { name: 'Kitchen queue' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Tables & QR access' })).toHaveCount(0)
+    }
     await page.screenshot({ path: `test-results/${test.info().project.name}-${staff.role}-staff-portal.png` })
   })
 }

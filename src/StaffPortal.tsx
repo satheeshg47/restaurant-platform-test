@@ -30,7 +30,7 @@ export default function StaffPortal({ slug, role, displayName, onSignOut }: Prop
     <main className="staff-portal-main">
       <div className="staff-portal-heading"><span className="owner-comms-kicker">STAFF WORKSPACE</span><h1>{role === 'cook' ? 'Kitchen queue' : role === 'waiter' ? 'Service board' : 'Restaurant operations'}</h1><p>Your access is limited to the role assigned by the restaurant owner.</p></div>
       {role === 'cook' ? <RestaurantOperations initialSlug={slug} initialTab="kitchen" allowedTabs={['kitchen']}/> :
-       role === 'waiter' ? <div className="staff-portal-tools"><RestaurantOperations initialSlug={slug} initialTab="waiter" allowedTabs={['waiter']}/><RestaurantTables initialSlug={slug}/></div> :
+       role === 'waiter' ? <RestaurantOperations initialSlug={slug} initialTab="waiter" allowedTabs={['waiter']}/> :
        <>
          <nav className="staff-portal-tabs">{managerTools.map(tool => { const Icon=tool.icon; return <button key={tool.id} className={activeTool===tool.id?'active':''} onClick={()=>setActiveTool(tool.id)}><Icon size={15}/>{tool.label}</button> })}</nav>
          {activeTool === 'menu' && <RestaurantMenu initialSlug={slug}/>}
