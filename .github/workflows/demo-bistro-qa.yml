@@ -51,7 +51,9 @@ jobs:
           if (!response.ok) throw new Error('Preview health check failed: HTTP ' + response.status)
           const health = await response.json()
           if (health.environment !== 'preview') throw new Error('Refusing destructive QA: target environment is ' + health.environment + ', not preview.')
-          console.log('Confirmed isolated preview target:', base)
+          const ready = await fetch(base.replace(/\/$/, '') + '/api/ready')
+          if (!ready.ok) throw new Error('Preview database schema is not ready: HTTP ' + ready.status)
+          console.log('Confirmed isolated preview target and migrated schema:', base)
           NODE
       - name: Run authenticated role and closed-loop tests
         working-directory: qa/mobile-browser
