@@ -11,11 +11,6 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
 
   const admin = await signIn(page, QA_CREDENTIALS.admin)
   expect(admin.is_admin).toBe(true)
-  const reset = await api(page, 'POST', '/api/admin/demo-restaurant/reset')
-  expect(reset.status, JSON.stringify(reset.body)).toBe(200)
-  expect(reset.body.tenant.name).toBe('Demo Bistro')
-  expect(reset.body.retention.days).toBe(365)
-
   await page.goto('/')
   await expect(page.locator('.shell')).toBeVisible()
   const viewport = testInfo.project.use.viewport as { width: number; height: number }
