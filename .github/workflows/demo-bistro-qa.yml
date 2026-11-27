@@ -13,10 +13,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: demo-bistro-preview-qa
+  cancel-in-progress: true
+
 jobs:
   authenticated-e2e:
     name: Mobile and desktop role journeys
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: ${{ always() }}
     env:
       BASE_URL: ${{ inputs.base_url || vars.DEMO_BISTRO_PREVIEW_URL || 'https://feat-demo-bistro-closed-loop-e2e-restaurant-platform-test.iamsatheeshgkotegar.workers.dev' }}
