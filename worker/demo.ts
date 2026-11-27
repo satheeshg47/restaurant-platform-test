@@ -273,7 +273,8 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
 
     await db.batch([
       db.prepare("INSERT OR IGNORE INTO tenants(id,name,slug,status) VALUES(?,? ,?,'active')")
-        .bind(tenantId, 'Demo Restaurant', DEMO_SLUG),
+        .bind(tenantId, 'Demo Bistro', DEMO_SLUG),
+      db.prepare("UPDATE tenants SET name='Demo Bistro' WHERE id=?").bind(tenantId),
       db.prepare('INSERT OR IGNORE INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,?,?,?)')
         .bind(userId, admin.issuer, admin.subject, admin.email || null),
       db.prepare("INSERT OR IGNORE INTO tenant_applications(tenant_id,application_id,status) VALUES(?,?,'active')")
@@ -284,6 +285,7 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
         (tenant_id,display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,tax_inclusive,accepting_orders,city,state_name,state_code,invoice_prefix)
         VALUES(?,'Demo Bistro','INR','Asia/Kolkata','en','gst',5,5,0,1,'Bengaluru','Karnataka','29','DM')`)
         .bind(tenantId),
+      db.prepare("UPDATE restaurant_profiles SET display_name='Demo Bistro' WHERE tenant_id=?").bind(tenantId),
       db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,'owner',1)")
         .bind(ownerId, tenantId, userId, ownerUsername, 'Demo Owner'),
       db.prepare("INSERT OR IGNORE INTO restaurant_tenant_controls(tenant_id) VALUES(?)").bind(tenantId),
