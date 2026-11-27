@@ -66,10 +66,11 @@ async function ensureDemoMenuOptions(db: Env['DB'], tenantId: string, itemId: st
     { name: { en: 'Large', hi: 'बड़ा', kn: 'ದೊಡ್ಡ' }, price: 11000, sort: 2 },
   ]
   for (const variant of variants) {
+    const variantId = await stableUuid('demo-variant-' + variant.sort + '-' + tenantId)
     await db.prepare("INSERT INTO restaurant_menu_variants(id,tenant_id,item_id,name,price_minor,sort_order,available,active) VALUES(?,?,?,?,?,?,1,1) ON CONFLICT(id) DO UPDATE SET name=excluded.name,price_minor=excluded.price_minor,sort_order=excluded.sort_order,available=1,active=1")
-      .bind('demo-variant-' + variant.sort + '-' + tenantId, tenantId, itemId, JSON.stringify(variant.name), variant.price, variant.sort).run()
+      .bind(variantId, tenantId, itemId, JSON.stringify(variant.name), variant.price, variant.sort).run()
   }
-  const groupId = 'demo-addon-group-' + tenantId
+  const groupId = await stableUuid('demo-addon-group-' + tenantId)
   await db.prepare("INSERT INTO restaurant_addon_groups(id,tenant_id,name,required,min_pick,max_pick,sort_order,active) VALUES(?,?,?,0,0,2,1,1) ON CONFLICT(id) DO UPDATE SET name=excluded.name,required=0,min_pick=0,max_pick=2,sort_order=1,active=1")
     .bind(groupId, tenantId, JSON.stringify({ en: 'Extras', hi: 'अतिरिक्त', kn: 'ಹೆಚ್ಚುವರಿ' })).run()
   const addons = [
@@ -77,8 +78,9 @@ async function ensureDemoMenuOptions(db: Env['DB'], tenantId: string, itemId: st
     { name: { en: 'Cheese', hi: 'पनीर', kn: 'ಚೀಸ್' }, price: 2000, sort: 2 },
   ]
   for (const addon of addons) {
+    const addonId = await stableUuid('demo-addon-' + addon.sort + '-' + tenantId)
     await db.prepare("INSERT INTO restaurant_addons(id,tenant_id,group_id,name,price_minor,available,sort_order,active) VALUES(?,?,?,?,?,1,?,1) ON CONFLICT(id) DO UPDATE SET name=excluded.name,price_minor=excluded.price_minor,available=1,sort_order=excluded.sort_order,active=1")
-      .bind('demo-addon-' + addon.sort + '-' + tenantId, tenantId, groupId, JSON.stringify(addon.name), addon.price, addon.sort).run()
+      .bind(addonId, tenantId, groupId, JSON.stringify(addon.name), addon.price, addon.sort).run()
   }
   await db.prepare("INSERT INTO restaurant_item_addon_groups(tenant_id,item_id,group_id) VALUES(?,?,?) ON CONFLICT(tenant_id,item_id,group_id) DO NOTHING")
     .bind(tenantId, itemId, groupId).run()
