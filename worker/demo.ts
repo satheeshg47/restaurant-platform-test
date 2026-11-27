@@ -22,6 +22,14 @@ async function stableToken(seed: string): Promise<string> {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
+async function stableUuid(seed: string): Promise<string> {
+  const hex = (await digest(seed)).slice(0, 32).split('')
+  hex[12] = '4'
+  hex[16] = (parseInt(hex[16], 16) & 0x3 | 0x8).toString(16)
+  const value = hex.join('')
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`
+}
+
 async function ensureDemoStaffAccount(db: Env['DB'], tenantId: string, role: 'cook' | 'waiter' | 'manager', loginId: string, displayName: string, password: string): Promise<string> {
   const userId = 'demo-user-' + role + '-' + tenantId
   const staffId = 'demo-staff-' + role + '-' + tenantId
@@ -323,21 +331,23 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
     ] as const
     for (let i = 0; i < menu.length; i++) {
       const [name, categoryId, price, foodType, prep, hindi, kannada] = menu[i]
+      const itemId = await stableUuid('demo-menu-item-' + (i + 1) + '-' + tenantId)
       await db.prepare(`INSERT OR IGNORE INTO restaurant_menu_items
         (id,tenant_id,category_id,name,description,base_price_minor,food_type,prep_minutes,sort_order)
         VALUES(?,?,?,?,?,?,?,?,?)`)
-        .bind('demo-menu-item-'+(i+1)+'-'+tenantId, tenantId, categoryId, JSON.stringify({ en: name, hi: hindi, kn: kannada }),
+        .bind(itemId, tenantId, categoryId, JSON.stringify({ en: name, hi: hindi, kn: kannada }),
           JSON.stringify({ en: 'Freshly prepared demo menu item' }), price, foodType, prep, i + 1).run()
       await db.prepare("UPDATE restaurant_menu_items SET name=json_set(name,'$.hi',COALESCE(json_extract(name,'$.hi'),?),'$.kn',COALESCE(json_extract(name,'$.kn'),?)) WHERE tenant_id=? AND id=?")
-        .bind(hindi,kannada,tenantId,'demo-menu-item-'+(i+1)+'-'+tenantId).run()
+        .bind(hindi,kannada,tenantId,itemId).run()
     }
 
     const demoOwnerId = await ensureDemoOwnerAccount(db, tenantId)
     const cookId = await ensureDemoStaffAccount(db, tenantId, 'cook', 'demo.cook', 'Demo Cook', 'DemoCook#2026!')
     const waiterId = await ensureDemoStaffAccount(db, tenantId, 'waiter', 'demo.waiter', 'Demo Waiter', 'DemoWaiter#2026!')
     await ensureDemoStaffAccount(db, tenantId, 'manager', 'demo.manager', 'Demo Manager', 'DemoManager#2026!')
+    const masalaDosaId = await stableUuid('demo-menu-item-1-' + tenantId)
     const masalaDosa = await db.prepare("SELECT id FROM restaurant_menu_items WHERE tenant_id=? AND id=?")
-      .bind(tenantId, 'demo-menu-item-1-' + tenantId).first<{ id: string }>()
+      .bind(tenantId, masalaDosaId).first<{ id: string }>()
     if (masalaDosa) await ensureDemoMenuOptions(db, tenantId, masalaDosa.id)
     await db.prepare("INSERT INTO restaurant_settings(tenant_id,setting_key,setting_value,updated_by) VALUES(?,'demo_retention_days','365',?) ON CONFLICT(tenant_id,setting_key) DO UPDATE SET setting_value='365',updated_by=excluded.updated_by,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')")
       .bind(tenantId, demoOwnerId).run()
