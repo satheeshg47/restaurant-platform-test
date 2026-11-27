@@ -54,6 +54,10 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
   const [bill, setBill] = useState<{session: {table_label:string;restaurant_name?:string;opened_at:string;closed_at?:string|null;guest_count:number;currency_code?:string};orders: {id:string;order_number:number;subtotal_minor:string;tax_minor:string;total_minor:string;created_at:string}[];items: {order_id:string;item_name_snapshot:string;variant_name_snapshot:string|null;addons_snapshot:{name:string}[];quantity:number;line_total_minor:string;status:string}[];payments:{amount_minor:string;method:string;reference:string|null;paid_at:string}[];refunds:{amount_minor:string;reason:string;was_paid:boolean;created_at:string}[];invoice?:{invoice_number:string;issued_at:string;seller_snapshot:Record<string,string>;items_snapshot:{item_name:string;hsn_sac_code:string;quantity:number;line_total_minor:string}[];subtotal_minor:string;tax_minor:string;cgst_minor:string;sgst_minor:string;other_tax_minor:string;total_minor:string;tax_rate:number|string;tax_inclusive:boolean}|null}|null>(null)
   const [billLoading, setBillLoading] = useState(false)
   const [notice, setNotice] = useState('')
+  const groupedQueue = Object.values(queue.reduce<Record<string, QueueRow[]>>((groups, row) => {
+    ;(groups[row.batch_id] ||= []).push(row)
+    return groups
+  }, {}))
 
   const request = useCallback(async (path: string, init?: RequestInit) => {
     const response = await apiFetch(`${API_BASE}/restaurant/${encodeURIComponent(slug.trim().toLowerCase())}${path}`, {
@@ -180,17 +184,26 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
     {error && <div className="restaurant-ops-error"><AlertCircle size={15}/>{error}<button onClick={() => setError('')}><X size={14}/></button></div>}
     {notice && <div className="restaurant-table-message" role="status">{notice}<button onClick={() => setNotice('')}>Dismiss</button></div>}
     {!slug.trim() ? <div className="restaurant-ops-empty">Enter a restaurant slug to connect to its staff workspace.</div> : tab === 'kitchen' ? <>
-      <div className="restaurant-ops-summary"><b>{queue.length}</b><span>active order items in kitchen</span></div>
-      <div className="restaurant-kitchen-list">{queue.map(row => <article className="restaurant-kitchen-card" key={row.order_item_id}>
-        <div className="restaurant-kitchen-card-top"><span>#{row.order_number} · {row.table_label}</span><span>{when(row.order_created_at)}</span></div>
-        <div className="restaurant-kitchen-main"><div><h3>{row.item_name_snapshot}{row.variant_name_snapshot ? ` · ${row.variant_name_snapshot}` : ''}</h3><p>Qty <b>{row.allocation_quantity}</b>{row.addons_snapshot?.length ? ' · ' + row.addons_snapshot.map(a => a.name).join(', ') : ''}</p>{row.customization && <p className="restaurant-kitchen-note">Note: {row.customization}</p>}{row.special_instructions && <p className="restaurant-kitchen-note">Order note: {row.special_instructions}</p>}</div><span className={`restaurant-ops-status ${row.item_status}`}>{labelStatus(row.item_status)}</span></div>
-        <div className="restaurant-kitchen-actions">
-          {row.item_status === 'new' && <button onClick={() => void updateKitchen(row, 'accepted')} disabled={busy === row.order_item_id}>Accept</button>}
-          {row.item_status === 'accepted' && <button onClick={() => void updateKitchen(row, 'preparing')} disabled={busy === row.order_item_id}>Start preparing</button>}
-          {row.item_status === 'preparing' && <button onClick={() => void updateKitchen(row, 'ready')} disabled={busy === row.order_item_id}>Mark ready</button>}
-          {['new', 'accepted', 'preparing'].includes(row.item_status) && <button className="danger" onClick={() => { setReasonFor(row); setReason('') }} disabled={busy === row.order_item_id}>Unavailable</button>}
-        </div>
-      </article>)}</div>
+      <div className="restaurant-ops-summary"><b>{groupedQueue.length}</b><span>grouped kitchen batches · {queue.length} table allocations</span></div>
+      <div className="restaurant-kitchen-list">{groupedQueue.map(rows => {
+        const row = rows[0]
+        return <article className="restaurant-kitchen-card restaurant-kitchen-batch-card" key={row.batch_id}>
+          <div className="restaurant-kitchen-card-top"><span>{rows.length} table orders · {Array.from(new Set(rows.map(item => item.table_label))).join(' · ')}</span><span>{when(row.batch_created_at)}</span></div>
+          <div className="restaurant-kitchen-main"><div><h3>{row.item_name_snapshot}{row.variant_name_snapshot ? ` · ${row.variant_name_snapshot}` : ''}</h3><p>Combined quantity <b>{row.total_quantity}</b>{row.addons_snapshot?.length ? ' · ' + row.addons_snapshot.map(a => a.name).join(', ') : ''}</p></div><span className={`restaurant-ops-status ${row.batch_status}`}>{labelStatus(row.batch_status)}</span></div>
+          <div className="restaurant-kitchen-breakdown">
+            {rows.map(allocation => <div className="restaurant-kitchen-allocation" key={allocation.order_item_id}>
+              <div className="restaurant-kitchen-allocation-info"><b>{allocation.table_label}</b><small>Order #{allocation.order_number} · Qty {allocation.allocation_quantity} · {when(allocation.order_created_at)}</small>{allocation.customization && <small>Note: {allocation.customization}</small>}{allocation.special_instructions && <small>Order note: {allocation.special_instructions}</small>}</div>
+              <span className={`restaurant-ops-status ${allocation.item_status}`}>{labelStatus(allocation.item_status)}</span>
+              <div className="restaurant-kitchen-actions">
+                {allocation.item_status === 'new' && <button onClick={() => void updateKitchen(allocation, 'accepted')} disabled={busy === allocation.order_item_id}>Accept</button>}
+                {allocation.item_status === 'accepted' && <button onClick={() => void updateKitchen(allocation, 'preparing')} disabled={busy === allocation.order_item_id}>Start preparing</button>}
+                {allocation.item_status === 'preparing' && <button onClick={() => void updateKitchen(allocation, 'ready')} disabled={busy === allocation.order_item_id}>Mark ready</button>}
+                {['new', 'accepted', 'preparing'].includes(allocation.item_status) && <button className="danger" onClick={() => { setReasonFor(allocation); setReason('') }} disabled={busy === allocation.order_item_id}>Unavailable</button>}
+              </div>
+            </div>)}
+          </div>
+        </article>
+      })}</div>
       {!queue.length && <div className="restaurant-ops-empty">No active kitchen orders. New QR orders will appear here.</div>}
     </> : <>
       <div className="restaurant-ops-stats"><div><b>{board.tables.filter(t => t.session_id).length}</b><span>Open tables</span></div><div><b>{board.ready_items.length}</b><span>Ready to serve</span></div><div><b>{board.service_requests.length}</b><span>Guest requests</span></div></div>
