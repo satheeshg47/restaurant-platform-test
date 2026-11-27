@@ -62,10 +62,26 @@ async function adminCapture(browser, viewport, storageState) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile, ...(storageState ? { storageState } : {}) })
   const page = await context.newPage()
   await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
+  if (!storageState) {
+    const loggedIn = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ login_id: 'demo.admin', password: 'DemoAdmin#2026!' }),
+      })
+      return response.ok
+    }).catch(() => false)
+    if (loggedIn) {
+      await page.evaluate(async () => fetch('/api/admin/demo-restaurant/provision', {
+        method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' },
+      })).catch(() => null)
+      await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
+    }
+  }
   await settle(page)
   if (!(await page.locator('.shell').count())) {
-    await savePage(page, 'Super Admin — Sign in', 'Super Admin', vp)
-    for (const name of ['Dashboard','Apps','Subscribers','Messages','Subscriptions','Updates','Admin area','Security & access','Data & backups','Monitoring','Audit log','Data export']) addScreen('Super Admin — ' + name, 'Super Admin', vp, '', 'login-required', 'Authenticated Super Admin access is required. Add QA_ADMIN_STORAGE_STATE_B64 to GitHub Actions repository secrets to capture this protected screen.')
+    addScreen('Super Admin — Sign in', 'Super Admin', vp, '', 'not-available', 'Preview-only Demo Bistro QA authentication did not succeed. Confirm the guide is pointed at an isolated preview deployment.')
+    for (const name of ['Dashboard','Apps','Subscribers','Messages','Subscriptions','Updates','Admin area','Security & access','Data & backups','Monitoring','Audit log','Data export']) addScreen('Super Admin — ' + name, 'Super Admin', vp, '', 'not-available', 'The preview Super Admin session could not be established; no sign-in placeholder is counted as a screenshot.')
     await context.close()
     return
   }
@@ -98,11 +114,22 @@ async function ownerCapture(browser, viewport, storageState) {
   const vp = mobile ? 'Mobile 390×844' : 'Desktop 1440×900'
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile, ...(storageState ? { storageState } : {}) })
   const page = await context.newPage()
+  if (!storageState) {
+    await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' }).catch(() => {})
+    await page.evaluate(async () => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ login_id: 'demo.owner', password: 'DemoOwner#2026!' }),
+      })
+      return response.ok
+    }).catch(() => false)
+  }
   await page.goto(baseURL + '/owner', { waitUntil: 'domcontentloaded' }).catch(() => {})
   await settle(page)
   if (!(await page.locator('.owner-portal-content').count())) {
-    await savePage(page, 'Restaurant Owner — Sign in', 'Restaurant Owner', vp)
-    for (const name of ['Restaurant list','Menu','Tables & QR','Kitchen & service','Settings','Reports','Reviews','Staff access','Support inbox']) addScreen('Restaurant Owner — ' + name, 'Restaurant Owner', vp, '', 'login-required', 'Authenticated Owner access is required. Add QA_OWNER_STORAGE_STATE_B64 to GitHub Actions repository secrets to capture this protected screen.')
+    addScreen('Restaurant Owner — Sign in', 'Restaurant Owner', vp, '', 'not-available', 'Preview-only Demo Bistro Owner authentication did not succeed. Confirm the guide is pointed at an isolated preview deployment.')
+    for (const name of ['Restaurant list','Menu','Tables & QR','Kitchen & service','Settings','Reports','Reviews','Staff access','Support inbox']) addScreen('Restaurant Owner — ' + name, 'Restaurant Owner', vp, '', 'not-available', 'The preview Owner session could not be established; no sign-in placeholder is counted as a screenshot.')
     await context.close()
     return
   }
