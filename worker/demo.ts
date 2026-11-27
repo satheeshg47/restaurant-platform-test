@@ -119,7 +119,7 @@ async function clearDemoTenantData(db: Env['DB'], tenantId: string): Promise<voi
 async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, cookId: string, waiterId: string, menuItemId: string, categoryId: string): Promise<void> {
   const sessionSql = `
     WITH RECURSIVE days(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM days WHERE n<365),
-    slots(s) AS (VALUES(1),(2),(3))
+    slots(s) AS (VALUES(1))
     INSERT OR IGNORE INTO restaurant_table_sessions
       (id,tenant_id,table_id,status,guest_count,opened_by,opened_at,closed_by,closed_at,close_reason)
     SELECT 'demo-session-'||days.n||'-'||slots.s, ?,
@@ -134,7 +134,7 @@ async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, coo
 
   const orderSql = `
     WITH RECURSIVE days(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM days WHERE n<365),
-    slots(s) AS (VALUES(1),(2),(3))
+    slots(s) AS (VALUES(1))
     INSERT OR IGNORE INTO restaurant_orders
       (id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,
        source,idempotency_key,placed_by,accepted_at,preparation_started_at,ready_at,served_at,
@@ -256,7 +256,7 @@ async function seedHistory(db: Env['DB'], tenantId: string, ownerId: string, coo
     .bind(tenantId, liveSession, tenantId).run()
   await db.prepare(`
     INSERT OR IGNORE INTO restaurant_activity_events(id,tenant_id,actor_staff_id,severity,action,detail)
-    VALUES('demo-history-seeded-'||?, ?,?,'info','demo.history.seeded','{"orders":1095,"days":365,"payments":"simulated","live_order":true}')
+    VALUES('demo-history-seeded-'||?, ?,?,'info','demo.history.seeded','{"orders":365,"days":365,"payments":"simulated","live_order":true}')
   `).bind(tenantId, tenantId, ownerId).run()
 }
 
@@ -395,7 +395,7 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
     return json(200, {
       provisioned: true,
       tenant: { id: tenantId, name: 'Demo Bistro', slug: DEMO_SLUG },
-      history: { days: 365, orders: 1095, payments: 'simulated', reviews: 'sampled with owner replies' },
+      history: { days: 365, orders: 365, payments: 'simulated', reviews: 'sampled with owner replies' },
       retention: { days: 365, policy: 'Demo records older than 365 days are pruned by the daily scheduled retention task.' },
       qr_codes: tableTokens,
       note: 'All demo records are stored only in the isolated demo database. Payments are simulated; no real money is moved.',
