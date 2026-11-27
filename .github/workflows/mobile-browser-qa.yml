@@ -21,7 +21,7 @@ permissions:
 jobs:
   browser-qa:
     if: >-
-      \${{
+      ${{
         (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
         github.event_name == 'workflow_dispatch' ||
         github.event_name == 'schedule' ||
@@ -37,29 +37,29 @@ jobs:
         working-directory: qa/mobile-browser
     env:
       CI: 'true'
-      BASE_URL: \${{ github.event.inputs.base_url || 'https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev' }}
-      QA_ADMIN_STORAGE_STATE_B64: \${{ secrets.QA_ADMIN_STORAGE_STATE_B64 }}
-      QA_OWNER_STORAGE_STATE_B64: \${{ secrets.QA_OWNER_STORAGE_STATE_B64 }}
-      QA_COOK_STORAGE_STATE_B64: \${{ secrets.QA_COOK_STORAGE_STATE_B64 }}
-      QA_WAITER_STORAGE_STATE_B64: \${{ secrets.QA_WAITER_STORAGE_STATE_B64 }}
+      BASE_URL: ${{ github.event.inputs.base_url || 'https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev' }}
+      QA_ADMIN_STORAGE_STATE_B64: ${{ secrets.QA_ADMIN_STORAGE_STATE_B64 }}
+      QA_OWNER_STORAGE_STATE_B64: ${{ secrets.QA_OWNER_STORAGE_STATE_B64 }}
+      QA_COOK_STORAGE_STATE_B64: ${{ secrets.QA_COOK_STORAGE_STATE_B64 }}
+      QA_WAITER_STORAGE_STATE_B64: ${{ secrets.QA_WAITER_STORAGE_STATE_B64 }}
     steps:
       - uses: actions/checkout@v4
         name: Check out source
         with:
-          ref: \${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.sha }}
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.sha }}
       - name: Resolve Cloudflare preview URL
-        if: \${{ github.event_name == 'issue_comment' }}
+        if: ${{ github.event_name == 'issue_comment' }}
         env:
-          COMMENT_BODY: \${{ github.event.comment.body }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs'
           const match = process.env.COMMENT_BODY.match(/Preview URL:\s*(https:\/\/[^\s<]+)/i)
           if (!match) throw new Error('Cloudflare deployment comment did not contain a preview URL')
-          fs.appendFileSync(process.env.GITHUB_ENV, \`BASE_URL=\${match[1]}\n\`)
+          fs.appendFileSync(process.env.GITHUB_ENV, 'BASE_URL=' + match[1] + '\n')
           NODE
       - name: Wait for Cloudflare preview to become ready
-        if: \${{ github.event_name == 'issue_comment' }}
+        if: ${{ github.event_name == 'issue_comment' }}
         run: |
           node --input-type=module <<'NODE'
           const base = process.env.BASE_URL.replace(/\/$/, '')
@@ -95,7 +95,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: platform-core-app-guide-\${{ github.run_number }}
+          name: platform-core-app-guide-${{ github.run_number }}
           path: |
             qa/mobile-browser/guide-output/
             qa/mobile-browser/test-results/
