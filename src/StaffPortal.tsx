@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChefHat, ClipboardList, Settings, Store, Table2, LogOut, BarChart3 } from 'lucide-react'
 import RestaurantOperations from './RestaurantOperations'
+import RestaurantTables from './RestaurantTables'
 import RestaurantMenu from './RestaurantMenu'
 import RestaurantSettings from './RestaurantSettings'
 import RestaurantReports from './RestaurantReports'
