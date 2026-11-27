@@ -123,7 +123,7 @@ export default function Applications() {
           <div className="app-icon violet">{app.name.slice(0, 2).toUpperCase()}</div>
           <div className="app-info"><b>{app.name}</b><small>{app.app_key} · Added {new Date(app.created_at).toLocaleDateString()}</small></div>
           <span className={`status ${app.status.toLowerCase()}`}>{app.status}</span>
-          {app.app_key === 'restaurant' && app.status === 'active' && <a className="app-open-workspace" href="/owner?demo=1" target="_blank" rel="noreferrer">Open demo workspace <span aria-hidden="true">↗</span></a>}
+          {app.app_key === 'restaurant' && app.status === 'active' && <a className="app-open-workspace" href="/owner?demo=1" target="_blank" rel="noreferrer">Open Demo Bistro <span aria-hidden="true">↗</span></a>}
         </div>)}</div>)}
       <div className="registry-footnote">Read-only registry view · No browser token storage · No sample records</div>
     </section>
