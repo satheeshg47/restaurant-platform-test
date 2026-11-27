@@ -393,7 +393,7 @@ export async function pruneDemoHistory(db: Env['DB']): Promise<void> {
   const setting = await db.prepare("SELECT setting_value FROM restaurant_settings WHERE tenant_id=? AND setting_key='demo_retention_days'")
     .bind(tenant.id).first<{ setting_value: string }>()
   const days = Math.max(1, Math.min(3650, Number.parseInt(setting?.setting_value || '365', 10) || 365))
-  const oldSessions = "SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND ((status='closed' AND closed_at<strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('-%d days',?))) OR (status='open' AND opened_at<strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('-%d days',?))))"
+  const oldSessions = "SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND CASE WHEN status='closed' THEN closed_at ELSE opened_at END<strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('-%d days',?))"
   await db.batch([
     db.prepare('DELETE FROM restaurant_refunds WHERE tenant_id=? AND session_id IN (' + oldSessions + ')').bind(tenant.id, tenant.id, days),
     db.prepare('DELETE FROM restaurant_invoices WHERE tenant_id=? AND session_id IN (' + oldSessions + ')').bind(tenant.id, tenant.id, days),
