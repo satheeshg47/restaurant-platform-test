@@ -43,7 +43,7 @@ async function ensureDemoOwnerAccount(db: Env['DB'], tenantId: string): Promise<
   const passwordHash = await hashPassword('DemoOwner#2026!')
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)").bind(userId, userId),
-    db.prepare("INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status) VALUES(?,?,?,?,'active') ON CONFLICT(user_id) DO UPDATE SET login_id=excluded.login_id,login_id_normalized=excluded.login_id_normalized,password_hash=excluded.password_hash,credential_status='active',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'))")
+    db.prepare("INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status) VALUES(?,?,?,?,'active') ON CONFLICT(user_id) DO UPDATE SET login_id=excluded.login_id,login_id_normalized=excluded.login_id_normalized,password_hash=excluded.password_hash,credential_status='active',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')")
       .bind(userId, loginId, loginId, passwordHash),
     db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'owner','active') ON CONFLICT(tenant_id,user_id) DO UPDATE SET role='owner',status='active'").bind(tenantId, userId),
     db.prepare("INSERT INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,'owner',1) ON CONFLICT(id) DO UPDATE SET username=excluded.username,display_name=excluded.display_name,role='owner',active=1")
