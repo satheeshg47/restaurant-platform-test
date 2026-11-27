@@ -55,6 +55,8 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
     placeGuestOrder(guestOne, tokenOne),
     placeGuestOrder(guestTwo, tokenTwo),
   ])
+  expect(orderOne.id).not.toBe(orderTwo.id)
+  expect(orderOne.order_number).not.toBe(orderTwo.order_number)
 
   expect((await api(guestOne, 'POST', '/api/restaurant/' + DEMO_SLUG + '/guest/' + tokenOne + '/requests', {
     session_id: sessionOne.id, request_type: 'need_water',
