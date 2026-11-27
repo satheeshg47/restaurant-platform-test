@@ -12,6 +12,14 @@ function error(error: unknown) {
   return json(status, { error: error instanceof Error && status < 500 ? error.message : 'order_placement_failed' })
 }
 function parse(value: unknown) { try { return typeof value === 'string' ? JSON.parse(value) : value } catch { return {} } }
+async function stableUuid(seed: string): Promise<string> {
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed)))
+  const hex = Array.from(bytes).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 32).split('')
+  hex[12] = '4'
+  hex[16] = (parseInt(hex[16], 16) & 0x3 | 0x8).toString(16)
+  const value = hex.join('')
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`
+}
 
 export async function handleGuestOrder(request: Request, env: Env, tenantId: string, token: string) {
   try {
@@ -64,8 +72,9 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
         const count = addonRows.results.filter(a => a.group_id === group.id).length
         if (count < Number(group.min_pick) || (Boolean(group.required) && count === 0) || count > Number(group.max_pick)) bad(400, 'invalid_addon_selection')
       }
-      const addonUnit = addonRows.results.reduce((n,a)=>n+Number(a.price_minor),0)
-      const addonSnapshot = JSON.stringify(addonRows.results.map(a=>({id:a.id,name:parse(a.name),price_minor:a.price_minor})))
+      const normalizedAddons = [...addonRows.results].sort((a,b)=>String(a.id).localeCompare(String(b.id)))
+      const addonUnit = normalizedAddons.reduce((n,a)=>n+Number(a.price_minor),0)
+      const addonSnapshot = JSON.stringify(normalizedAddons.map(a=>({id:a.id,name:parse(a.name),price_minor:a.price_minor})))
       const quantity=Number(input.quantity), line=quantity*(unit+addonUnit)
       if (!Number.isSafeInteger(line) || line < 0) bad(400, 'invalid_order_item')
       prepared.push({id:crypto.randomUUID(),itemId:String(item.id),variantId,categoryId:String(item.category_id),name:String(parse(item.name)?.en || Object.values(parse(item.name)||{})[0] || 'Menu item'),variantName,addons:addonSnapshot,qty:quantity,unit,addonUnit,line})
@@ -93,9 +102,19 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
     const statements=[env.DB.prepare(`INSERT INTO restaurant_orders(id,tenant_id,order_number,table_id,session_id,status,subtotal_minor,tax_minor,total_minor,special_instructions,source,idempotency_key,tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot) VALUES(?,?,?,?,?,'new',?,?,?,?,'qr',?,?,?,?)`).bind(orderId,tenantId,orderNumber,table.id,sessionId,subtotal,tax,total,note,key,mode,rate,Number(inclusive))]
     for(const line of prepared) {
       statements.push(env.DB.prepare(`INSERT INTO restaurant_order_items(id,tenant_id,order_id,item_id,variant_id,category_id,item_name_snapshot,variant_name_snapshot,addons_snapshot,quantity,unit_price_minor,addons_price_minor,line_total_minor) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(line.id,tenantId,orderId,line.itemId,line.variantId,line.categoryId,line.name,line.variantName,line.addons,line.qty,line.unit,line.addonUnit,line.line))
-      const batchKey = `guest:${orderId}:${line.id}`
-      const batchId = crypto.randomUUID()
-      statements.push(env.DB.prepare(`INSERT INTO restaurant_kitchen_batches(id,tenant_id,batch_key,item_name_snapshot,variant_name_snapshot,addons_snapshot,total_quantity,status) VALUES(?,?,?,?,?,?,?,'new')`).bind(batchId,tenantId,batchKey,line.name,line.variantName,line.addons,line.qty))
+      const baseBatchKey = `guest:${line.itemId}:${line.variantId || ''}:${line.addons}`
+      const existingBatch = await env.DB.prepare('SELECT status FROM restaurant_kitchen_batches WHERE tenant_id=? AND batch_key=? LIMIT 1')
+        .bind(tenantId, baseBatchKey).first<{ status: string }>()
+      const batchKey = existingBatch && !['new', 'accepted', 'preparing'].includes(existingBatch.status)
+        ? `${baseBatchKey}:reopen:${Math.floor(Date.now() / 60000)}`
+        : baseBatchKey
+      const batchId = await stableUuid(`kitchen-batch:${tenantId}:${batchKey}`)
+      statements.push(env.DB.prepare(`INSERT INTO restaurant_kitchen_batches(id,tenant_id,batch_key,item_name_snapshot,variant_name_snapshot,addons_snapshot,total_quantity,status)
+        VALUES(?,?,?,?,?,?,?,'new')
+        ON CONFLICT(tenant_id,batch_key) DO UPDATE SET
+          total_quantity=restaurant_kitchen_batches.total_quantity+excluded.total_quantity,
+          status=CASE WHEN restaurant_kitchen_batches.status IN ('ready','completed','cancelled') THEN 'new' ELSE restaurant_kitchen_batches.status END`)
+        .bind(batchId,tenantId,batchKey,line.name,line.variantName,line.addons,line.qty))
       statements.push(env.DB.prepare(`INSERT INTO restaurant_batch_allocations(id,tenant_id,batch_id,order_item_id,quantity,status) VALUES(?,?,?,?,?,'new')`).bind(crypto.randomUUID(),tenantId,batchId,line.id,line.qty))
     }
     for (const [itemId,quantity] of demand) {
