@@ -144,12 +144,17 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
       if (!sections.length) return
       const headerHeight = document.querySelector('.guest-header')?.getBoundingClientRect().height || 0
       const categoryHeight = document.querySelector('.guest-categories')?.getBoundingClientRect().height || 0
-      const activeLine = Math.max(headerHeight + categoryHeight + 12, window.innerHeight - 16)
+      const atDocumentEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4
       let current = sections[0].getAttribute('data-category-section') || ''
-      for (const section of sections) {
-        const heading = section.querySelector<HTMLElement>('.guest-section-title')
-        if (heading && heading.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
-        else break
+      if (atDocumentEnd) {
+        current = sections[sections.length - 1].getAttribute('data-category-section') || current
+      } else {
+        const activeLine = headerHeight + categoryHeight + 12
+        for (const section of sections) {
+          const heading = section.querySelector<HTMLElement>('.guest-section-title')
+          if (heading && heading.getBoundingClientRect().top <= activeLine) current = section.getAttribute('data-category-section') || current
+          else break
+        }
       }
       if (current) setActiveCategory(previous => previous === current ? previous : current)
     }
