@@ -8,8 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: HTTPS URL of the isolated Cloudflare preview deployment
-        required: true
+        description: Optional HTTPS preview URL; defaults to disposable local D1 QA
+        required: false
+        default: http://127.0.0.1:8787
         type: string
 
 permissions:
@@ -26,7 +27,7 @@ jobs:
     timeout-minutes: 20
     if: ${{ always() }}
     env:
-      BASE_URL: ${{ inputs.base_url || vars.DEMO_BISTRO_PREVIEW_URL || 'https://feat-demo-bistro-closed-loop-e2e-restaurant-platform-test.iamsatheeshgkotegar.workers.dev' }}
+      BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:8787' }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -44,11 +45,24 @@ jobs:
       - name: Install Chromium
         working-directory: qa/mobile-browser
         run: npx playwright install --with-deps chromium
+      - name: Prepare isolated local D1 and start QA Worker
+        if: ${{ startsWith(env.BASE_URL, 'http://127.0.0.1:') }}
+        run: |
+          npx wrangler d1 migrations apply restaurant-platform-qa --local --config wrangler.qa.jsonc
+          npx wrangler d1 execute restaurant-platform-qa --local --config wrangler.qa.jsonc --command "INSERT OR IGNORE INTO applications(id,app_key,name,status) VALUES('adabd80c-491d-4da8-bb3b-fe7d224e86ef','restaurant','Restaurant Suite','active')"
+          nohup npx wrangler dev --local --config wrangler.qa.jsonc --port 8787 --ip 127.0.0.1 > /tmp/demo-bistro-worker.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent "$BASE_URL/api/health" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/demo-bistro-worker.log
+          exit 1
       - name: Require isolated preview environment
         run: |
           node --input-type=module <<'NODE'
           const base = process.env.BASE_URL
-          if (!base || !/^https:\/\//.test(base)) throw new Error('BASE_URL must be an HTTPS isolated preview URL.')
+          const local = /^http:\/\/127\.0\.0\.1:8787$/.test(base || '')
+          if (!local && (!base || !/^https:\/\//.test(base))) throw new Error('BASE_URL must be the isolated local QA Worker or an HTTPS preview URL.')
           const response = await fetch(base.replace(/\/$/, '') + '/api/health')
           if (!response.ok) throw new Error('Preview health check failed: HTTP ' + response.status)
           const health = await response.json()
