@@ -138,7 +138,11 @@ for (const staff of [
   { role: 'cook', login_id: 'demo.cook', password: 'DemoCook#2026!' },
   { role: 'waiter', login_id: 'demo.waiter', password: 'DemoWaiter#2026!' },
 ]) {
-  test(`visual audit: ${staff.role} header stays pinned and controls remain reachable`, async ({ page }) => {
+  test(`visual audit: ${staff.role} header stays pinned and controls remain reachable`, async ({ page, request }) => {
+    const healthResponse = await request.get('/api/health')
+    expect(healthResponse.ok()).toBeTruthy()
+    const health = await healthResponse.json()
+    test.skip(health.environment !== 'preview', 'Demo staff credentials are restricted to the isolated preview environment.')
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     const login = await page.evaluate(async credentials => {
       const response = await fetch('/api/auth/login', {
