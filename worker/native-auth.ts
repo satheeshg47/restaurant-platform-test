@@ -215,12 +215,29 @@ async function bootstrapAdmin(request: Request, env: Env): Promise<Response> {
   }
 }
 
+async function ensurePreviewDemoAdmin(env: Env): Promise<void> {
+  if (env.ENVIRONMENT !== 'preview' || !env.DEMO_DB) return
+  const db = env.DEMO_DB
+  const userId = 'demo-platform-admin'
+  const loginId = env.DEMO_ADMIN_LOGIN_ID || 'demo.admin'
+  const passwordHash = await hashPassword('DemoAdmin#2026!')
+  await db.batch([
+    db.prepare("INSERT OR IGNORE INTO platform_users(id,auth_provider,auth_subject,email) VALUES(?,'native',?,NULL)").bind(userId, userId),
+    db.prepare("INSERT INTO platform_user_credentials(user_id,login_id,login_id_normalized,password_hash,credential_status) VALUES(?,?,?,?,'active') ON CONFLICT(user_id) DO UPDATE SET login_id=excluded.login_id,login_id_normalized=excluded.login_id_normalized,password_hash=excluded.password_hash,credential_status='active',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')")
+      .bind(userId, loginId, loginId.toLowerCase(), passwordHash),
+    db.prepare("INSERT INTO platform_admin_accounts(user_id,status) VALUES(?,'active') ON CONFLICT(user_id) DO UPDATE SET status='active'").bind(userId),
+  ])
+}
+
 async function login(request: Request, env: Env): Promise<Response> {
   const body = await readBody(request)
   if (!body) return json(400, { error: 'invalid_request' })
   const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
   const password = typeof body.password === 'string' ? body.password : ''
   if (!loginId || loginId.length > 64 || password.length > 256) return json(401, { error: 'invalid_credentials' })
+  if (env.ENVIRONMENT === 'preview' && loginId.toLowerCase() === (env.DEMO_ADMIN_LOGIN_ID || 'demo.admin').toLowerCase()) {
+    await ensurePreviewDemoAdmin(env)
+  }
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
   const rateEnv = loginId.toLowerCase().startsWith('demo.') && env.DEMO_DB ? { ...env, DB: env.DEMO_DB } : env
   if (!await consumeRateLimit(rateEnv, `login:${loginId.toLowerCase()}:${ip}`)) return json(429, { error: 'too_many_attempts' })
@@ -253,7 +270,10 @@ async function login(request: Request, env: Env): Promise<Response> {
   const previewDemoOwner = env.ENVIRONMENT === 'preview' &&
     Number(user.is_owner) === 1 &&
     user.login_id === (env.DEMO_OWNER_LOGIN_ID || 'demo.owner')
-  if (Number(user.is_admin) || (Number(user.is_owner) && !previewDemoOwner)) {
+  const previewDemoAdmin = env.ENVIRONMENT === 'preview' &&
+    Number(user.is_admin) === 1 &&
+    user.login_id === (env.DEMO_ADMIN_LOGIN_ID || 'demo.admin')
+  if ((Number(user.is_admin) && !previewDemoAdmin) || (Number(user.is_owner) && !previewDemoOwner)) {
     if (!user.totp_enabled) {
       if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
       const secret = createTotpSecret()
