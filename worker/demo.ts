@@ -271,6 +271,13 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
     const ownerId = (await db.prepare("SELECT id FROM restaurant_staff WHERE tenant_id=? AND username=?")
       .bind(tenantId, ownerUsername).first<{ id: string }>())?.id || crypto.randomUUID()
 
+    // A tenant has one active owner membership. The current platform admin
+    // remains a tenant admin; the dedicated Demo Bistro QA identity owns it.
+    await db.batch([
+      db.prepare("UPDATE tenant_memberships SET role='admin' WHERE tenant_id=? AND role='owner'").bind(tenantId),
+      db.prepare("UPDATE restaurant_staff SET role='manager' WHERE tenant_id=? AND role='owner'").bind(tenantId),
+    ])
+
     await db.batch([
       db.prepare("INSERT OR IGNORE INTO tenants(id,name,slug,status) VALUES(?,? ,?,'active')")
         .bind(tenantId, 'Demo Bistro', DEMO_SLUG),
