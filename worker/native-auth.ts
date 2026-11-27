@@ -235,6 +235,8 @@ async function login(request: Request, env: Env): Promise<Response> {
   const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
   const password = typeof body.password === 'string' ? body.password : ''
   if (!loginId || loginId.length > 64 || password.length > 256) return json(401, { error: 'invalid_credentials' })
+  const demoQaLogin = /^demo\.(admin|owner|cook|waiter|manager)$/.test(loginId.toLowerCase())
+  if (demoQaLogin && env.ENVIRONMENT !== 'preview') return json(401, { error: 'invalid_credentials' })
   if (env.ENVIRONMENT === 'preview' && loginId.toLowerCase() === (env.DEMO_ADMIN_LOGIN_ID || 'demo.admin').toLowerCase()) {
     await ensurePreviewDemoAdmin(env)
   }
