@@ -3,6 +3,8 @@ name: Demo Bistro authenticated browser QA
 on:
   push:
     branches: [feat/demo-bistro-closed-loop-e2e]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       base_url:
