@@ -37,7 +37,7 @@ test('production Owner Staff panel opens role links, creates a QA waiter, and re
   await expect(staffLoginPage.locator('.signin-form input[type="password"]')).toBeVisible()
   await staffLoginPage.close()
 
-  const loginId = 'qa.platformcore.live.staff.revocation'
+  const loginId = 'demo.qa.live.staff.revocation'
   const password = 'QALiveRevocation#' + randomBytes(18).toString('base64url')
   const staffListPath = '/api/owner/staff?tenant_id=' + encodeURIComponent(demo.tenant_id)
   let staffId = ''
@@ -123,13 +123,17 @@ test('production Owner Staff panel opens role links, creates a QA waiter, and re
         const latest = await api(page, 'GET', staffListPath)
         const record = latest.body?.staff?.find((entry: any) => entry.staff_id === staffId)
         if (record?.active) {
-          await api(page, 'PATCH', '/api/owner/staff/' + staffId, { tenant_id: demo.tenant_id, active: false })
+          const revoked = await api(page, 'PATCH', '/api/owner/staff/' + staffId, { tenant_id: demo.tenant_id, active: false })
+          expect(revoked.status).toBe(200)
         }
+        const afterCleanup = await api(page, 'GET', staffListPath)
+        const cleaned = afterCleanup.body?.staff?.find((entry: any) => entry.staff_id === staffId)
+        expect(cleaned?.active, 'The production QA staff account must be suspended after the test').toBe(false)
       }
-      await api(page, 'POST', '/api/auth/logout')
-    } catch (error) {
-      console.error('QA staff cleanup will be retried on the next production smoke run:', error)
+      const logout = await api(page, 'POST', '/api/auth/logout')
+      expect(logout.status).toBe(200)
+    } finally {
+      if (staffContext) await staffContext.close()
     }
-    if (staffContext) await staffContext.close()
   }
 })
