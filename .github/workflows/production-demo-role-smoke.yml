@@ -1,0 +1,48 @@
+name: Production Demo Bistro role verification
+
+on:
+  workflow_run:
+    workflows: ["Live deployment smoke test"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  production-role-smoke:
+    name: Live owner and staff access verification
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_URL: https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev
+    steps:
+      - name: Check out the deployed main commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install app dependencies
+        run: npm install
+      - name: Install browser QA dependencies
+        working-directory: qa/mobile-browser
+        run: npm install
+      - name: Install Chromium
+        working-directory: qa/mobile-browser
+        run: npx playwright install --with-deps chromium
+      - name: Verify live production roles and Owner Staff access
+        working-directory: qa/mobile-browser
+        run: npx playwright test --config playwright.production.config.ts
+      - name: Upload production role QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-demo-role-qa-${{ github.run_number }}
+          path: |
+            qa/mobile-browser/test-results-production/
+          if-no-files-found: warn
+          retention-days: 30
