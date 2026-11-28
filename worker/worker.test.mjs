@@ -708,13 +708,15 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
       display_name: 'Green Leaf Foods', currency_code: 'INR', timezone: 'Asia/Kolkata',
       default_language: 'kn', tax_mode: 'gst', tax_rate: 0, gst_rate: 5,
       tax_inclusive: false, accepting_orders: true, legal_name: 'Green Leaf Foods Pvt Ltd',
-      gstin: '29ABCDE1234F1Z5', address_line1: '123 Main Street', address_line2: '',
+      gstin: '29ABCDE1234F1Z5', fssai_license_no: '12345678901234', address_line1: '123 Main Street', address_line2: '',
       city: 'Bengaluru', state_name: 'Karnataka', state_code: '29', postal_code: '560001',
       invoice_prefix: 'GLF',
     },
   })
   assert.equal(saved.status, 200)
-  assert.equal((await saved.json()).settings.gstin, '29ABCDE1234F1Z5')
+  const savedSettings = (await saved.json()).settings
+  assert.equal(savedSettings.gstin, '29ABCDE1234F1Z5')
+  assert.equal(savedSettings.fssai_license_no, '12345678901234')
 
   const categoryResponse = await call('/restaurant/green-leaf-kitchen/menu/categories', {
     method: 'POST', accessToken: ownerAccess,
@@ -969,6 +971,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(invoiceBody.invoice.cgst_minor, 25)
   assert.equal(invoiceBody.invoice.sgst_minor, 25)
   assert.equal(invoiceBody.invoice.seller_snapshot.gstin, '29ABCDE1234F1Z5')
+  assert.equal(invoiceBody.invoice.seller_snapshot.fssai_license_no, '12345678901234')
   const duplicateInvoice = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${invoiceSession.id}/invoice`, { method: 'POST', accessToken: ownerAccess })
   assert.equal(duplicateInvoice.status, 200)
   assert.equal((await duplicateInvoice.json()).invoice.id, invoiceBody.invoice.id)
