@@ -873,6 +873,9 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
 
   const orderPayload = { session_id: session.id, guest_pin: session.guest_pin, idempotency_key: 'guest-order-test-0001', note: '  No   onions  ', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
   const guestOrderPath = `/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders`
+  const missingOrderPin = await call(guestOrderPath, { method: 'POST', body: { ...orderPayload, guest_pin: undefined } })
+  assert.equal(missingOrderPin.status, 401)
+  assert.equal((await missingOrderPin.json()).error, 'guest_pin_required')
   const placed = await call(guestOrderPath, { method: 'POST', body: orderPayload })
   assert.equal(placed.status, 201)
   const placedBody = await placed.json()
