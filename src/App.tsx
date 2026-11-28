@@ -25,7 +25,7 @@ import OwnerPortal from './OwnerPortal'
 import OwnerInviteAcceptance from './OwnerInviteAcceptance'
 import StaffPortal from './StaffPortal'
 import SignIn from './SignIn'
-import { apiFetch, completeOidcLogin, setSessionToken as setApiSessionToken } from './auth'
+import { apiFetch } from './auth'
 
 type Section = 'Overview' | 'Applications' | 'Restaurant Suite' | 'Tables & QR' | 'Kitchen & Service' | 'Restaurant Settings' | 'Restaurant Reports' | 'Customer Reviews' | 'Restaurant Data Export' | 'Owners' | 'Communications' | 'Subscriptions' | 'Update Centre' | 'Data & Backups' | 'Monitoring' | 'Security' | 'Audit Log' | 'Admin Area'
 type AppRecord = { id: string; name: string; category: string; status: 'Active' | 'Draft' | 'Paused'; initials: string; tone: string }
@@ -48,7 +48,6 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [sessionToken, setSessionToken] = useState<string | null>(null)
-  const [sessionIdToken, setSessionIdToken] = useState<string | null>(null)
   const [nativeUser, setNativeUser] = useState<NativeUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [authError, setAuthError] = useState('')
@@ -64,41 +63,27 @@ function App() {
   const staffRoute = window.location.pathname === '/staff' || window.location.pathname === '/staff/'
 
   useEffect(() => {
+    if (window.location.pathname === '/auth/callback') window.history.replaceState({}, document.title, '/')
     if (window.location.pathname === '/owner/invitations/accept') {
       const inviteToken = new URLSearchParams(window.location.hash.slice(1)).get('token') || ''
       if (/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) sessionStorage.setItem('platformcore.owner.invitation.token', inviteToken)
       if (window.location.hash) window.history.replaceState({}, document.title, window.location.pathname)
     }
-    if (window.location.pathname !== '/auth/callback') {
-      let active = true
-      fetch(`${API_BASE}/auth/session`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
-        .then(async response => {
-          const payload = await response.json().catch(() => ({})) as { authenticated?: boolean; bootstrap_available?: boolean; encryption_ready?: boolean; user?: NativeUser }
-          if (!active) return
-          if (response.ok && payload.authenticated) {
-            setApiSessionToken('native')
-            setSessionToken('native')
-            setSessionIdToken(null)
-            setNativeUser(payload.user || null)
-          }
-          setBootstrapAvailable(payload.bootstrap_available === true)
-          setEncryptionReady(payload.encryption_ready === true)
-        })
-        .catch(() => {})
-        .finally(() => { if (active) setAuthReady(true) })
-      return () => { active = false }
-    }
-    completeOidcLogin().then(tokens => {
-      setApiSessionToken(tokens.accessToken)
-      setSessionToken(tokens.accessToken)
-      setSessionIdToken(tokens.idToken)
-      setNativeUser(null)
-      setAuthError('')
-      setAuthReady(true)
-    }).catch(cause => {
-      setAuthError(cause instanceof Error ? cause.message : 'Sign-in failed. Please try again.')
-      setAuthReady(true)
-    })
+    let active = true
+    fetch(`${API_BASE}/auth/session`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(async response => {
+        const payload = await response.json().catch(() => ({})) as { authenticated?: boolean; bootstrap_available?: boolean; encryption_ready?: boolean; user?: NativeUser }
+        if (!active) return
+        if (response.ok && payload.authenticated) {
+          setSessionToken('native')
+          setNativeUser(payload.user || null)
+        }
+        setBootstrapAvailable(payload.bootstrap_available === true)
+        setEncryptionReady(payload.encryption_ready === true)
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setAuthReady(true) })
+    return () => { active = false }
   }, [])
 
   useEffect(() => {
@@ -113,12 +98,10 @@ function App() {
 
   const signOut = () => {
     if (sessionToken === 'native') void fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } }).catch(() => {})
-    setApiSessionToken(null); setSessionToken(null); setSessionIdToken(null); setNativeUser(null); setAdminAccess('checking'); setAuthError('')
+    setSessionToken(null); setNativeUser(null); setAdminAccess('checking'); setAuthError('')
   }
   const handleNativeAuthenticated = () => {
-    setApiSessionToken('native')
     setSessionToken('native')
-    setSessionIdToken(null)
     setAuthError('')
     void fetch(`${API_BASE}/auth/session`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
       .then(response => response.json())
@@ -142,7 +125,7 @@ function App() {
   }
   if (staffRoute && !sessionToken) return <SignIn role="staff" error={authError} onAuthenticated={handleNativeAuthenticated}/>
   if (ownerInviteRoute) {
-    return <OwnerInviteAcceptance accessToken={sessionToken || ''} idToken={sessionIdToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAuthenticated={handleNativeAuthenticated} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
+    return <OwnerInviteAcceptance accessToken={sessionToken || ''} apiBaseUrl={API_BASE} onSignOut={signOut} onAuthenticated={handleNativeAuthenticated} onAccepted={() => { window.history.replaceState({}, document.title, '/owner'); setRouteRefresh(value => value + 1) }}/>
   }
   if (ownerRoute) {
     if (!sessionToken) return <SignIn role="owner" error={authError} onAuthenticated={handleNativeAuthenticated}/>
@@ -192,7 +175,7 @@ function App() {
           {section === 'Update Centre' && <UpdateCentre apiBaseUrl={API_BASE}/>}
           {section === 'Data & Backups' && <Placeholder icon={Database} title="Data & backups" description="Production D1 schema is installed. Free Cloudflare D1 Time Travel provides seven-day point-in-time recovery; it is not an offsite backup." items={['Production schema: 50 application tables, migrations 0001–0008','D1 Time Travel: seven-day recovery window on Workers Free','Tenant JSON export, backup validation and guarded restore in Restaurant Data Export','Offsite backup destination and scheduled recovery drills: not configured']}/>}
           {section === 'Monitoring' && <Monitoring />}
-          {section === 'Security' && <Placeholder icon={LockKeyhole} title="Security & access" description="Native username/password authentication, TOTP enrollment, recovery codes and server-side session validation are implemented. The initial Super Admin account and encryption secrets still need to be provisioned." items={['OIDC administrator sign-in: verified','MFA and passkey enforcement: pending','Tenant and role authorization: enforced in Worker routes','Administrative audit trail: enabled; immutability not claimed']}/>}
+          {section === 'Security' && <Placeholder icon={LockKeyhole} title="Security & access" description="Email/username and password sign-in with secure server-side sessions is implemented. External identity providers and authenticator codes are not required. The initial Super Admin account and encryption secret must be provisioned." items={['Native email/username + password sign-in: active','Auth0/OIDC and TOTP: not required for sign-in','Tenant and role boundaries: enforced in Worker routes','Administrative audit trail: enabled; immutability not claimed']}/>}
           {section === 'Audit Log' && <AuditLog />}
           {section === 'Admin Area' && <AdminArea setSection={setSection}/>}
           <footer className="footer"><span>Platform Core <b>·</b> v0.1.0 preview</span><span><i className="footer-dot"/> Pre-launch workspace · Production D1 schema installed</span></footer>
@@ -333,7 +316,7 @@ function ProjectProgress() {
         ))}
       </div>
       <div className="project-next"><span>UP NEXT</span><b>{nextMilestone?.title || "No pending milestone"}</b><small>{nextMilestone ? "In progress" : "All milestones complete"}</small></div>
-      <p className="project-progress-note">Progress tracks implemented development milestones, not production readiness. Production hosting, identity, D1 schema and live readiness are verified. Approved updates, MFA, offsite backups and end-to-end recovery drills remain launch gates.</p>
+      <p className="project-progress-note">Progress tracks implemented development milestones, not production readiness. Production hosting, identity, D1 schema and live readiness are verified. Approved updates, offsite backups and end-to-end recovery drills remain launch gates.</p>
     </section>
   )
 }
@@ -404,7 +387,7 @@ function Overview({ setSection }: { setSection: (s: Section)=>void }) {
       </section></div>
     <section className="panel setup-panel"><div className="setup-title"><div><span className="eyebrow">GETTING STARTED</span><h2>Set up your platform</h2><p>Complete these foundations before onboarding customers.</p></div><div className="setup-progress"><strong>3/5</strong><small>foundations verified</small></div></div><div className="setup-steps">
       <div className="setup-step done"><div className="step-check"><Check size={14}/></div><div><b>Workspace created</b><small>Your private control plane is ready.</small></div><span>Done</span></div>
-      <button className="setup-step" onClick={()=>setSection('Security')}><div className="step-number"/><div><b>Secure administrator sign-in</b><small>OIDC sign-in is working; configure MFA before customer onboarding.</small></div><span>MFA pending</span><ArrowUpRight size={15}/></button>
+      <button className="setup-step" onClick={()=>setSection('Security')}><div className="step-number"/><div><b>Secure administrator sign-in</b><small>Sign in with email or username and password. No external identity provider or authenticator code is required.</small></div><span>Native sign-in</span><ArrowUpRight size={15}/></button>
       <div className="setup-step done"><div className="step-check"><Check size={14}/></div><div><b>Register your first application</b><small>Restaurant Suite is registered and active.</small></div><span>Done</span></div>
       <div className="setup-step done"><div className="step-check"><Check size={14}/></div><div><b>Connect the platform database</b><small>Production D1 schema and live readiness checks passed.</small></div><span>Done</span></div>
       <button className="setup-step" onClick={()=>setSection('Data & Backups')}><div className="step-number"/><div><b>Configure backup and recovery</b><small>D1 Time Travel is available for seven days; offsite backup is still needed.</small></div><span>Pending</span><ArrowUpRight size={15}/></button>
@@ -415,7 +398,7 @@ function Overview({ setSection }: { setSection: (s: Section)=>void }) {
 
 function AdminArea({ setSection }: { setSection: (s: Section) => void }) {
   const tools: { title: string; description: string; section: Section; icon: typeof Settings }[] = [
-    { title: 'Security & access', description: 'Administrator identity, MFA and access controls.', section: 'Security', icon: LockKeyhole },
+    { title: 'Security & access', description: 'Native password sign-in and tenant access controls.', section: 'Security', icon: LockKeyhole },
     { title: 'Data & backups', description: 'Database health, exports and recovery readiness.', section: 'Data & Backups', icon: Database },
     { title: 'Monitoring', description: 'Service health, platform metrics and incidents.', section: 'Monitoring', icon: Activity },
     { title: 'Audit log', description: 'Review important administrative actions.', section: 'Audit Log', icon: ScrollText },
