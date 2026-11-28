@@ -235,7 +235,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
   }
 
   async function verifyTablePin() {
-    if (!menu?.session?.id || !/^\\d{6}$/.test(pinInput) || pinBusy) return
+    if (!menu?.session?.id || !/^\d{6}$/.test(pinInput) || pinBusy) return
     setPinBusy(true); setPinError('')
     try {
       const response = await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug)}/guest/${encodeURIComponent(token)}/session/verify`, {
@@ -321,7 +321,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
       {menu.session && <section className="guest-pin-card" aria-label="Table access PIN">
         {sessionPin ? <><b><CheckCircle2 size={16}/> Table verified</b><p>You can place orders and request service for this active visit.</p><button type="button" className="guest-secondary" onClick={() => { setSessionPin(''); setPinInput('') }}>Change PIN</button></> : <>
           <span className="guest-kicker">TABLE SECURITY</span><h2>Enter your table PIN</h2><p>Ask your server for the current 6-digit PIN. Your saved QR link alone cannot place orders.</p>
-          <div className="guest-pin-entry"><input aria-label="6-digit table PIN" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={pinInput} onChange={event => setPinInput(event.target.value.replace(/\\D/g, '').slice(0,6))} placeholder="••••••"/><button type="button" className="guest-primary" disabled={pinBusy || pinInput.length!==6} onClick={() => void verifyTablePin()}>{pinBusy ? 'Checking…' : 'Verify PIN'}</button></div>
+          <div className="guest-pin-entry"><input aria-label="6-digit table PIN" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={pinInput} onChange={event => setPinInput(event.target.value.replace(/\D/g, '').slice(0,6))} placeholder="••••••"/><button type="button" className="guest-primary" disabled={pinBusy || pinInput.length!==6} onClick={() => void verifyTablePin()}>{pinBusy ? 'Checking…' : 'Verify PIN'}</button></div>
           {pinError && <p className="guest-form-error" role="alert">{pinError}</p>}
           {menu.session.guest_pin_expires_at && <small>PIN expires {new Date(menu.session.guest_pin_expires_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</small>}
         </>}
