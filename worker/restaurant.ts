@@ -441,7 +441,10 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
     try { body = await request.json() as Record<string, unknown> }
     catch { return json(400, { error: 'invalid_json' }) }
     try {
-      await verifyGuestSessionPin(dataEnv, tenantId, parts[3], String(body.session_id || ''), body.pin)
+      const table = await dataEnv.DB.prepare('SELECT id FROM restaurant_tables WHERE tenant_id=? AND qr_token=? AND active=1 LIMIT 1')
+        .bind(tenantId, parts[3]).first<{id:string}>()
+      if (!table) return json(404, { error: 'table_not_found' })
+      await verifyGuestSessionPin(dataEnv, tenantId, table.id, String(body.session_id || ''), body.pin)
       return json(200, { verified: true })
     } catch (error) {
       const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500
