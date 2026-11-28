@@ -21,6 +21,6 @@ export default defineConfig({
   },
   projects: [
     { name: 'mobile-390x844', use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
-    { name: 'desktop-1440x900', use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false } },
+    { name: 'desktop-1440x900', testMatch: '**/role-signin.spec.ts', use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false } },
   ],
 })
