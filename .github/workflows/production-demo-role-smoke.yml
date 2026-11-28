@@ -34,9 +34,12 @@ jobs:
       - name: Install Chromium
         working-directory: qa/mobile-browser
         run: npx playwright install --with-deps chromium
-      - name: Verify live production roles and Owner Staff access
+      - name: Verify Owner Staff links and revoke the dedicated QA waiter
         working-directory: qa/mobile-browser
-        run: npx playwright test --config playwright.production.config.ts
+        run: npx playwright test --config playwright.production.config.ts --project mobile-390x844 production-tests/owner-staff.spec.ts
+      - name: Verify live Cook, Waiter and Manager dashboards on mobile and desktop
+        working-directory: qa/mobile-browser
+        run: npx playwright test --config playwright.production.config.ts production-tests/role-signin.spec.ts
       - name: Upload production role QA report
         if: always()
         uses: actions/upload-artifact@v4
