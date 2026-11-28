@@ -112,7 +112,7 @@ async function loadMenu(env: Env, tenantId: string) {
   const [profile, categories, items, variants, addonGroups, addons, itemAddonGroups] = await Promise.all([
     env.DB.prepare(
       `SELECT display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,
-        tax_inclusive,accepting_orders,legal_name,gstin,fssai_license_no,address_line1,address_line2,city,state_name,state_code,postal_code,invoice_prefix
+        tax_inclusive,accepting_orders,legal_name,gstin,address_line1,address_line2,city,state_name,state_code,postal_code,invoice_prefix
        FROM restaurant_profiles WHERE tenant_id=?`,
     ).bind(tenantId).first<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM restaurant_menu_categories WHERE tenant_id=? ORDER BY sort_order,name').bind(tenantId).all<Record<string, unknown>>(),
