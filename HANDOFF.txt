@@ -1,19 +1,21 @@
 RESTAURANT PLATFORM — LIVING HANDOFF
-Last updated: 2026-11-28 20:51 IST (Asia/Kolkata)
+Last updated: 2026-11-28 21:20 IST (Asia/Kolkata)
 Repository: satheeshg47/restaurant-platform-test
 Default branch: main
 Main application commit: 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
 Current work branch: fix/qa-guide-rate-limit-reset
-Current work commit before this handoff update: d054f6b337e388d617f7b029e3b22575846273df
+Current work commit before this handoff update: 3d0259660d6a1859f9693e23b5883bb11be3ba08
 Open PR: #122 — https://github.com/satheeshg47/restaurant-platform-test/pull/122
 PR #122 base: main @ 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
-PR #122 head before this handoff update: d054f6b337e388d617f7b029e3b22575846273df
+PR #122 head before this handoff update: 3d0259660d6a1859f9693e23b5883bb11be3ba08
 PR #121: MERGED — production Demo Bistro owner/cook/waiter/manager authentication, role-specific /staff?login=1 links, and preview-only demo.admin guard.
 PR #121 merge commit: 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
 
 PR #122 SCOPE
 - Fix isolated QA walkthrough rate-limit exhaustion by deleting platform_auth_rate_limits only from disposable local D1 after Playwright tests and before guide capture. The step is conditional on BASE_URL starting http://127.0.0.1: and never runs against a remote preview or production.
 - Add manager credentials to the isolated browser QA helper.
+- Enforce strict D1 separation: production DB/DEMO_DB remain distinct; Preview now uses two new isolated D1 databases; local QA uses two different local D1 databases. Add a dedicated preview migration config/script and CI assertion preventing any binding overlap.
+- Fix preview-only demo.admin authorization lookup so the exact demo-platform-admin identity is verified in DEMO_DB only when ENVIRONMENT=preview; production admin checks remain on DB and production demo.admin rejection is preserved.
 - Add a production-only Playwright config and tests for live role sign-in, owner staff links, creation of one stable QA waiter account, clipboard copy, role access, suspension, session revocation and rejected re-login. The Owner Staff mutation test runs once on mobile; cook/waiter/manager dashboard checks run on mobile and desktop to limit repeated production auth attempts.
 - Add .github/workflows/production-demo-role-smoke.yml, triggered only after successful Live deployment smoke test on main. It checks demo.admin rejection, verifies owner/staff access, and creates/revokes one QA staff record only in DEMO_DB after PR #122 is merged and the next main deployment passes smoke.
 - Make QA concurrency PR-scoped (cancel superseded runs) and increase the guide-generation step timeout from 3 to 6 minutes to avoid concurrent redundant runs and PDF-capture timeouts.
@@ -30,15 +32,30 @@ LATEST COMPLETED CI
   Playwright: 36 passed, 0 failed, 0 skipped. Mobile 390x844: 18 passed. Desktop 1440x900: 18 passed.
   The local-only auth-throttle cleanup step passed. PDF guide created successfully: 54 screens captured; 0 login-required/unavailable.
   Artifact #15267264863: https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46156930184/artifacts/15267264863
-- PR #122 latest verified Build and test run #46159070589 (run #606): SUCCESS.
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46159070589
-- PR #122 latest verified isolated QA run #46159070587 (run #125): SUCCESS. The default preview suite reported 36 passed, 0 failed, 0 skipped; mobile 390x844 and desktop 1440x900. Production-only specs were discovered/validated with Playwright --list but were NOT executed against production.
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46159070587
-  Walkthrough PDF: 54 screens captured; 0 login-required/unavailable. Artifact #15269157212:
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46159070587/artifacts/15269157212
-- The preview suite now verifies the Owner Staff universal sign-in link can be opened, copied and shared on mobile and desktop. The production-only owner test also validates the copy/share UI; the desktop project is restricted to the non-mutating role-sign-in test, so the production test account is created/revoked only once on mobile.
-- After run #125, production-only test cleanup was tightened further: both production specs now have afterEach logout protection, and the Owner Staff test asserts the owner session is unauthenticated after logout. CI for these final cleanup-only changes is pending/not yet observed; do not assume the latest head has passed.
+- PR #122 latest verified Build and test run #46160827108 (run #615): SUCCESS.
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46160827108
+- PR #122 latest verified isolated QA run #46160827081 (run #134): SUCCESS. The suite reported 36 passed, 0 failed, 0 skipped; mobile 390x844 and desktop 1440x900. This run used separate local DB and DEMO_DB databases, so the preview-only admin lookup and Demo Bistro flows were verified with actual database isolation.
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46160827081
+  Walkthrough PDF: 54 screens captured; 0 login-required/unavailable. Artifact #15269379596:
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46160827081/artifacts/15269379596
+- The first separated-DB QA attempt exposed a real issue: authenticateAdmin looked for demo-platform-admin only in DB although the preview-only identity is stored in DEMO_DB. worker/auth.ts now checks DEMO_DB only for that exact identity and only when ENVIRONMENT=preview. The production demo.admin rejection remains. The subsequent run #134 passed 36/36.
+- The preview suite verifies the Owner Staff universal sign-in link can be opened, copied and shared on mobile and desktop. Production-only specs are discovered/validated with Playwright --list but are NOT executed against production in PR CI.
+- Both production-only specs have afterEach logout protection; the Owner Staff test asserts the owner session is unauthenticated after logout. The production mutation test is mobile-only; Cook/Waiter/Manager dashboard checks run on mobile and desktop.
+- A CI guard enforcing distinct production, preview and local QA D1 bindings was added after run #134. Its validation run is pending/not yet observed; do not assume the latest head has passed until that run completes.
 - The production-only workflow has not run yet because it is triggered from main after PR #122 is merged and Live deployment smoke succeeds.
+
+D1 ENVIRONMENT SEPARATION — VERIFIED / PRESERVED
+- Production top-level bindings remain unchanged and distinct: DB -> restaurant-platform (ed0a6041-9235-495d-8106-a6c642a41c2c); DEMO_DB -> restaurant-platform-preview (98846bad-cd3e-4770-8bee-2076774885e6).
+- The old Preview configuration incorrectly mapped both DB and DEMO_DB to the existing Demo Bistro DEMO_DB. It has been corrected without touching that database.
+- New Preview DB: restaurant-platform-preview-app (e1f36ce9-268c-4419-92e1-ba9297d4ebf8).
+- New Preview DEMO_DB: restaurant-platform-preview-demo (5e4f9a4d-effe-4047-895a-79c778a1f3cf).
+- Both new Preview databases have the 10 repository-tracked migrations applied and the restaurant application row; the new Preview DEMO_DB has no tenant rows yet and will be seeded by the Worker on first demo provisioning.
+- Local QA now uses separate database IDs: restaurant-platform-qa-app (00000000-0000-0000-0000-000000000001) and restaurant-platform-qa-demo (00000000-0000-0000-0000-000000000002). The QA workflow migrates and clears authentication throttles in both.
+- Added wrangler.preview-migrations.jsonc and npm script d1:migrate:preview for future Preview-only migrations. d1:migrate:local now migrates both local bindings.
+- Cloudflare account had 4 D1 databases before these two Preview resources were created; it now has 6, within the documented Free limit of 10. No plan upgrade was made.
+- Existing production DB and existing Demo Bistro DEMO_DB were queried read-only only; their file sizes remained unchanged. No production migration, reset, row cleanup, synthetic order, payment or review was performed.
+- Existing production DEMO_DB has an extra migration named 0010_account_recovery_and_owner_transfer.sql in its migration ledger which is not present in main's database/d1/migrations folder. It was not changed or copied. Fresh Preview databases use only the 10 migrations currently tracked in the repository; recover that missing migration source before relying on its extra tables in a fresh environment.
+- A CI guard now checks that production DB/DEMO_DB, Preview DB/DEMO_DB and local QA DB/DEMO_DB all use distinct IDs and that the Preview migration config matches the Preview bindings. The guard's first CI result is pending.
 
 PRODUCTION WORKER / CLOUDFLARE — READ-ONLY VERIFIED
 - URL: https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev
@@ -88,7 +105,7 @@ IMPORTANT VERIFICATION LIMITS / REMAINING TESTS
 - Production admin bootstrap was previously reported unavailable (bootstrap_available=false). Resolve the supported initial admin provisioning path before real restaurant onboarding; do not weaken guards.
 
 NEXT ACTIONS
-1. Verify latest PR #122 CI after the final production-session cleanup refinements: build, isolated QA, production-spec --list validation; fix and repeat if any failure.
+1. Verify latest PR #122 CI after adding the strict D1 binding-separation guard: build, isolated QA, production-spec --list validation; fix and repeat if any failure.
 2. Inspect PR #122 diff and workflow security; merge only after all required checks pass. The production role smoke workflow starts only after the main Build -> Live deployment smoke chain succeeds.
 3. Inspect production role smoke results and artifact: all four live identities must authenticate to the correct dashboard; demo.admin must be rejected; Owner Staff link/copy/create/revoke checks must pass; test account must be suspended and re-login denied.
 4. Continue isolated local-D1 multi-cycle and rush-hour burst tests, then measure errors/latency and confirm no D1 quota exhaustion.
