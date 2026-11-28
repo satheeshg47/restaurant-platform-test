@@ -18,8 +18,8 @@
     },
     {
       "binding": "DEMO_DB",
-      "database_name": "restaurant-platform-qa",
-      "database_id": "00000000-0000-0000-0000-000000000001",
+      "database_name": "restaurant-platform-demo-qa",
+      "database_id": "00000000-0000-0000-0000-000000000002",
       "migrations_dir": "database/d1/migrations"
     }
   ],
