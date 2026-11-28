@@ -3,8 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Check, LoaderCircle, RefreshCw, Save, Settings } from 'lucide-react'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
-type SettingsData = { display_name:string; currency_code:string; timezone:string; default_language:'en'|'hi'|'kn'; tax_mode:'none'|'single'|'gst'; tax_rate:number|string; gst_rate:number|string; tax_inclusive:boolean; accepting_orders:boolean; legal_name:string|null; gstin:string|null; address_line1:string|null; address_line2:string|null; city:string|null; state_name:string|null; state_code:string|null; postal_code:string|null; invoice_prefix:string }
-const empty:SettingsData = {display_name:'',currency_code:'INR',timezone:'Asia/Kolkata',default_language:'en',tax_mode:'none',tax_rate:0,gst_rate:5,tax_inclusive:false,accepting_orders:true,legal_name:'',gstin:'',address_line1:'',address_line2:'',city:'',state_name:'',state_code:'',postal_code:'',invoice_prefix:'INV'}
+type SettingsData = { display_name:string; currency_code:string; timezone:string; default_language:'en'|'hi'|'kn'; tax_mode:'none'|'single'|'gst'; tax_rate:number|string; gst_rate:number|string; tax_inclusive:boolean; accepting_orders:boolean; legal_name:string|null; gstin:string|null; fssai_license_no:string|null; address_line1:string|null; address_line2:string|null; city:string|null; state_name:string|null; state_code:string|null; postal_code:string|null; invoice_prefix:string }
+const empty:SettingsData = {display_name:'',currency_code:'INR',timezone:'Asia/Kolkata',default_language:'en',tax_mode:'none',tax_rate:0,gst_rate:5,tax_inclusive:false,accepting_orders:true,legal_name:'',gstin:'',fssai_license_no:'',address_line1:'',address_line2:'',city:'',state_name:'',state_code:'',postal_code:'',invoice_prefix:'INV'}
 export default function RestaurantSettings({initialSlug=''}:{initialSlug?:string}={}){
  const [slug,setSlug]=useState(initialSlug)
  const [settings,setSettings]=useState<SettingsData>(empty)
@@ -57,6 +57,7 @@ export default function RestaurantSettings({initialSlug=''}:{initialSlug?:string
    <div className="restaurant-settings-section"><h3>GST invoice business details</h3><p className="restaurant-settings-note">Required before issuing a GST invoice. Enter the registered legal details exactly as shown on the GST registration certificate.</p>
     <div className="restaurant-settings-grid">
      <label>Legal / registered business name<input maxLength={160} value={settings.legal_name||''} onChange={e=>setSettings({...settings,legal_name:e.target.value})}/></label>
+     <label>FSSAI license number (14 digits)<input inputMode="numeric" maxLength={14} value={settings.fssai_license_no||""} onChange={e=>setSettings({...settings,fssai_license_no:e.target.value.replace(/[^0-9]/g,"")})} placeholder="14-digit FSSAI number"/></label>
      <label>GSTIN<input maxLength={15} autoCapitalize="characters" value={settings.gstin||''} onChange={e=>setSettings({...settings,gstin:e.target.value.toUpperCase()})} placeholder="15-character GSTIN"/></label>
      <label>Address line 1<input maxLength={200} value={settings.address_line1||''} onChange={e=>setSettings({...settings,address_line1:e.target.value})}/></label>
      <label>Address line 2<input maxLength={200} value={settings.address_line2||''} onChange={e=>setSettings({...settings,address_line2:e.target.value})}/></label>

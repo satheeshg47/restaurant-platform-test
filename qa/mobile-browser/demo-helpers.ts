@@ -44,8 +44,11 @@ export async function createContextPage(browser: Browser, viewport: { width: num
   return { context, page: await context.newPage() }
 }
 
-export async function placeGuestOrder(page: Page, token: string) {
+export async function placeGuestOrder(page: Page, token: string, guestPin: string) {
   await page.goto('/r/' + DEMO_SLUG + '/' + token)
+  await page.getByLabel('6-digit table PIN').fill(guestPin)
+  await page.getByRole('button', { name: 'Verify PIN' }).click()
+  await expect(page.getByText('Table verified')).toBeVisible()
   const item = page.locator('.guest-item').filter({ hasText: 'Masala Dosa' }).first()
   await expect(item).toBeVisible({ timeout: 20000 })
   const responsePromise = page.waitForResponse(response =>

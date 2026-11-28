@@ -50,20 +50,20 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
   const tokenOne = qrToken(1)
   const tokenTwo = qrToken(2)
   const [orderOne, orderTwo] = await Promise.all([
-    placeGuestOrder(guestOne, tokenOne),
-    placeGuestOrder(guestTwo, tokenTwo),
+    placeGuestOrder(guestOne, tokenOne, sessionOne.guest_pin),
+    placeGuestOrder(guestTwo, tokenTwo, sessionTwo.guest_pin),
   ])
   expect(orderOne.id).not.toBe(orderTwo.id)
   expect(orderOne.order_number).not.toBe(orderTwo.order_number)
 
   expect((await api(guestOne, 'POST', '/api/restaurant/' + DEMO_SLUG + '/guest/' + tokenOne + '/requests', {
-    session_id: sessionOne.id, request_type: 'need_water',
+    session_id: sessionOne.id, guest_pin: sessionOne.guest_pin, request_type: 'need_water',
   })).status).toBe(201)
   expect((await api(guestTwo, 'POST', '/api/restaurant/' + DEMO_SLUG + '/guest/' + tokenTwo + '/requests', {
-    session_id: sessionTwo.id, request_type: 'call_waiter',
+    session_id: sessionTwo.id, guest_pin: sessionTwo.guest_pin, request_type: 'call_waiter',
   })).status).toBe(201)
   expect((await api(guestOne, 'POST', '/api/restaurant/' + DEMO_SLUG + '/guest/' + tokenOne + '/requests', {
-    session_id: sessionOne.id, request_type: 'request_bill',
+    session_id: sessionOne.id, guest_pin: sessionOne.guest_pin, request_type: 'request_bill',
   })).status).toBe(201)
 
   const cookContext = await createContextPage(browser, viewport)
@@ -78,6 +78,9 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
   await expect(groupedBatch).toContainText('Combined quantity 2')
   await expect(groupedBatch).toContainText('Table 1')
   await expect(groupedBatch).toContainText('Table 2')
+  await expect(groupedBatch.getByRole('button', { name: 'Print KOT' })).toBeVisible()
+  await expect(cookPage.getByRole('button', { name: 'Enable chime' })).toBeVisible()
+  await expect(cookPage.getByRole('combobox', { name: 'Thermal printer width' })).toHaveValue('80')
   const kitchen = await api(cookPage, 'GET', '/api/restaurant/' + DEMO_SLUG + '/kitchen/queue')
   expect(kitchen.status).toBe(200)
   const targetRows = kitchen.body.queue.filter((row: any) => [orderOne.id, orderTwo.id].includes(row.order_id))

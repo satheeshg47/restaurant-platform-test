@@ -82,6 +82,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0007_tenant_restore_guard.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0008_native_auth_foundation.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0009_totp_replay_protection.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0010_table_guest_pin_and_fssai.sql', 'utf8'))
   db.exec('CREATE TABLE d1_migrations (name TEXT PRIMARY KEY)')
   db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(
     '0001_platform_core.sql'
@@ -95,6 +96,7 @@ beforeEach(() => {
     '0007_tenant_restore_guard.sql',
     '0008_native_auth_foundation.sql',
     '0009_totp_replay_protection.sql',
+    '0010_table_guest_pin_and_fssai.sql',
   ]) db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(name)
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
@@ -243,7 +245,7 @@ test('D1 health, readiness and protected Super Admin session work', async () => 
   assert.equal(ready.status, 200)
   const readiness = await ready.json()
   assert.equal(readiness.checks.schema, 'complete')
-  assert.equal(readiness.latest_migration, '0009_totp_replay_protection.sql')
+  assert.equal(readiness.latest_migration, '0010_table_guest_pin_and_fssai.sql')
 
   const unauthorized = await call('/admin/session')
   assert.equal(unauthorized.status, 401)
@@ -298,7 +300,7 @@ test('release manifest preflight validates metadata without storing or deploying
   const unsafe=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.4',files:[{...manifest.files[0],path:'../tenant-data/private.json'}]}}})
   assert.equal(unsafe.status,400)
   assert.equal((await unsafe.json()).errors[0].code,'unsafe_file_path')
-  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:10}}})
+  const future=await call('/admin/releases/validate-manifest',{method:'POST',accessToken:adminToken,body:{manifest:{...manifest,version:'1.2.5',database_migration_version:11}}})
   assert.equal(future.status,409)
   assert.equal((await future.json()).error,'database_migration_not_available')
   const unauthorized=await call('/admin/releases/validate-manifest',{method:'POST',body:{manifest}})
@@ -708,13 +710,15 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
       display_name: 'Green Leaf Foods', currency_code: 'INR', timezone: 'Asia/Kolkata',
       default_language: 'kn', tax_mode: 'gst', tax_rate: 0, gst_rate: 5,
       tax_inclusive: false, accepting_orders: true, legal_name: 'Green Leaf Foods Pvt Ltd',
-      gstin: '29ABCDE1234F1Z5', address_line1: '123 Main Street', address_line2: '',
+      gstin: '29ABCDE1234F1Z5', fssai_license_no: '12345678901234', address_line1: '123 Main Street', address_line2: '',
       city: 'Bengaluru', state_name: 'Karnataka', state_code: '29', postal_code: '560001',
       invoice_prefix: 'GLF',
     },
   })
   assert.equal(saved.status, 200)
-  assert.equal((await saved.json()).settings.gstin, '29ABCDE1234F1Z5')
+  const savedSettings = (await saved.json()).settings
+  assert.equal(savedSettings.gstin, '29ABCDE1234F1Z5')
+  assert.equal(savedSettings.fssai_license_no, '12345678901234')
 
   const categoryResponse = await call('/restaurant/green-leaf-kitchen/menu/categories', {
     method: 'POST', accessToken: ownerAccess,
@@ -809,6 +813,8 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   })
   assert.equal(opened.status, 201)
   const session = (await opened.json()).session
+  assert.match(session.guest_pin, /^\d{6}$/)
+  assert.ok(Date.parse(session.guest_pin_expires_at) > Date.now())
   const blockedDeactivate = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}`, {
     method: 'PATCH', accessToken: ownerAccess, body: { active: false },
   })
@@ -837,6 +843,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   const guestData = await qrMenu.json()
   assert.equal(guestData.table.id, table.table.id)
   assert.equal(guestData.session.id, session.id)
+  assert.equal(Object.hasOwn(guestData.session, 'guest_pin'), false)
   assert.equal(guestData.restaurant.display_name, 'Green Leaf Foods')
   assert.equal(guestData.categories.length, 1)
   assert.equal(guestData.items.length, 1)
@@ -844,8 +851,34 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(guestData.categories[0].items[0].id, item.id)
 
   const selectedVariant = db.prepare('SELECT id FROM restaurant_menu_variants WHERE tenant_id=? AND item_id=?').get(tenant.id, item.id)
-  const orderPayload = { session_id: session.id, idempotency_key: 'guest-order-test-0001', note: '  No   onions  ', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
+  const guestVerifyPath = `/restaurant/green-leaf-kitchen/guest/${table.qr_token}/session/verify`
+  const missingPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: '' } })
+  assert.equal(missingPin.status, 401)
+  assert.equal((await missingPin.json()).error, 'guest_pin_required')
+  const wrongPin = String((Number(session.guest_pin) + 1) % 1000000).padStart(6, '0')
+  const invalidPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: wrongPin } })
+  assert.equal(invalidPin.status, 401)
+  assert.equal((await invalidPin.json()).error, 'guest_pin_invalid')
+  const expiredPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: session.guest_pin } })
+  assert.equal(expiredPin.status, 200)
+  assert.equal((await expiredPin.json()).verified, true)
+  db.prepare("UPDATE restaurant_table_sessions SET guest_pin_expires_at='2000-01-01T00:00:00.000Z' WHERE tenant_id=? AND id=?").run(tenant.id, session.id)
+  const expiredAttempt = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: session.guest_pin } })
+  assert.equal(expiredAttempt.status, 410)
+  assert.equal((await expiredAttempt.json()).error, 'guest_pin_expired')
+  const rotatedPin = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/pin`, { method: 'POST', accessToken: ownerAccess, body: {} })
+  assert.equal(rotatedPin.status, 200)
+  const oldPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: session.guest_pin } })
+  assert.equal(oldPin.status, 401)
+  session.guest_pin = (await rotatedPin.json()).session.guest_pin
+  const verifiedPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: session.guest_pin } })
+  assert.equal(verifiedPin.status, 200)
+
+  const orderPayload = { session_id: session.id, guest_pin: session.guest_pin, idempotency_key: 'guest-order-test-0001', note: '  No   onions  ', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
   const guestOrderPath = `/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders`
+  const missingOrderPin = await call(guestOrderPath, { method: 'POST', body: { ...orderPayload, guest_pin: undefined } })
+  assert.equal(missingOrderPin.status, 401)
+  assert.equal((await missingOrderPin.json()).error, 'guest_pin_required')
   const placed = await call(guestOrderPath, { method: 'POST', body: orderPayload })
   assert.equal(placed.status, 201)
   const placedBody = await placed.json()
@@ -863,12 +896,12 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(guestOrderStatus.status, 200)
   assert.equal((await guestOrderStatus.json()).items.length, 1)
   const cancellationRequest = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders/${placedBody.order.id}/cancel`, {
-    method: 'POST', body: { session_id: session.id },
+    method: 'POST', body: { session_id: session.id, guest_pin: session.guest_pin },
   })
   assert.equal(cancellationRequest.status, 201)
   assert.equal((await cancellationRequest.json()).request.status, 'open')
   const guestServiceRequest = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/requests`, {
-    method: 'POST', body: { session_id: session.id, request_type: 'need_water', note: 'Please bring water' },
+    method: 'POST', body: { session_id: session.id, guest_pin: session.guest_pin, request_type: 'need_water', note: 'Please bring water' },
   })
   assert.equal(guestServiceRequest.status, 201)
   assert.equal((await guestServiceRequest.json()).request.status, 'open')
@@ -944,6 +977,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(invoiceBody.invoice.cgst_minor, 25)
   assert.equal(invoiceBody.invoice.sgst_minor, 25)
   assert.equal(invoiceBody.invoice.seller_snapshot.gstin, '29ABCDE1234F1Z5')
+  assert.equal(invoiceBody.invoice.seller_snapshot.fssai_license_no, '12345678901234')
   const duplicateInvoice = await call(`/restaurant/green-leaf-kitchen/waiter/sessions/${invoiceSession.id}/invoice`, { method: 'POST', accessToken: ownerAccess })
   assert.equal(duplicateInvoice.status, 200)
   assert.equal((await duplicateInvoice.json()).invoice.id, invoiceBody.invoice.id)

@@ -44,7 +44,7 @@ jobs:
         run: |
           npm run db:migrate
           npm run db:migrate
-          test "$(psql "$DATABASE_URL" -tAc 'SELECT count(*) FROM platform_schema_migrations')" = "13"
+          test "$(psql "$DATABASE_URL" -tAc 'SELECT count(*) FROM platform_schema_migrations')" = "14"
       - name: Build frontend
         run: npm run build
       - name: Bundle Worker without deploying

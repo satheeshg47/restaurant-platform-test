@@ -50,7 +50,7 @@ async function invoiceForSession(env: Env, actor: Actor, sessionId: string) {
   if (!UUID.test(sessionId)) fail(404,'table_session_not_found')
   const existing = await env.DB.prepare('SELECT * FROM restaurant_invoices WHERE tenant_id=? AND session_id=?').bind(actor.tenantId,sessionId).first<Record<string,unknown>>()
   if (existing) return { invoice: normalizeInvoice(existing), existing: true }
-  const session = await env.DB.prepare(`SELECT s.id,s.status,t.label AS table_label,p.display_name,p.legal_name,p.gstin,p.address_line1,p.address_line2,p.city,p.state_name,p.state_code,p.postal_code,p.invoice_prefix,p.tax_mode,p.gst_rate,p.tax_inclusive,p.timezone
+  const session = await env.DB.prepare(`SELECT s.id,s.status,t.label AS table_label,p.display_name,p.legal_name,p.gstin,p.fssai_license_no,p.address_line1,p.address_line2,p.city,p.state_name,p.state_code,p.postal_code,p.invoice_prefix,p.tax_mode,p.gst_rate,p.tax_inclusive,p.timezone
     FROM restaurant_table_sessions s JOIN restaurant_tables t ON t.tenant_id=s.tenant_id AND t.id=s.table_id
     JOIN restaurant_profiles p ON p.tenant_id=s.tenant_id WHERE s.tenant_id=? AND s.id=?`).bind(actor.tenantId,sessionId).first<Record<string,unknown>>()
   if (!session) throw Object.assign(new Error('table_session_not_found'), { status: 404 })
@@ -94,7 +94,7 @@ async function invoiceForSession(env: Env, actor: Actor, sessionId: string) {
   if (!counter) throw Object.assign(new Error('invoice_number_allocation_failed'), { status: 500 })
   const prefix = String(session.invoice_prefix||'INV')
   const invoiceNumber = prefix+'/'+fy+'/'+String(counter.allocated_number).padStart(6,'0')
-  const seller = {display_name:session.display_name,legal_name:session.legal_name,gstin,address_line1:session.address_line1,address_line2:session.address_line2,city:session.city,state_name:session.state_name,state_code:stateCode,postal_code:session.postal_code,place_of_supply:stateCode+'-'+session.state_name}
+  const seller = {display_name:session.display_name,legal_name:session.legal_name,gstin,fssai_license_no:session.fssai_license_no,address_line1:session.address_line1,address_line2:session.address_line2,city:session.city,state_name:session.state_name,state_code:stateCode,postal_code:session.postal_code,place_of_supply:stateCode+'-'+session.state_name}
   const itemsSnapshot = items.results.map(row=>({order_number:orders.results.find(o=>o.id===row.order_id)?.order_number,item_name:row.item_name_snapshot,variant_name:row.variant_name_snapshot,addons:parseJson(row.addons_snapshot,[]),quantity:row.quantity,unit_price_minor:row.unit_price_minor,addons_price_minor:row.addons_price_minor,line_total_minor:row.line_total_minor,hsn_sac_code:row.hsn_sac_code}))
   const taxRate = Number(orders.results[0].tax_rate_snapshot ?? session.gst_rate)
   try {

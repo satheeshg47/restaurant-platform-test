@@ -24,7 +24,7 @@ export async function handleRestaurantInvoice(request, response, { database, ten
     if (!UUID.test(sessionId || '')) fail(404, 'table_session_not_found')
     const invoice = await withTenantTransaction(database, tenantId, async client => {
       const session = await client.query(
-        `SELECT s.id,s.status,t.label AS table_label,p.display_name,p.legal_name,p.gstin,
+        `SELECT s.id,s.status,t.label AS table_label,p.display_name,p.legal_name,p.gstin,p.fssai_license_no,
            p.address_line1,p.address_line2,p.city,p.state_name,p.state_code,p.postal_code,
            p.invoice_prefix,p.tax_mode,p.gst_rate,p.tax_inclusive
          FROM restaurant_table_sessions s
@@ -116,7 +116,7 @@ export async function handleRestaurantInvoice(request, response, { database, ten
       )
       const invoiceNumber = `${profile.invoice_prefix}/${fy}/${String(counter.rows[0].allocated_number).padStart(6,'0')}`
       const seller = {
-        display_name: profile.display_name, legal_name: profile.legal_name, gstin: profile.gstin,
+        display_name: profile.display_name, legal_name: profile.legal_name, gstin: profile.gstin, fssai_license_no: profile.fssai_license_no,
         address_line1: profile.address_line1, address_line2: profile.address_line2,
         city: profile.city, state_name: profile.state_name, state_code: String(profile.state_code),
         postal_code: profile.postal_code, place_of_supply: `${profile.state_code}-${profile.state_name}`,

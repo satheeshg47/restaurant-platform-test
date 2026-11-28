@@ -1,4 +1,5 @@
 import type { Env } from './types.ts'
+import { verifyGuestSessionPin } from './guest-session-security.ts'
 
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -38,8 +39,7 @@ export async function handleGuestOrder(request: Request, env: Env, tenantId: str
     const tokenHash = [...hashBytes].map(x => x.toString(16).padStart(2, '0')).join('')
     const table = await env.DB.prepare("SELECT id FROM restaurant_tables WHERE tenant_id=? AND public_token_hash=? AND active=1").bind(tenantId, tokenHash).first<{id:string}>()
     if (!table) bad(404, 'qr_not_found')
-    const session = await env.DB.prepare("SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND id=? AND status='open'").bind(tenantId, table.id, sessionId).first()
-    if (!session) bad(409, 'table_session_not_open')
+    await verifyGuestSessionPin(env, tenantId, table.id, sessionId, body.guest_pin)
     const profile = await env.DB.prepare('SELECT accepting_orders,tax_mode,tax_rate,gst_rate,tax_inclusive FROM restaurant_profiles WHERE tenant_id=?').bind(tenantId).first<Record<string, unknown>>()
     if (!profile || !Boolean(profile.accepting_orders)) bad(409, 'restaurant_not_accepting_orders')
     const recent = await env.DB.prepare("SELECT count(*) AS count FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND created_at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-10 minutes')").bind(tenantId,sessionId).first<{count:number}>()
