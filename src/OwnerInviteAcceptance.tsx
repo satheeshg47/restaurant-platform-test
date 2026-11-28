@@ -122,7 +122,7 @@ export default function OwnerInviteAcceptance({ accessToken, apiBaseUrl, onAccep
       </form>}
       {state === 'ready' && <button className="signin-button" onClick={() => void accept()}>Accept invitation <ArrowRight size={16}/></button>}
       {state === 'sending' && <div className="owner-home-state">Verifying invitation and creating your secure owner account…</div>}
-      {state === 'error' && <button className="signin-button" onClick={() => setState(accessToken || idToken ? 'ready' : 'setup')}>Try again</button>}
+      {state === 'error' && <button className="signin-button" onClick={() => setState(accessToken ? 'ready' : 'setup')}>Try again</button>}
       {accessToken && <button className="signin-link" type="button" onClick={onSignOut}>Sign out to switch account</button>}
     </>}
     <div className="signin-foot">The invitation is one-time use and expires after 48 hours. Sign in with email or username and password.</div>
