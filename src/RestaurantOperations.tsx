@@ -1,4 +1,5 @@
 import { apiFetch } from './auth'
+import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Check, ChefHat, RefreshCw, Utensils, Users, Bell, X } from 'lucide-react'
 
@@ -265,7 +266,7 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
       <div className="restaurant-kitchen-list">{groupedQueue.map(rows => {
         const row = rows[0]
         return <article className="restaurant-kitchen-card restaurant-kitchen-batch-card" key={row.batch_id}>
-          <div className="restaurant-kitchen-card-top"><span>{rows.length} table orders · {Array.from(new Set(rows.map(item => item.table_label))).join(' · ')}</span><span>{when(row.batch_created_at)}</span><button className="secondary small" onClick={() => { setPrintTicket(rows); window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print())) }}>Print KOT</button></div>
+          <div className="restaurant-kitchen-card-top"><span>{rows.length} table orders · {Array.from(new Set(rows.map(item => item.table_label))).join(' · ')}</span><span>{when(row.batch_created_at)}</span><button className="secondary small" onClick={() => { flushSync(() => setPrintTicket(rows)); window.print() }}>Print KOT</button></div>
           <div className="restaurant-kitchen-main"><div><h3>{row.item_name_snapshot}{row.variant_name_snapshot ? ` · ${row.variant_name_snapshot}` : ''}</h3><p>Combined quantity <b>{row.total_quantity}</b>{row.addons_snapshot?.length ? ' · ' + row.addons_snapshot.map(a => a.name).join(', ') : ''}</p></div><span className={`restaurant-ops-status ${row.batch_status}`}>{labelStatus(row.batch_status)}</span></div>
           <div className="restaurant-kitchen-breakdown">
             {rows.map(allocation => <div className="restaurant-kitchen-allocation" key={allocation.order_item_id}>
