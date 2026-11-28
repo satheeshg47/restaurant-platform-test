@@ -12,8 +12,10 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
   const viewport = testInfo.project.use.viewport as { width: number; height: number }
   const admin = await signIn(page, QA_CREDENTIALS.admin)
   expect(admin.is_admin).toBe(true)
-  // Demo Bistro is reset once by demo-admin-owner.spec.ts for each viewport.
-  // Re-resetting here doubles destructive D1 writes without improving isolation.
+  // This endpoint is restricted to preview and runs against this job's disposable local D1.
+  // Reset on every test attempt so Playwright retries cannot inherit half-finished sessions.
+  const reset = await api(page, 'POST', '/api/admin/demo-restaurant/reset', {})
+  expect(reset.status, JSON.stringify(reset.body)).toBe(200)
   const ownerContext = await createContextPage(browser, viewport)
   const ownerPage = ownerContext.page
   const owner = await signIn(ownerPage, QA_CREDENTIALS.owner)
