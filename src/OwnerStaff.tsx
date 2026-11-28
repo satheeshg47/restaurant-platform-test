@@ -141,9 +141,9 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api', demoMode = f
     {demoMode && <div className="owner-staff-created">
       <b>Demo staff sign-in accounts</b>
       <p>Share the sign-in link with each team member. They should open it on their own device and use their assigned account. All demo activity stays inside Demo Bistro.</p>
-      <div className="owner-staff-demo-link"><span><b>Cook</b><code>demo.cook</code><code>DemoCook#2026!</code></span><a className="owner-staff-secondary" href="/staff" target="_blank" rel="noreferrer">Open cook sign-in link ↗</a></div>
-      <div className="owner-staff-demo-link"><span><b>Waiter</b><code>demo.waiter</code><code>DemoWaiter#2026!</code></span><a className="owner-staff-secondary" href="/staff" target="_blank" rel="noreferrer">Open waiter sign-in link ↗</a></div>
-      <div className="owner-staff-demo-link"><span><b>Manager</b><code>demo.manager</code><code>DemoManager#2026!</code></span><a className="owner-staff-secondary" href="/staff" target="_blank" rel="noreferrer">Open manager sign-in link ↗</a></div>
+      <div className="owner-staff-demo-link"><span><b>Cook</b><code>demo.cook</code><code>DemoCook#2026!</code></span><a className="owner-staff-secondary" href="/staff?login=1" target="_blank" rel="noreferrer">Open cook sign-in link ↗</a></div>
+      <div className="owner-staff-demo-link"><span><b>Waiter</b><code>demo.waiter</code><code>DemoWaiter#2026!</code></span><a className="owner-staff-secondary" href="/staff?login=1" target="_blank" rel="noreferrer">Open waiter sign-in link ↗</a></div>
+      <div className="owner-staff-demo-link"><span><b>Manager</b><code>demo.manager</code><code>DemoManager#2026!</code></span><a className="owner-staff-secondary" href="/staff?login=1" target="_blank" rel="noreferrer">Open manager sign-in link ↗</a></div>
     </div>}
     {showCreate && <form className="owner-staff-form" onSubmit={createStaff}>
       <h3>Create individual staff login</h3>
