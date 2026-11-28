@@ -1,13 +1,13 @@
 RESTAURANT PLATFORM — LIVING HANDOFF
-Last updated: 2026-11-28 21:20 IST (Asia/Kolkata)
+Last updated: 2026-11-28 21:52 IST (Asia/Kolkata)
 Repository: satheeshg47/restaurant-platform-test
 Default branch: main
 Main application commit: 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
 Current work branch: fix/qa-guide-rate-limit-reset
-Current work commit before this handoff update: 3d0259660d6a1859f9693e23b5883bb11be3ba08
+Current work commit before this handoff update: c48941ee60f52d637d5571ec55a013848d58dc29
 Open PR: #122 — https://github.com/satheeshg47/restaurant-platform-test/pull/122
 PR #122 base: main @ 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
-PR #122 head before this handoff update: 3d0259660d6a1859f9693e23b5883bb11be3ba08
+PR #122 head before this handoff update: c48941ee60f52d637d5571ec55a013848d58dc29
 PR #121: MERGED — production Demo Bistro owner/cook/waiter/manager authentication, role-specific /staff?login=1 links, and preview-only demo.admin guard.
 PR #121 merge commit: 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
 
@@ -15,6 +15,7 @@ PR #122 SCOPE
 - Fix isolated QA walkthrough rate-limit exhaustion by deleting platform_auth_rate_limits only from disposable local D1 after Playwright tests and before guide capture. The step is conditional on BASE_URL starting http://127.0.0.1: and never runs against a remote preview or production.
 - Add manager credentials to the isolated browser QA helper.
 - Enforce strict D1 separation: production DB/DEMO_DB remain distinct; Preview now uses two new isolated D1 databases; local QA uses two different local D1 databases. Add a dedicated preview migration config/script and CI assertion preventing any binding overlap.
+- Preview D1 databases created and independently migrated through all 10 migrations: `restaurant-platform-preview-app` (`e1f36ce9-268c-4419-92e1-ba9297d4ebf8`) and `restaurant-platform-preview-demo` (`5e4f9a4d-effe-4047-895a-79c778a1f3cf`). Each database has its own migration ledger and reports migrations 0001–0010 applied. No production D1 data was modified.
 - Fix preview-only demo.admin authorization lookup so the exact demo-platform-admin identity is verified in DEMO_DB only when ENVIRONMENT=preview; production admin checks remain on DB and production demo.admin rejection is preserved.
 - Add a production-only Playwright config and tests for live role sign-in, owner staff links, creation of one stable QA waiter account, clipboard copy, role access, suspension, session revocation and rejected re-login. The Owner Staff mutation test runs once on mobile; cook/waiter/manager dashboard checks run on mobile and desktop to limit repeated production auth attempts.
 - Add .github/workflows/production-demo-role-smoke.yml, triggered only after successful Live deployment smoke test on main. It checks demo.admin rejection, verifies owner/staff access, and creates/revokes one QA staff record only in DEMO_DB after PR #122 is merged and the next main deployment passes smoke.
@@ -105,9 +106,9 @@ IMPORTANT VERIFICATION LIMITS / REMAINING TESTS
 - Production admin bootstrap was previously reported unavailable (bootstrap_available=false). Resolve the supported initial admin provisioning path before real restaurant onboarding; do not weaken guards.
 
 NEXT ACTIONS
-1. Verify latest PR #122 CI after adding the strict D1 binding-separation guard: build, isolated QA, production-spec --list validation; fix and repeat if any failure.
-2. Inspect PR #122 diff and workflow security; merge only after all required checks pass. The production role smoke workflow starts only after the main Build -> Live deployment smoke chain succeeds.
-3. Inspect production role smoke results and artifact: all four live identities must authenticate to the correct dashboard; demo.admin must be rejected; Owner Staff link/copy/create/revoke checks must pass; test account must be suspended and re-login denied.
+1. Verify latest PR #122 CI after the strict D1 binding-separation guard and separate preview/local D1 configs: Build #617 SUCCESS; authenticated isolated QA #136 SUCCESS (36 passed, 0 failed, 0 skipped; 54 screens captured, 0 unavailable). Preview DB and Demo Bistro preview DB both independently migrated through 0010. Update this handoff after each new CI/deployment run.
+2. Inspect PR #122 diff and workflow security; merge only after all required checks pass. PR is still OPEN, mergeable, and not deployed. The production role smoke workflow starts only after the main Build -> Live deployment smoke chain succeeds.
+3. Inspect production role smoke results after deployment: all four live identities must authenticate to the correct dashboard; demo.admin must be rejected; Owner Staff link/copy/create/revoke checks must pass; test account must be suspended and re-login denied. No live production role sign-in has yet been executed by PR #122.
 4. Continue isolated local-D1 multi-cycle and rush-hour burst tests, then measure errors/latency and confirm no D1 quota exhaustion.
 5. Complete physical 58mm/80mm printer checks.
 6. Complete GitHub and Cloudflare account transfer to satheeshg047-hub only after preserving all resources and confirming access.
