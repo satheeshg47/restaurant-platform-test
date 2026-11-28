@@ -398,7 +398,7 @@ function Overview({ setSection }: { setSection: (s: Section)=>void }) {
 
 function AdminArea({ setSection }: { setSection: (s: Section) => void }) {
   const tools: { title: string; description: string; section: Section; icon: typeof Settings }[] = [
-    { title: 'Security & access', description: 'Administrator identity, MFA and access controls.', section: 'Security', icon: LockKeyhole },
+    { title: 'Security & access', description: 'Native password sign-in and tenant access controls.', section: 'Security', icon: LockKeyhole },
     { title: 'Data & backups', description: 'Database health, exports and recovery readiness.', section: 'Data & Backups', icon: Database },
     { title: 'Monitoring', description: 'Service health, platform metrics and incidents.', section: 'Monitoring', icon: Activity },
     { title: 'Audit log', description: 'Review important administrative actions.', section: 'Audit Log', icon: ScrollText },
