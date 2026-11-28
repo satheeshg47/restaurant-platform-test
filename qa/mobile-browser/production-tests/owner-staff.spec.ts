@@ -25,6 +25,20 @@ test('production Owner Staff panel opens role links, creates a QA waiter, and re
   await staffNav.click()
   const panel = page.locator('.owner-staff')
   await expect(panel).toBeVisible()
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  const signInRow = panel.locator('.owner-staff-signin-link')
+  await expect(signInRow.getByRole('link', { name: /Open staff sign-in/ })).toHaveAttribute('href', '/staff?login=1')
+  await signInRow.getByRole('button', { name: 'Copy staff sign-in link' }).click()
+  await expect(panel.locator('.owner-staff-notice')).toContainText('Staff sign-in link copied.')
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: async (data: any) => { (window as any).__sharedStaffLink = data },
+    })
+  })
+  await signInRow.getByRole('button', { name: 'Share staff sign-in link' }).click()
+  const sharedStaffLink = await page.evaluate(() => (window as any).__sharedStaffLink)
+  expect(sharedStaffLink.url).toBe(new URL('/staff?login=1', page.url()).toString())
   const demoLinks = panel.locator('.owner-staff-demo-link')
   await expect(demoLinks).toHaveCount(3)
   for (const role of ['Cook', 'Waiter', 'Manager']) {
@@ -49,7 +63,6 @@ test('production Owner Staff panel opens role links, creates a QA waiter, and re
     let record = initialList.body.staff.find((entry: any) => entry.login_id === loginId)
 
     if (!record) {
-      await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
       await panel.locator('.owner-staff-toolbar').getByRole('button', { name: /Add staff/ }).click()
       const form = panel.locator('.owner-staff-form')
       await expect(form).toBeVisible()
