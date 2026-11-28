@@ -131,6 +131,7 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
   }, [playChime, request, slug, tab])
 
   useEffect(() => { if (slug.trim()) void refresh() }, [tab])
+  useEffect(() => { const clearTicket = () => setPrintTicket(null); window.addEventListener('afterprint', clearTicket); return () => window.removeEventListener('afterprint', clearTicket) }, [])
   useEffect(() => {
     if (!slug.trim()) return
     const onOnline = () => { setIsOnline(true); void refresh() }
