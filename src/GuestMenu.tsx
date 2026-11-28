@@ -15,7 +15,7 @@ type Category = { id: string; name: Localized; items: MenuItem[] }
 type MenuPayload = {
   restaurant: { display_name?: string; currency_code?: string; default_language?: string; accepting_orders?: boolean } | null
   table: { label: string; table_type: string }
-  session: { id: string; status: string } | null
+  session: { id: string; status: string; guest_pin_expires_at?: string | null } | null
   categories: Category[]
 }
 type CartLine = { key: string; item: MenuItem; variantId: string | null; addonIds: string[]; quantity: number }
@@ -35,6 +35,11 @@ function errorText(code: string) {
     order_rate_limited: 'Please wait a moment before placing another order.',
     no_orderable_items: 'These items are no longer available. Please refresh the menu.',
     qr_not_found: 'This QR code is invalid or has been deactivated.',
+    guest_pin_required: 'Enter the current table PIN shared by your server.',
+    guest_pin_invalid: 'That table PIN is incorrect. Check with your server and try again.',
+    guest_pin_expired: 'This table PIN has expired. Ask your server for a new PIN.',
+    guest_pin_locked: 'PIN entry is temporarily locked. Ask your server to generate a new PIN.',
+    guest_pin_not_set: 'Ask your server to generate the table PIN before ordering.',
   }
   return messages[code] || 'Something went wrong. Please try again or ask your server for help.'
 }
@@ -58,6 +63,10 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
   const [placed, setPlaced] = useState<{ id: string; number: number | string; total: number | string } | null>(null)
   const [orderStatus, setOrderStatus] = useState('new')
   const [lastOpenSessionId, setLastOpenSessionId] = useState('')
+  const [pinInput, setPinInput] = useState('')
+  const [sessionPin, setSessionPin] = useState('')
+  const [pinBusy, setPinBusy] = useState(false)
+  const [pinError, setPinError] = useState('')
   const [reviewSessionId, setReviewSessionId] = useState('')
   const [reviewRating, setReviewRating] = useState(5)
   const [reviewComment, setReviewComment] = useState('')
@@ -103,6 +112,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
   }
 
   useEffect(() => { void loadMenu() }, [slug, token])
+  useEffect(() => { setSessionPin(''); setPinInput(''); setPinError('') }, [menu?.session?.id])
 
   useEffect(() => {
     const pollSession = async () => {
@@ -224,8 +234,23 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
     setCart(current => current.flatMap(line => line.key !== key ? [line] : line.quantity + delta <= 0 ? [] : [{ ...line, quantity: line.quantity + delta }]))
   }
 
+  async function verifyTablePin() {
+    if (!menu?.session?.id || !/^\\d{6}$/.test(pinInput) || pinBusy) return
+    setPinBusy(true); setPinError('')
+    try {
+      const response = await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug)}/guest/${encodeURIComponent(token)}/session/verify`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ session_id: menu.session.id, pin: pinInput }),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(body.error || 'guest_pin_invalid')
+      setSessionPin(pinInput); setPinInput(''); setPinError('')
+    } catch (error) { setPinError(errorText(error instanceof Error ? error.message : 'guest_pin_invalid')) }
+    finally { setPinBusy(false) }
+  }
+
   async function placeOrder() {
-    if (!menu?.session?.id || !cart.length || sending) return
+    if (!menu?.session?.id || !sessionPin || !cart.length || sending) return
     setSending(true)
     setNotice('')
     try {
@@ -233,6 +258,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
         method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
           session_id: menu.session.id,
+          guest_pin: sessionPin,
           idempotency_key: crypto.randomUUID(),
           items: cart.map(line => ({ item_id: line.item.id, quantity: line.quantity, ...(line.variantId ? { variant_id: line.variantId } : {}), addon_ids: line.addonIds })),
         }),
@@ -269,11 +295,11 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
   }
 
   async function callWaiter(requestType: 'call_waiter' | 'need_water' | 'request_bill') {
-    if (!menu?.session?.id) { setNotice('Please ask your server for assistance.'); return }
+    if (!menu?.session?.id || !sessionPin) { setNotice('Enter the current table PIN shared by your server first.'); return }
     try {
       const response = await fetch(`${API_BASE}/restaurant/${encodeURIComponent(slug)}/guest/${encodeURIComponent(token)}/requests`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: menu.session.id, request_type: requestType }),
+        body: JSON.stringify({ session_id: menu.session.id, guest_pin: sessionPin, request_type: requestType }),
       })
       if (!response.ok) throw new Error('request_failed')
       setNotice(requestType === 'call_waiter' ? 'Your server has been notified.' : requestType === 'need_water' ? 'Your water request has been sent.' : 'Your bill request has been sent.')
@@ -292,6 +318,14 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
         <select aria-label="Menu language" value={language} onChange={event => setLanguage(event.target.value)}><option value="en">English</option><option value="hi">हिन्दी</option><option value="kn">ಕನ್ನಡ</option><option value="ta">தமிழ்</option><option value="te">తెలుగు</option><option value="ml">മലയാളം</option></select>
       </header>
       <section className="guest-welcome"><span className="guest-kicker">WELCOME</span><h1>What would you like today?</h1><p>Browse the menu and add your favourites to the order.</p><div className="guest-table-pill"><span/> {menu.table?.label || 'Your table'} {menu.session ? '· Service is open' : '· Waiting for service'}</div></section>
+      {menu.session && <section className="guest-pin-card" aria-label="Table access PIN">
+        {sessionPin ? <><b><CheckCircle2 size={16}/> Table verified</b><p>You can place orders and request service for this active visit.</p><button type="button" className="guest-secondary" onClick={() => { setSessionPin(''); setPinInput('') }}>Change PIN</button></> : <>
+          <span className="guest-kicker">TABLE SECURITY</span><h2>Enter your table PIN</h2><p>Ask your server for the current 6-digit PIN. Your saved QR link alone cannot place orders.</p>
+          <div className="guest-pin-entry"><input aria-label="6-digit table PIN" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={pinInput} onChange={event => setPinInput(event.target.value.replace(/\\D/g, '').slice(0,6))} placeholder="••••••"/><button type="button" className="guest-primary" disabled={pinBusy || pinInput.length!==6} onClick={() => void verifyTablePin()}>{pinBusy ? 'Checking…' : 'Verify PIN'}</button></div>
+          {pinError && <p className="guest-form-error" role="alert">{pinError}</p>}
+          {menu.session.guest_pin_expires_at && <small>PIN expires {new Date(menu.session.guest_pin_expires_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</small>}
+        </>}
+      </section>}
       {!menu.session && (reviewSessionId || lastOpenSessionId) && <section className="guest-review-card" aria-label="Share your feedback">
         {reviewSubmitted ? <><b>Thank you for your feedback!</b><p>Your review has been received.</p></> : <>
           <span className="guest-kicker">HOW WAS YOUR VISIT?</span><h2>Rate your experience</h2><p>Your feedback helps this restaurant improve.</p>
@@ -303,7 +337,7 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
           <button className="guest-primary" disabled={reviewSending} onClick={()=>void submitReview()}>{reviewSending?'Sending review…':'Submit review'}</button>
         </>}
       </section>}
-      <div className="guest-quick-actions" aria-label="Table service requests"><button className="guest-service-action waiter" onClick={() => void callWaiter('call_waiter')}><BellRing size={17}/><span>Call waiter</span></button><button className="guest-service-action water" onClick={() => void callWaiter('need_water')}><Droplets size={17}/><span>Request water</span></button><button className="guest-service-action bill" onClick={() => void callWaiter('request_bill')}><ReceiptText size={17}/><span>Request bill</span></button></div>
+      <div className="guest-quick-actions" aria-label="Table service requests"><button className="guest-service-action waiter" disabled={!sessionPin} onClick={() => void callWaiter('call_waiter')}><BellRing size={17}/><span>Call waiter</span></button><button className="guest-service-action water" disabled={!sessionPin} onClick={() => void callWaiter('need_water')}><Droplets size={17}/><span>Request water</span></button><button className="guest-service-action bill" disabled={!sessionPin} onClick={() => void callWaiter('request_bill')}><ReceiptText size={17}/><span>Request bill</span></button></div>
       {notice && <div className="guest-notice" role="status">{notice}<button onClick={() => setNotice('')} aria-label="Dismiss"><X size={15}/></button></div>}
       <nav className="guest-categories" aria-label="Menu categories">{categories.map(category => <button key={category.id} type="button" className={activeCategory === category.id ? 'active' : ''} aria-current={activeCategory === category.id ? 'location' : undefined} onClick={() => selectCategory(category.id)}>{localized(category.name, language)}</button>)}</nav>
       <main className="guest-menu-list">
@@ -339,8 +373,9 @@ export default function GuestMenu({ slug, token }: { slug: string; token: string
         {cart.map(line => { const variant = line.item.variants.find(value => value.id === line.variantId); const addons = line.item.addon_groups.flatMap(group => group.addons).filter(addon => line.addonIds.includes(addon.id)); const unit = Number(variant?.price_minor ?? line.item.base_price_minor) + addons.reduce((n, addon) => n + Number(addon.price_minor), 0); return <div className="guest-cart-line" key={line.key}><div><b>{localized(line.item.name, language)}</b><small>{[variant && localized(variant.name, language), ...addons.map(a => localized(a.name, language))].filter(Boolean).join(' · ')}</small><strong>{money(unit * line.quantity, currency)}</strong></div><div className="guest-quantity"><button onClick={() => changeQuantity(line.key, -1)} aria-label="Decrease quantity"><Minus size={14}/></button><b>{line.quantity}</b><button onClick={() => changeQuantity(line.key, 1)} aria-label="Increase quantity"><Plus size={14}/></button></div></div> })}
         <div className="guest-cart-total"><span>Estimated total</span><strong>{money(cartTotal, currency)}</strong></div>
         {!menu.session && <p className="guest-form-error">Please ask your server to open this table before ordering.</p>}
+        {menu.session && !sessionPin && <p className="guest-form-error">Verify the current table PIN before placing your order.</p>}
         {notice && <p className="guest-form-error">{notice}</p>}
-        <button className="guest-primary" disabled={!menu.session || sending || !cart.length || !menu.restaurant?.accepting_orders} onClick={() => void placeOrder()}>{sending ? 'Sending order…' : 'Place order · ' + money(cartTotal, currency)}</button>
+        <button className="guest-primary" disabled={!menu.session || !sessionPin || sending || !cart.length || !menu.restaurant?.accepting_orders} onClick={() => void placeOrder()}>{sending ? 'Sending order…' : 'Place order · ' + money(cartTotal, currency)}</button>
         <button className="guest-secondary" onClick={() => setCartOpen(false)}>Continue browsing</button>
       </section></div>}
     </div>
