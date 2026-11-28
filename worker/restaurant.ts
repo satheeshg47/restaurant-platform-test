@@ -362,7 +362,7 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
     try {
       const sessionId = crypto.randomUUID()
       const guestPin = createGuestPin()
-      const pinExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()
+      const pinExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
       const pinHash = await hashGuestPin(sessionId, guestPin)
       const result = await env.DB.prepare(
         `INSERT INTO restaurant_table_sessions(id,tenant_id,table_id,guest_count,opened_by,guest_pin_hash,guest_pin_expires_at,guest_pin_attempts)
