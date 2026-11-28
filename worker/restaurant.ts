@@ -6,7 +6,7 @@ import { handleGuestReviewRoutes, handleRestaurantReviewRoutes } from './restaur
 import { handleRestaurantDataExport } from './restaurant-export.ts'
 import { handleGuestOrder } from './guest-orders.ts'
 import { handleGuestLifecycle } from './guest-lifecycle.ts'
-import { hashGuestPin } from './guest-session-security.ts'
+import { hashGuestPin, verifyGuestSessionPin } from './guest-session-security.ts'
 import type { Env, Identity } from './types.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -383,7 +383,7 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
       .bind(actor.tenantId, tableId, sessionId).first()
     if (!session) fail(404, 'session_not_found')
     const guestPin = createGuestPin()
-    const pinExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()
+    const pinExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
     const pinHash = await hashGuestPin(sessionId, guestPin)
     const result = await env.DB.prepare("UPDATE restaurant_table_sessions SET guest_pin_hash=?,guest_pin_expires_at=?,guest_pin_attempts=0 WHERE tenant_id=? AND table_id=? AND id=? AND status='open' RETURNING id,guest_pin_expires_at")
       .bind(pinHash, pinExpiresAt, actor.tenantId, tableId, sessionId).first<Record<string, unknown>>()
@@ -436,6 +436,19 @@ export async function handleRestaurantRoutes(request: Request, env: Env, path: s
   try { tenantId = await resolveTenant(dataEnv, slug) }
   catch (error) { return errorResponse(error, 'restaurant_lookup_failed') }
 
+  if (parts[2] === 'guest' && parts.length === 6 && parts[4] === 'session' && parts[5] === 'verify' && request.method === 'POST') {
+    let body: Record<string, unknown>
+    try { body = await request.json() as Record<string, unknown> }
+    catch { return json(400, { error: 'invalid_json' }) }
+    try {
+      await verifyGuestSessionPin(dataEnv, tenantId, parts[3], String(body.session_id || ''), body.pin)
+      return json(200, { verified: true })
+    } catch (error) {
+      const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500
+      const code = error instanceof Error ? error.message : 'guest_pin_verification_failed'
+      return json(status, { error: code })
+    }
+  }
   if (parts[2] === 'guest' && parts.length === 5 && parts[4] === 'menu' && request.method === 'GET') {
     return handleGuestMenu(dataEnv, tenantId, parts[3])
   }
