@@ -35,6 +35,38 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Enforce strict D1 and DEMO_DB separation
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'))
+          const idFor = (items, binding) => items?.find((item) => item.binding === binding)?.database_id
+          const production = read('wrangler.jsonc')
+          const qa = read('wrangler.qa.jsonc')
+          const previewMigrations = read('wrangler.preview-migrations.jsonc')
+          const pairs = {
+            production: [idFor(production.d1_databases, 'DB'), idFor(production.d1_databases, 'DEMO_DB')],
+            preview: [idFor(production.previews?.d1_databases, 'DB'), idFor(production.previews?.d1_databases, 'DEMO_DB')],
+            localQA: [idFor(qa.d1_databases, 'DB'), idFor(qa.d1_databases, 'DEMO_DB')],
+          }
+          for (const [name, ids] of Object.entries(pairs)) {
+            if (!ids[0] || !ids[1] || ids[0] === ids[1]) {
+              throw new Error(name + ' DB and DEMO_DB must both exist and use different D1 database IDs.')
+            }
+          }
+          const allIds = Object.values(pairs).flat()
+          if (new Set(allIds).size !== allIds.length) {
+            throw new Error('Production, preview and local QA D1 databases must not share database IDs.')
+          }
+          if (
+            idFor(previewMigrations.d1_databases, 'DB') !== pairs.preview[0] ||
+            idFor(previewMigrations.d1_databases, 'DEMO_DB') !== pairs.preview[1]
+          ) {
+            throw new Error('Preview migration config must target the exact isolated preview DB and DEMO_DB bindings.')
+          }
+          console.log('Verified isolated production, preview and local QA DB/DEMO_DB bindings.')
+          NODE
+
       - name: Install app dependencies
         run: npm install
       - name: Build frontend
