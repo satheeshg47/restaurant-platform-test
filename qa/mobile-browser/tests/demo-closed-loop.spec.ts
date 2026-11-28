@@ -152,9 +152,33 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
       amount_minor: String(total), method: 'cash', reference: 'DEMO-BISTRO-PLAYWRIGHT',
     })
     expect(payment.status).toBe(201)
-    const close = await api(waiterPage, 'POST', '/api/restaurant/' + DEMO_SLUG + '/tables/' + entry.tableId + '/sessions/' + entry.sessionId + '/close')
-    expect(close.status).toBe(200)
-    expect(close.body.session.status).toBe('closed')
+    if (entry.tableId === tableOne.id) {
+      await waiterPage.getByRole('button', { name: 'Refresh' }).click()
+      const tableCard = waiterPage.locator('.restaurant-table-card').filter({ hasText: 'Table 1' })
+      await tableCard.getByRole('button', { name: 'View / print bill' }).click()
+      const invoiceModal = waiterPage.locator('.restaurant-bill-modal')
+      await expect(invoiceModal).toContainText('GSTIN: 29ABCDE1234F1Z5')
+      await expect(invoiceModal).toContainText('FSSAI License No: 11223344556677')
+      await invoiceModal.getByRole('button', { name: 'Issue GST invoice & close session' }).click()
+      await expect(invoiceModal).toContainText('GST TAX INVOICE')
+      await expect(invoiceModal).toContainText('CGST')
+      await expect(invoiceModal).toContainText('SGST')
+      await expect(invoiceModal.getByRole('button', { name: 'Print GST tax invoice' })).toBeVisible()
+      await invoiceModal.getByRole('button', { name: 'Print GST tax invoice' }).click()
+      await waiterPage.emulateMedia({ media: 'print' })
+      await expect(invoiceModal).toBeVisible()
+      await waiterPage.emulateMedia({ media: 'screen' })
+      await invoiceModal.getByRole('button', { name: 'Done' }).click()
+      const issued = await api(waiterPage, 'GET', '/api/restaurant/' + DEMO_SLUG + '/waiter/sessions/' + entry.sessionId + '/bill')
+      expect(issued.status).toBe(200)
+      expect(issued.body.invoice.invoice_number).toContain('DM/')
+      expect(issued.body.invoice.seller_snapshot.gstin).toBe('29ABCDE1234F1Z5')
+      expect(issued.body.invoice.seller_snapshot.fssai_license_no).toBe('11223344556677')
+    } else {
+      const close = await api(waiterPage, 'POST', '/api/restaurant/' + DEMO_SLUG + '/tables/' + entry.tableId + '/sessions/' + entry.sessionId + '/close')
+      expect(close.status).toBe(200)
+      expect(close.body.session.status).toBe('closed')
+    }
   }
 
   expect((await api(guestOne, 'POST', '/api/restaurant/' + DEMO_SLUG + '/guest/' + tokenOne + '/reviews', {
