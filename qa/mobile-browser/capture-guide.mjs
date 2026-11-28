@@ -197,6 +197,7 @@ async function guestCapture(browser, viewport) {
     }
   }
   await staffContext.close()
+  if (!guestPin) throw new Error('Could not create or rotate a preview table PIN for the guest walkthrough.')
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile })
   const page = await context.newPage()
   await page.goto(baseURL + '/r/platform-demo-restaurant/' + token, { waitUntil: 'domcontentloaded' }).catch(() => {})
