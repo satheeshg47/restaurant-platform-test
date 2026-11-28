@@ -39,6 +39,17 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
   const ownerPage = ownerContext.page
   const owner = await signIn(ownerPage, QA_CREDENTIALS.owner)
   expect(owner.is_admin).toBe(false)
+  const staffSwitchContext = await createContextPage(browser, viewport)
+  const staffSwitchPage = staffSwitchContext.page
+  await signIn(staffSwitchPage, QA_CREDENTIALS.owner)
+  await staffSwitchPage.goto('/staff?login=1')
+  await expect(staffSwitchPage.getByRole('heading', { name: 'Staff sign in' })).toBeVisible()
+  await staffSwitchPage.getByLabel('Email or username').fill(QA_CREDENTIALS.cook.login_id)
+  await staffSwitchPage.getByLabel('Password').fill(QA_CREDENTIALS.cook.password)
+  await staffSwitchPage.getByRole('button', { name: 'Sign in' }).click()
+  await expect(staffSwitchPage.locator('.staff-portal')).toBeVisible()
+  await expect(staffSwitchPage.getByRole('heading', { name: 'Kitchen queue' })).toBeVisible()
+  await staffSwitchContext.context.close()
   expect(owner.tenant_role).toBe('owner')
   await ownerPage.goto('/owner')
   await expect(ownerPage.locator('.owner-portal-content')).toBeVisible({ timeout: 15000 })

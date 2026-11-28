@@ -242,8 +242,15 @@ async function login(request: Request, env: Env): Promise<Response> {
   const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
   const password = typeof body.password === 'string' ? body.password : ''
   if (!loginId || loginId.length > 320 || password.length > 256) return json(401, { error: 'invalid_credentials' })
-  const demoQaLogin = /^demo\.(admin|owner|cook|waiter|manager)$/.test(loginId.toLowerCase())
-  if (demoQaLogin && env.ENVIRONMENT !== 'preview') return json(401, { error: 'invalid_credentials' })
+  const normalizedLoginId = loginId.toLowerCase()
+  const demoQaLogin = /^demo\.(admin|owner|cook|waiter|manager)$/.test(normalizedLoginId)
+  // The public demo tenant lives in its isolated DEMO_DB binding. Allow its
+  // owner/staff identities on production only when that isolated database is
+  // configured; keep the preview-only demo administrator out of production.
+  if (demoQaLogin && env.ENVIRONMENT !== 'preview' &&
+      (normalizedLoginId === 'demo.admin' || !env.DEMO_DB)) {
+    return json(401, { error: 'invalid_credentials' })
+  }
   if (env.ENVIRONMENT === 'preview' && loginId.toLowerCase() === (env.DEMO_ADMIN_LOGIN_ID || 'demo.admin').toLowerCase()) {
     await ensurePreviewDemoAdmin(env)
   }
