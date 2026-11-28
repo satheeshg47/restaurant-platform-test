@@ -6,11 +6,14 @@ import { handleGuestReviewRoutes, handleRestaurantReviewRoutes } from './restaur
 import { handleRestaurantDataExport } from './restaurant-export.ts'
 import { handleGuestOrder } from './guest-orders.ts'
 import { handleGuestLifecycle } from './guest-lifecycle.ts'
+import { hashGuestPin } from './guest-session-security.ts'
 import type { Env, Identity } from './types.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const QR_TOKEN = /^[A-Za-z0-9_-]{43}$/
 const GSTIN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
+const FSSAI = /^\d{14}$/
+function createGuestPin() { const bytes = new Uint32Array(1); crypto.getRandomValues(bytes); return String(bytes[0] % 1000000).padStart(6, '0') }
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } })
@@ -109,7 +112,7 @@ async function loadMenu(env: Env, tenantId: string) {
   const [profile, categories, items, variants, addonGroups, addons, itemAddonGroups] = await Promise.all([
     env.DB.prepare(
       `SELECT display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,
-        tax_inclusive,accepting_orders,legal_name,gstin,address_line1,address_line2,city,state_name,state_code,postal_code,invoice_prefix
+        tax_inclusive,accepting_orders,legal_name,gstin,fssai_license_no,address_line1,address_line2,city,state_name,state_code,postal_code,invoice_prefix
        FROM restaurant_profiles WHERE tenant_id=?`,
     ).bind(tenantId).first<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM restaurant_menu_categories WHERE tenant_id=? ORDER BY sort_order,name').bind(tenantId).all<Record<string, unknown>>(),
@@ -146,7 +149,7 @@ async function handleGuestMenu(env: Env, tenantId: string, token: string): Promi
     const [menu, session] = await Promise.all([
       loadMenu(env, tenantId),
       env.DB.prepare(
-        "SELECT id,status FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND status='open' LIMIT 1",
+        "SELECT id,status,guest_pin_expires_at FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND status='open' LIMIT 1",
       ).bind(tenantId, table.id).first(),
     ])
     const categories = menu.categories.filter(row => Boolean(row.active))
@@ -202,7 +205,7 @@ async function handleSettings(request: Request, env: Env, actor: TenantActor): P
   }
   if (request.method !== 'PATCH') return json(405, { error: 'method_not_allowed' })
   const body = await readBody(request)
-  const allowed = new Set(['display_name','currency_code','timezone','default_language','tax_mode','tax_rate','gst_rate','tax_inclusive','accepting_orders','legal_name','gstin','address_line1','address_line2','city','state_name','state_code','postal_code','invoice_prefix'])
+  const allowed = new Set(['display_name','currency_code','timezone','default_language','tax_mode','tax_rate','gst_rate','tax_inclusive','accepting_orders','legal_name','gstin','fssai_license_no','address_line1','address_line2','city','state_name','state_code','postal_code','invoice_prefix'])
   if (!Object.keys(body).length || Object.keys(body).some(key => !allowed.has(key))) fail(400, 'invalid_settings')
   const current = await env.DB.prepare('SELECT * FROM restaurant_profiles WHERE tenant_id=?').bind(actor.tenantId).first<Record<string, unknown>>()
   if (!current) fail(404, 'restaurant_profile_not_configured')
@@ -222,6 +225,8 @@ async function handleSettings(request: Request, env: Env, actor: TenantActor): P
     if (merged[key] !== null && merged[key] !== undefined && (typeof merged[key] !== 'string' || merged[key].length > 200)) fail(400, 'invalid_settings')
   }
   if (merged.gstin === '') merged.gstin = null
+  if (merged.fssai_license_no === '') merged.fssai_license_no = null
+  if (merged.fssai_license_no !== null && merged.fssai_license_no !== undefined && (typeof merged.fssai_license_no !== 'string' || !FSSAI.test(merged.fssai_license_no))) fail(400, 'invalid_fssai_license_no')
   if (merged.gstin !== null && merged.gstin !== undefined && (typeof merged.gstin !== 'string' || !GSTIN.test(merged.gstin))) fail(400, 'invalid_gstin')
   if (merged.state_code === '') merged.state_code = null
   if (merged.state_code !== null && merged.state_code !== undefined && (typeof merged.state_code !== 'string' || !/^\d{2}$/.test(merged.state_code))) fail(400, 'invalid_state_code')
@@ -232,7 +237,7 @@ async function handleSettings(request: Request, env: Env, actor: TenantActor): P
   const result = await env.DB.prepare(
     `UPDATE restaurant_profiles SET ${assignments},updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
      WHERE tenant_id=? RETURNING display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,
-       tax_inclusive,accepting_orders,legal_name,gstin,address_line1,address_line2,city,state_name,state_code,postal_code,invoice_prefix`,
+       tax_inclusive,accepting_orders,legal_name,gstin,fssai_license_no,address_line1,address_line2,city,state_name,state_code,postal_code,invoice_prefix`,
   ).bind(...values, actor.tenantId).all<Record<string, unknown>>()
   if (!result.results[0]) fail(404, 'restaurant_profile_not_configured')
   return json(200, { settings: normalizeSettings(result.results[0]) })
@@ -355,15 +360,35 @@ async function handleTables(request: Request, env: Env, actor: TenantActor, part
     ).bind(actor.tenantId, tableId).first()
     if (!table) fail(404, 'table_not_found')
     try {
+      const sessionId = crypto.randomUUID()
+      const guestPin = createGuestPin()
+      const pinExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()
+      const pinHash = await hashGuestPin(sessionId, guestPin)
       const result = await env.DB.prepare(
-        `INSERT INTO restaurant_table_sessions(tenant_id,table_id,guest_count,opened_by)
-         VALUES(?,?,?,?) RETURNING id,table_id,status,guest_count,opened_at`,
-      ).bind(actor.tenantId, tableId, guestCount, actor.staffId).all<Record<string, unknown>>()
-      return json(201, { session: result.results[0] })
+        `INSERT INTO restaurant_table_sessions(id,tenant_id,table_id,guest_count,opened_by,guest_pin_hash,guest_pin_expires_at,guest_pin_attempts)
+         VALUES(?,?,?,?,?,?,?,0) RETURNING id,table_id,status,guest_count,opened_at,guest_pin_expires_at`,
+      ).bind(sessionId, actor.tenantId, tableId, guestCount, actor.staffId, pinHash, pinExpiresAt).all<Record<string, unknown>>()
+      return json(201, { session: { ...result.results[0], guest_pin: guestPin } })
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       return json(/UNIQUE|constraint/i.test(message) ? 409 : 500, { error: /UNIQUE|constraint/i.test(message) ? 'table_session_already_open' : 'table_session_open_failed' })
     }
+  }
+
+  if (parts.length === 7 && parts[4] === 'sessions' && parts[6] === 'pin' && request.method === 'POST') {
+    const sessionId = parts[5]
+    if (!UUID.test(tableId || '') || !UUID.test(sessionId || '')) fail(404, 'session_not_found')
+    requireRole(actor, ['owner','manager','waiter'])
+    const session = await env.DB.prepare("SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND id=? AND status='open'")
+      .bind(actor.tenantId, tableId, sessionId).first()
+    if (!session) fail(404, 'session_not_found')
+    const guestPin = createGuestPin()
+    const pinExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()
+    const pinHash = await hashGuestPin(sessionId, guestPin)
+    const result = await env.DB.prepare("UPDATE restaurant_table_sessions SET guest_pin_hash=?,guest_pin_expires_at=?,guest_pin_attempts=0 WHERE tenant_id=? AND table_id=? AND id=? AND status='open' RETURNING id,guest_pin_expires_at")
+      .bind(pinHash, pinExpiresAt, actor.tenantId, tableId, sessionId).first<Record<string, unknown>>()
+    if (!result) fail(404, 'session_not_found')
+    return json(200, { session: { ...result, guest_pin: guestPin } })
   }
 
   if (parts.length === 7 && parts[4] === 'sessions' && parts[6] === 'close' && request.method === 'POST') {
