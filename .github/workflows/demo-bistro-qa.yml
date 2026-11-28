@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: demo-bistro-preview-qa
+  group: demo-bistro-preview-qa-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -90,7 +90,8 @@ jobs:
           if (failed !== 0) throw new Error('Isolated QA has ' + failed + ' failed tests.')
           NODE
       - name: Capture authenticated screens and regenerate walkthrough PDF
-        if: always()
+        if: success()
+        timeout-minutes: 3
         working-directory: qa/mobile-browser
         run: npm run guide
       - name: Upload QA report, screenshots and walkthrough
