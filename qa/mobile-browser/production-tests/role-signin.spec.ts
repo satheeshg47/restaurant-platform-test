@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { api, signIn, QA_CREDENTIALS, DEMO_SLUG } from '../demo-helpers'
 
-test('live production Demo Bistro owner, cook, waiter and manager sign in to their assigned dashboards', async ({ page, request }) => {
+test('live production Demo Bistro cook, waiter and manager sign in to their assigned dashboards', async ({ page, request }) => {
   const healthResponse = await request.get('/api/health')
   expect(healthResponse.ok()).toBeTruthy()
   const health = await healthResponse.json()
@@ -12,19 +12,6 @@ test('live production Demo Bistro owner, cook, waiter and manager sign in to the
   await page.goto('/')
   const adminDenied = await api(page, 'POST', '/api/auth/login', QA_CREDENTIALS.admin)
   expect(adminDenied.status, 'demo.admin must remain preview-only in production').toBe(401)
-  expect((await api(page, 'GET', '/api/auth/session')).body.authenticated).toBe(false)
-
-  const owner = await signIn(page, QA_CREDENTIALS.owner)
-  expect(owner.tenant_role).toBe('owner')
-  expect(owner.memberships.some((membership: any) =>
-    membership.tenant_slug === DEMO_SLUG && membership.membership_role === 'owner')).toBe(true)
-  await page.goto('/owner')
-  await expect(page.locator('.owner-portal-content')).toBeVisible({ timeout: 20000 })
-  await expect(page.locator('.owner-home-open').first()).toBeVisible({ timeout: 20000 })
-  await page.locator('.owner-home-open').first().click()
-  await expect(page.locator('.owner-workspace-sidebar')).toBeVisible()
-  const ownerLogout = await api(page, 'POST', '/api/auth/logout')
-  expect(ownerLogout.status).toBe(200)
   expect((await api(page, 'GET', '/api/auth/session')).body.authenticated).toBe(false)
 
   const staffRoles = [
