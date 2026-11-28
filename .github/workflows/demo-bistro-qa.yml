@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: demo-bistro-preview-qa-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  group: demo-bistro-preview-qa-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -35,6 +35,38 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Enforce strict D1 and DEMO_DB separation
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'))
+          const idFor = (items, binding) => items?.find((item) => item.binding === binding)?.database_id
+          const production = read('wrangler.jsonc')
+          const qa = read('wrangler.qa.jsonc')
+          const previewMigrations = read('wrangler.preview-migrations.jsonc')
+          const pairs = {
+            production: [idFor(production.d1_databases, 'DB'), idFor(production.d1_databases, 'DEMO_DB')],
+            preview: [idFor(production.previews?.d1_databases, 'DB'), idFor(production.previews?.d1_databases, 'DEMO_DB')],
+            localQA: [idFor(qa.d1_databases, 'DB'), idFor(qa.d1_databases, 'DEMO_DB')],
+          }
+          for (const [name, ids] of Object.entries(pairs)) {
+            if (!ids[0] || !ids[1] || ids[0] === ids[1]) {
+              throw new Error(name + ' DB and DEMO_DB must both exist and use different D1 database IDs.')
+            }
+          }
+          const allIds = Object.values(pairs).flat()
+          if (new Set(allIds).size !== allIds.length) {
+            throw new Error('Production, preview and local QA D1 databases must not share database IDs.')
+          }
+          if (
+            idFor(previewMigrations.d1_databases, 'DB') !== pairs.preview[0] ||
+            idFor(previewMigrations.d1_databases, 'DEMO_DB') !== pairs.preview[1]
+          ) {
+            throw new Error('Preview migration config must target the exact isolated preview DB and DEMO_DB bindings.')
+          }
+          console.log('Verified isolated production, preview and local QA DB/DEMO_DB bindings.')
+          NODE
+
       - name: Install app dependencies
         run: npm install
       - name: Build frontend
@@ -48,8 +80,10 @@ jobs:
       - name: Prepare isolated local D1 and start QA Worker
         if: ${{ startsWith(env.BASE_URL, 'http://127.0.0.1:') }}
         run: |
-          npx wrangler d1 migrations apply restaurant-platform-qa --local --config wrangler.qa.jsonc
-          npx wrangler d1 execute restaurant-platform-qa --local --config wrangler.qa.jsonc --command "INSERT OR IGNORE INTO applications(id,app_key,name,status) VALUES('adabd80c-491d-4da8-bb3b-fe7d224e86ef','restaurant','Restaurant Suite','active')"
+          npx wrangler d1 migrations apply restaurant-platform-qa-app --local --config wrangler.qa.jsonc
+          npx wrangler d1 migrations apply restaurant-platform-qa-demo --local --config wrangler.qa.jsonc
+          npx wrangler d1 execute restaurant-platform-qa-app --local --config wrangler.qa.jsonc --command "INSERT OR IGNORE INTO applications(id,app_key,name,status) VALUES('adabd80c-491d-4da8-bb3b-fe7d224e86ef','restaurant','Restaurant Suite','active')"
+          npx wrangler d1 execute restaurant-platform-qa-demo --local --config wrangler.qa.jsonc --command "INSERT OR IGNORE INTO applications(id,app_key,name,status) VALUES('adabd80c-491d-4da8-bb3b-fe7d224e86ef','restaurant','Restaurant Suite','active')"
           nohup npx wrangler dev --local --config wrangler.qa.jsonc --port 8787 --ip 127.0.0.1 > /tmp/demo-bistro-worker.log 2>&1 &
           for attempt in $(seq 1 60); do
             if curl --fail --silent "$BASE_URL/api/health" >/dev/null; then exit 0; fi
@@ -71,6 +105,9 @@ jobs:
           if (!ready.ok) throw new Error('Preview database schema is not ready: HTTP ' + ready.status)
           console.log('Confirmed isolated preview target and migrated schema:', base)
           NODE
+      - name: Validate live production QA specs without running them
+        working-directory: qa/mobile-browser
+        run: npx playwright test --config playwright.production.config.ts --list
       - name: Run authenticated role and closed-loop tests
         working-directory: qa/mobile-browser
         run: npm test
@@ -89,9 +126,16 @@ jobs:
           if (skipped !== 0) throw new Error('Isolated QA must execute every test; found ' + skipped + ' skipped tests.')
           if (failed !== 0) throw new Error('Isolated QA has ' + failed + ' failed tests.')
           NODE
+      # Demo role sign-ins in the walkthrough are deliberately rate-limited.
+      # Clear only the disposable local QA database's counters after tests; never touch a remote preview or production DB.
+      - name: Clear disposable local QA authentication throttles before walkthrough
+        if: success() && startsWith(env.BASE_URL, 'http://127.0.0.1:')
+        run: |
+          npx wrangler d1 execute restaurant-platform-qa-app --local --config wrangler.qa.jsonc --command "DELETE FROM platform_auth_rate_limits"
+          npx wrangler d1 execute restaurant-platform-qa-demo --local --config wrangler.qa.jsonc --command "DELETE FROM platform_auth_rate_limits"
       - name: Capture authenticated screens and regenerate walkthrough PDF
         if: success()
-        timeout-minutes: 3
+        timeout-minutes: 6
         working-directory: qa/mobile-browser
         run: npm run guide
       - name: Upload QA report, screenshots and walkthrough

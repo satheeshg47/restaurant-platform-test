@@ -10,8 +10,9 @@
     "api": "node server/index.mjs",
     "test": "node --test",
     "db:migrate": "node scripts/migrate.mjs",
-    "d1:migrate:local": "wrangler d1 migrations apply DB --local",
-    "d1:migrate:remote": "wrangler d1 migrations apply DB --remote"
+    "d1:migrate:local": "wrangler d1 migrations apply DB --local && wrangler d1 migrations apply DEMO_DB --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "d1:migrate:preview": "wrangler d1 migrations apply DB --remote --config wrangler.preview-migrations.jsonc && wrangler d1 migrations apply DEMO_DB --remote --config wrangler.preview-migrations.jsonc"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

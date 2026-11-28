@@ -112,6 +112,45 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api', demoMode = f
     } catch { setNotice('Clipboard unavailable. Copy the login ID and password shown above manually.') }
   }
 
+  const staffSignInUrl = () => new URL('/staff?login=1', window.location.origin).toString()
+
+  const copyStaffSignInLink = async () => {
+    const url = staffSignInUrl()
+    setError('')
+    try {
+      await navigator.clipboard.writeText(url)
+      setNotice('Staff sign-in link copied. Share it with your team.')
+    } catch {
+      setNotice('Clipboard unavailable. Staff sign-in URL: ' + url)
+    }
+  }
+
+  const shareStaffSignInLink = async () => {
+    const url = staffSignInUrl()
+    setError('')
+    const share = (navigator as Navigator & { share?: (data: { title: string; text: string; url: string }) => Promise<void> }).share
+    if (typeof share !== 'function') {
+      await copyStaffSignInLink()
+      return
+    }
+    try {
+      await share.call(navigator, {
+        title: 'Restaurant staff sign-in',
+        text: 'Open this link to sign in with your assigned staff account.',
+        url,
+      })
+      setNotice('Staff sign-in link shared.')
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === 'AbortError') return
+      try {
+        await navigator.clipboard.writeText(url)
+        setNotice('Sharing unavailable. Staff sign-in link copied instead.')
+      } catch {
+        setError('Could not share or copy the staff sign-in link.')
+      }
+    }
+  }
+
   const savePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!resetFor) return
@@ -137,6 +176,12 @@ export default function OwnerStaff({ tenantId, apiBaseUrl = '/api', demoMode = f
         <button type="button" className="owner-staff-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={14}/> Refresh</button>
         <button type="button" className="owner-staff-primary" onClick={() => setShowCreate(value => !value)}><Plus size={15}/> Add staff</button>
       </div>
+    </div>
+    <div className="owner-staff-signin-link">
+      <span><b>Staff sign-in</b><code>/staff?login=1</code></span>
+      <a className="owner-staff-secondary" href="/staff?login=1" target="_blank" rel="noreferrer">Open staff sign-in ↗</a>
+      <button type="button" className="owner-staff-secondary" aria-label="Copy staff sign-in link" onClick={() => void copyStaffSignInLink()}>Copy link</button>
+      <button type="button" className="owner-staff-secondary" aria-label="Share staff sign-in link" onClick={() => void shareStaffSignInLink()}>Share link</button>
     </div>
     {demoMode && <div className="owner-staff-created">
       <b>Demo staff sign-in accounts</b>

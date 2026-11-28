@@ -46,7 +46,12 @@ export async function authenticateIdentity(request: Request, env: Env): Promise<
 export async function authenticateAdmin(request: Request, env: Env): Promise<Identity> {
   const identity = await authenticateIdentity(request, env)
   if (identity.issuer === 'native') {
-    const admin = await env.DB.prepare(
+    // The preview-only demo administrator is stored in the isolated DEMO_DB.
+    // Keep production native-admin checks on DB; never promote demo.admin outside preview.
+    const adminDb = identity.subject === 'demo-platform-admin' && env.ENVIRONMENT === 'preview' && env.DEMO_DB
+      ? env.DEMO_DB
+      : env.DB
+    const admin = await adminDb.prepare(
       "SELECT 1 AS allowed FROM platform_admin_accounts WHERE user_id=? AND status='active'",
     ).bind(identity.subject).first()
     if (!admin) throw authError('forbidden', 403)

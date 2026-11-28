@@ -670,6 +670,11 @@
 .owner-staff-demo-link>span>b{font-size:11px;color:#344256;min-width:48px}
 .owner-staff-demo-link>span>code{font-size:10px;color:#344256;background:#f7f8fb;border-radius:5px;padding:4px 6px}
 .owner-staff-demo-link>a{text-decoration:none;white-space:nowrap}
+.owner-staff-signin-link{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:9px;margin:10px 0;background:#fff;border:1px solid #e6eee8;border-radius:8px}
+.owner-staff-signin-link>span{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.owner-staff-signin-link>span>b{font-size:11px;color:#344256;min-width:48px}
+.owner-staff-signin-link>span>code{font-size:10px;color:#344256;background:#f7f8fb;border-radius:5px;padding:4px 6px}
+.owner-staff-signin-link>a{text-decoration:none;white-space:nowrap}
 
 
 .owner-home-heading-actions{display:flex;align-items:center;gap:7px}

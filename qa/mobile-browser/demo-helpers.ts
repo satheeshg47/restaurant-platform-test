@@ -8,6 +8,7 @@ export const QA_CREDENTIALS = {
   owner: { login_id: 'demo.owner', password: process.env.DEMO_OWNER_PASSWORD || 'DemoOwner#2026!' },
   cook: { login_id: 'demo.cook', password: process.env.DEMO_COOK_PASSWORD || 'DemoCook#2026!' },
   waiter: { login_id: 'demo.waiter', password: process.env.DEMO_WAITER_PASSWORD || 'DemoWaiter#2026!' },
+  manager: { login_id: 'demo.manager', password: process.env.DEMO_MANAGER_PASSWORD || 'DemoManager#2026!' },
 }
 
 export async function api(page: Page, method: string, path: string, body?: unknown) {

@@ -12,14 +12,14 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "restaurant-platform-qa",
+      "database_name": "restaurant-platform-qa-app",
       "database_id": "00000000-0000-0000-0000-000000000001",
       "migrations_dir": "database/d1/migrations"
     },
     {
       "binding": "DEMO_DB",
-      "database_name": "restaurant-platform-qa",
-      "database_id": "00000000-0000-0000-0000-000000000001",
+      "database_name": "restaurant-platform-qa-demo",
+      "database_id": "00000000-0000-0000-0000-000000000002",
       "migrations_dir": "database/d1/migrations"
     }
   ],

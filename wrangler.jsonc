@@ -43,14 +43,14 @@
     "d1_databases": [
       {
         "binding": "DB",
-        "database_name": "restaurant-platform-preview",
-        "database_id": "98846bad-cd3e-4770-8bee-2076774885e6",
+        "database_name": "restaurant-platform-preview-app",
+        "database_id": "e1f36ce9-268c-4419-92e1-ba9297d4ebf8",
         "migrations_dir": "database/d1/migrations"
       },
       {
         "binding": "DEMO_DB",
-        "database_name": "restaurant-platform-preview",
-        "database_id": "98846bad-cd3e-4770-8bee-2076774885e6",
+        "database_name": "restaurant-platform-preview-demo",
+        "database_id": "5e4f9a4d-effe-4047-895a-79c778a1f3cf",
         "migrations_dir": "database/d1/migrations"
       }
     ],
