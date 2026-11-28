@@ -163,7 +163,7 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
     expect(payment.status).toBe(201)
     if (entry.tableId === tableOne.id) {
       await waiterPage.getByRole('button', { name: 'Refresh' }).click()
-      const tableCard = waiterPage.locator('.restaurant-table-card').filter({ hasText: 'Table 1' })
+      const tableCard = waiterPage.locator('.restaurant-table-card').filter({ has: waiterPage.getByText(tableOne.label, { exact: true }) })
       await tableCard.getByRole('button', { name: 'View / print bill' }).click()
       const invoiceModal = waiterPage.locator('.restaurant-bill-modal')
       await expect(invoiceModal).toContainText('GSTIN: 29ABCDE1234F1Z5')
