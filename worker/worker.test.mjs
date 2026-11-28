@@ -139,13 +139,12 @@ async function call(path, { method = 'GET', accessToken, idToken, body, cookie, 
   }), env)
 }
 
-test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session revocation work', async () => {
+test('native Super Admin bootstrap, email/username password login and session revocation work', async () => {
   const initialSession = await call('/auth/session')
   const initialStatus = await initialSession.json()
   assert.equal(initialSession.status, 200)
   assert.equal(initialStatus.authenticated, false)
   assert.equal(initialStatus.bootstrap_available, true)
-  assert.equal(initialStatus.encryption_ready, true)
 
   const badBootstrap = await call('/auth/bootstrap-admin', {
     method: 'POST', body: { bootstrap_secret: 'wrong', login_id: 'root-admin', password: 'a-long-password-value-123' },
@@ -181,25 +180,19 @@ test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session
   })
   assert.equal(duplicate.status, 409)
 
-  const login = await call('/auth/login', {
+  const invalidCredentials = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'root-admin', password: 'incorrect-password-value' },
+  })
+  assert.equal(invalidCredentials.status, 401)
+
+  const usernameLogin = await call('/auth/login', {
     method: 'POST', body: { login_id: 'ROOT-ADMIN', password: 'a-long-password-value-123' },
   })
-  assert.equal(login.status, 200)
-  const enrollment = await login.json()
-  assert.equal(enrollment.totp_enrollment_required, true)
-  const enrollmentSecret = new URL(enrollment.provisioning_uri).searchParams.get('secret')
-  assert.ok(enrollmentSecret)
-  const enrollmentCode = await generateTotpCode(enrollmentSecret)
-  const enrolled = await call('/auth/totp/enroll/verify', {
-    method: 'POST', body: { challenge_token: enrollment.challenge_token, code: enrollmentCode },
-  })
-  assert.equal(enrolled.status, 200)
-  const enrollmentResult = await enrolled.json()
-  assert.equal(enrollmentResult.authenticated, true)
-  assert.equal(enrollmentResult.recovery_codes.length, 10)
-  const firstCookie = enrolled.headers.get('Set-Cookie').split(';')[0]
-  assert.match(enrolled.headers.get('Set-Cookie'), /HttpOnly/)
-  assert.match(enrolled.headers.get('Set-Cookie'), /SameSite=Lax/)
+  assert.equal(usernameLogin.status, 200)
+  assert.equal((await usernameLogin.json()).authenticated, true)
+  const firstCookie = usernameLogin.headers.get('Set-Cookie').split(';')[0]
+  assert.match(usernameLogin.headers.get('Set-Cookie'), /HttpOnly/)
+  assert.match(usernameLogin.headers.get('Set-Cookie'), /SameSite=Lax/)
 
   const adminSession = await call('/admin/session', { cookie: firstCookie })
   assert.equal(adminSession.status, 200)
@@ -209,49 +202,13 @@ test('native Super Admin bootstrap, TOTP enrollment, login, recovery and session
   assert.equal(nativeSessionPayload.authenticated, true)
   assert.equal(nativeSessionPayload.user.is_admin, true)
 
-  const secondLogin = await call('/auth/login', {
-    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
+  const emailLogin = await call('/auth/login', {
+    method: 'POST', body: { login_id: 'ADMIN@EXAMPLE.TEST', password: 'a-long-password-value-123' },
   })
-  assert.equal(secondLogin.status, 200)
-  const mfa = await secondLogin.json()
-  assert.equal(mfa.mfa_required, true)
-  const stored = db.prepare('SELECT totp_secret_ciphertext FROM platform_user_credentials').get()
-  const secret = await decryptTotpSecret(stored.totp_secret_ciphertext, env.AUTH_ENCRYPTION_KEY)
-  const otp = await generateTotpCode(secret, Date.now() + 30_000)
-  const verified = await call('/auth/totp/verify', {
-    method: 'POST', body: { challenge_token: mfa.challenge_token, code: otp },
-  })
-  assert.equal(verified.status, 200)
-  const secondCookie = verified.headers.get('Set-Cookie').split(';')[0]
+  assert.equal(emailLogin.status, 200)
+  assert.equal((await emailLogin.json()).authenticated, true)
+  const secondCookie = emailLogin.headers.get('Set-Cookie').split(';')[0]
   assert.equal((await call('/admin/session', { cookie: secondCookie })).status, 200)
-
-  const replayLogin = await call('/auth/login', {
-    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
-  })
-  const replayChallenge = await replayLogin.json()
-  const replayedOtp = await call('/auth/totp/verify', {
-    method: 'POST', body: { challenge_token: replayChallenge.challenge_token, code: otp },
-  })
-  assert.equal(replayedOtp.status, 401, 'a TOTP counter must not be accepted twice')
-
-  const recoveryLogin = await call('/auth/login', {
-    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
-  })
-  const recoveryChallenge = await recoveryLogin.json()
-  const recoveryCode = enrollmentResult.recovery_codes[0]
-  const recoveryVerified = await call('/auth/totp/verify', {
-    method: 'POST', body: { challenge_token: recoveryChallenge.challenge_token, code: recoveryCode.toLowerCase() },
-  })
-  assert.equal(recoveryVerified.status, 200)
-
-  const reuseLogin = await call('/auth/login', {
-    method: 'POST', body: { login_id: 'root-admin', password: 'a-long-password-value-123' },
-  })
-  const reuseChallenge = await reuseLogin.json()
-  const reused = await call('/auth/totp/verify', {
-    method: 'POST', body: { challenge_token: reuseChallenge.challenge_token, code: recoveryCode },
-  })
-  assert.equal(reused.status, 401)
 
   const signedOut = await call('/auth/logout', { method: 'POST', cookie: secondCookie })
   assert.equal(signedOut.status, 200)
@@ -496,7 +453,7 @@ test('owner invitation requires matching verified identity and creates one activ
   assert.equal(duplicate.status, 409)
 })
 
-test('owner invitation can create an individual native owner account and require TOTP', async () => {
+test('owner invitation creates an individual native owner account for password-only login', async () => {
   const adminToken = await token(adminSubject, audience)
   const created = await call('/admin/owner-invitations', {
     method: 'POST', accessToken: adminToken,
@@ -525,8 +482,11 @@ test('owner invitation can create an individual native owner account and require
   })
   assert.equal(login.status, 200)
   const payload = await login.json()
-  assert.equal(payload.totp_enrollment_required, true)
-  assert.ok(payload.provisioning_uri)
+  assert.equal(payload.authenticated, true)
+  assert.ok(login.headers.get('Set-Cookie'))
+  const emailLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'NATIVE-OWNER@EXAMPLE.TEST', password: 'owner-password-strong-123' } })
+  assert.equal(emailLogin.status, 200)
+  assert.equal((await emailLogin.json()).authenticated, true)
 })
 
 test('owner can create, manage and suspend individual staff logins', async () => {
@@ -539,14 +499,8 @@ test('owner can create, manage and suspend individual staff logins', async () =>
 
   const ownerLogin = await call('/auth/login', { method: 'POST', body: { login_id: 'restaurant-owner', password: ownerPassword } })
   assert.equal(ownerLogin.status, 200)
-  const ownerChallenge = await ownerLogin.json()
-  const setupSecret = new URL(ownerChallenge.provisioning_uri).searchParams.get('secret')
-  const ownerCode = await generateTotpCode(setupSecret)
-  const ownerEnrolled = await call('/auth/totp/enroll/verify', {
-    method: 'POST', body: { challenge_token: ownerChallenge.challenge_token, code: ownerCode },
-  })
-  assert.equal(ownerEnrolled.status, 200)
-  const ownerCookie = ownerEnrolled.headers.get('Set-Cookie').split(';')[0]
+  assert.equal((await ownerLogin.json()).authenticated, true)
+  const ownerCookie = ownerLogin.headers.get('Set-Cookie').split(';')[0]
 
   const created = await call('/owner/staff', {
     method: 'POST', cookie: ownerCookie,
