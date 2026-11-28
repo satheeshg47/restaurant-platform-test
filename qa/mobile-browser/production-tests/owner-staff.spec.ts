@@ -21,6 +21,7 @@ test('production Owner Staff panel opens role links, creates a QA waiter, and re
   const demo = restaurants.body.restaurants.find((entry: any) => entry.tenant_slug === DEMO_SLUG)
   expect(demo).toBeTruthy()
 
+  await page.locator('.owner-mobile-bottom-nav button').filter({ hasText: 'More' }).click()
   const staffNav = page.locator('.owner-workspace-sidebar nav button').filter({ hasText: 'Staff access' }).first()
   await staffNav.click()
   const panel = page.locator('.owner-staff')
