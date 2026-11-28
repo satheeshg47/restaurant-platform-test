@@ -1,21 +1,22 @@
 RESTAURANT PLATFORM — LIVING HANDOFF
-Last updated: 2026-11-28 21:00 IST (Asia/Kolkata)
+Last updated: 2026-11-28 20:37 IST (Asia/Kolkata)
 Repository: satheeshg47/restaurant-platform-test
 Default branch: main
 Main application commit: 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
 Current work branch: fix/qa-guide-rate-limit-reset
-Current work commit before this handoff update: 59e52116013ca05b87a95e598464d621d9275b9b
+Current work commit before this handoff update: 7309428a026f3ea5c105518f5962e18a6a8557c7
 Open PR: #122 — https://github.com/satheeshg47/restaurant-platform-test/pull/122
 PR #122 base: main @ 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
-PR #122 head before this handoff update: 59e52116013ca05b87a95e598464d621d9275b9b
+PR #122 head before this handoff update: 7309428a026f3ea5c105518f5962e18a6a8557c7
 PR #121: MERGED — production Demo Bistro owner/cook/waiter/manager authentication, role-specific /staff?login=1 links, and preview-only demo.admin guard.
 PR #121 merge commit: 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
 
 PR #122 SCOPE
 - Fix isolated QA walkthrough rate-limit exhaustion by deleting platform_auth_rate_limits only from disposable local D1 after Playwright tests and before guide capture. The step is conditional on BASE_URL starting http://127.0.0.1: and never runs against a remote preview or production.
 - Add manager credentials to the isolated browser QA helper.
-- Add a production-only Playwright config and tests for live role sign-in, owner staff links, creation of one stable QA waiter account, clipboard copy, role access, suspension, session revocation and rejected re-login.
-- Add .github/workflows/production-demo-role-smoke.yml, triggered only after successful Live deployment smoke test on main. This will test the live production Worker after PR #122 is merged and the next main deployment passes smoke.
+- Add a production-only Playwright config and tests for live role sign-in, owner staff links, creation of one stable QA waiter account, clipboard copy, role access, suspension, session revocation and rejected re-login. The Owner Staff mutation test runs once on mobile; cook/waiter/manager dashboard checks run on mobile and desktop to limit repeated production auth attempts.
+- Add .github/workflows/production-demo-role-smoke.yml, triggered only after successful Live deployment smoke test on main. It checks demo.admin rejection, verifies owner/staff access, and creates/revokes one QA staff record only in DEMO_DB after PR #122 is merged and the next main deployment passes smoke.
+- Make QA concurrency PR-scoped (cancel superseded runs) and increase the guide-generation step timeout from 3 to 6 minutes to avoid concurrent redundant runs and PDF-capture timeouts.
 - Update this handoff after meaningful steps. PR #122 is still open; do not merge until its current CI checks pass.
 
 LATEST COMPLETED CI
@@ -29,7 +30,13 @@ LATEST COMPLETED CI
   Playwright: 36 passed, 0 failed, 0 skipped. Mobile 390x844: 18 passed. Desktop 1440x900: 18 passed.
   The local-only auth-throttle cleanup step passed. PDF guide created successfully: 54 screens captured; 0 login-required/unavailable.
   Artifact #15267264863: https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46156930184/artifacts/15267264863
-- PR #122 has since been extended with production-only test files/config/workflow and an additional validation step (playwright.production.config.ts --list) in isolated PR QA. CI for the latest head commit 59e52116013ca05b87a95e598464d621d9275b9b is pending/not yet observed; do not assume those new files have passed.
+- PR #122 latest verified Build and test run #46157786796 (run #596): SUCCESS.
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46157786796
+- PR #122 latest verified isolated QA run #46157786789 (run #115): SUCCESS. The default preview suite reported 36 passed, 0 failed, 0 skipped; the production-only specs were discovered/validated with Playwright --list but were NOT executed against production.
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46157786789
+  Walkthrough PDF: 54 screens captured; 0 login-required/unavailable. Artifact #15268029436:
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46157786789/artifacts/15268029436
+- PR #122 was then extended with strict production test cleanup, a demo.qa.* test login prefix, reduced owner login attempts, PR-scoped QA concurrency and a 6-minute guide timeout. Latest CI after those final refinements is pending/not yet observed; do not assume the final head has passed.
 - The production-only workflow has not run yet because it is triggered from main after PR #122 is merged and Live deployment smoke succeeds.
 
 PRODUCTION WORKER / CLOUDFLARE — READ-ONLY VERIFIED
@@ -47,7 +54,7 @@ D1 DATA PRESERVATION — SELECT-ONLY VERIFICATION
 - DEMO_DB contains active credentials and memberships for demo.owner (owner), demo.cook (cook), demo.waiter (waiter), and demo.manager (manager). Read-only SQL confirmed expected staff roles and active flags.
 - Production DB contains a separate sample tenant; Demo Bistro tenant was not present in the production DB tenant query.
 - Read-only queries used SELECT / PRAGMA; rows_written=0 and changed_db=false. No production or DEMO_DB reset, migration, synthetic order, payment or cleanup was performed in this session.
-- The dedicated production smoke test login ID qa.platformcore.live.staff.revocation was checked and does not currently exist in DEMO_DB (SELECT-only, 0 rows). After PR #122 merges, the new production workflow will create/reuse this one test staff account and suspend it, revoking sessions. It will leave one inactive QA record for audit/history; the app's supported action is Suspend, not hard-delete. This write is within the user's explicit authorization to add and revoke a test staff member.
+- The dedicated production smoke test login ID demo.qa.live.staff.revocation was checked in BOTH DB and DEMO_DB and does not currently exist in either (SELECT-only, 0 rows each). Its demo. prefix routes auth rate-limit records to DEMO_DB; native-auth searches DB first and falls back to DEMO_DB for the owner-created staff identity, then stores its session in the selected database. The new production workflow will create/reuse this one test staff account and suspend it, revoking sessions. It will leave one inactive QA record for audit/history; the app's supported action is Suspend, not hard-delete. This write is within the user's explicit authorization to add and revoke a test staff member.
 - Do not reset or wipe either production DB or existing Demo Bistro DEMO_DB.
 
 AUTH / ROUTING CODE REVIEW
@@ -57,16 +64,16 @@ AUTH / ROUTING CODE REVIEW
 - worker/owner-portal.ts reads the Demo Bistro owner membership from DEMO_DB.
 - worker/owner-staff.ts routes staff operations for platform-demo-restaurant to DEMO_DB.
 - worker/restaurant.ts routes Demo Bistro restaurant operations to DEMO_DB.
-- This is source/binding review plus seed-data verification, NOT an actual browser credential sign-in against the live Worker.
+- This is source/binding review plus seed-data verification, NOT an actual browser credential sign-in against the live Worker. The login path first checks DB then falls back to DEMO_DB; demo.* auth rate limiting and sessions for the synthetic QA account remain in DEMO_DB.
 - Owner Staff UI contains Cook, Waiter and Manager sign-in links to /staff?login=1, an Add staff form, Copy credentials, and Suspend controls that revoke sessions.
 - Keep demo.admin preview-only. Do not weaken production administrator authentication or tenant/role guards.
 
 PRODUCTION QA THAT WILL RUN AFTER PR #122 MERGES
 - New workflow .github/workflows/production-demo-role-smoke.yml listens for successful "Live deployment smoke test" completion on main.
 - It runs the production-only Playwright suite against the live Worker in mobile and desktop viewports.
-- role-signin.spec.ts checks demo.admin -> 401; demo.owner -> Owner dashboard; demo.cook -> Kitchen queue; demo.waiter -> Service board; demo.manager -> Restaurant operations; and logout/session state after each account.
-- owner-staff.spec.ts checks Owner Staff panel, all three role-specific sign-in links, opens the Waiter link, creates the dedicated QA waiter through the panel on first run, copies credentials, signs into the Waiter dashboard, suspends the account, confirms active session revocation and verifies re-login returns 401. Later runs reuse/reset/reactivate/suspend the same dedicated QA account rather than creating duplicate rows.
-- The production workflow performs no orders, payments, reviews, or business-data resets. It does create/revoke the one dedicated synthetic staff account in DEMO_DB as authorized.
+- role-signin.spec.ts checks demo.admin -> 401 and verifies demo.cook -> Kitchen queue, demo.waiter -> Service board, and demo.manager -> Restaurant operations on mobile and desktop. owner-staff.spec.ts signs in demo.owner, verifies the Owner dashboard and Staff access panel on mobile.
+- owner-staff.spec.ts checks Owner Staff panel, all three role-specific sign-in links, opens the Waiter link, creates demo.qa.live.staff.revocation through the panel on first run, copies credentials, signs into the Waiter dashboard, suspends the account, confirms active session revocation and verifies re-login returns 401. Later runs reuse/reset/reactivate/suspend the same dedicated QA account rather than creating duplicate rows.
+- The production workflow performs no orders, payments, reviews, or business-data resets. It runs the mutating Owner Staff test once on mobile and the Cook/Waiter/Manager dashboard checks on mobile and desktop. It does create/revoke the one dedicated synthetic staff account in DEMO_DB as authorized.
 - The new workflow has not executed yet; wait for its post-merge run and inspect the logs/artifact.
 
 IMPORTANT VERIFICATION LIMITS / REMAINING TESTS
@@ -80,7 +87,7 @@ IMPORTANT VERIFICATION LIMITS / REMAINING TESTS
 - Production admin bootstrap was previously reported unavailable (bootstrap_available=false). Resolve the supported initial admin provisioning path before real restaurant onboarding; do not weaken guards.
 
 NEXT ACTIONS
-1. Verify latest PR #122 CI for commit 59e52116013ca05b87a95e598464d621d9275b9b: build, isolated QA, production-spec --list validation; fix and repeat if any failure.
+1. Verify latest PR #122 CI after final refinements: build, isolated QA, production-spec --list validation; fix and repeat if any failure.
 2. Inspect PR #122 diff and workflow security; merge only after all required checks pass. The production role smoke workflow starts only after the main Build -> Live deployment smoke chain succeeds.
 3. Inspect production role smoke results and artifact: all four live identities must authenticate to the correct dashboard; demo.admin must be rejected; Owner Staff link/copy/create/revoke checks must pass; test account must be suspended and re-login denied.
 4. Continue isolated local-D1 multi-cycle and rush-hour burst tests, then measure errors/latency and confirm no D1 quota exhaustion.
