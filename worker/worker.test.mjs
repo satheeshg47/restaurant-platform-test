@@ -82,6 +82,7 @@ beforeEach(() => {
   db.exec(readFileSync('database/d1/migrations/0007_tenant_restore_guard.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0008_native_auth_foundation.sql', 'utf8'))
   db.exec(readFileSync('database/d1/migrations/0009_totp_replay_protection.sql', 'utf8'))
+  db.exec(readFileSync('database/d1/migrations/0010_table_guest_pin_and_fssai.sql', 'utf8'))
   db.exec('CREATE TABLE d1_migrations (name TEXT PRIMARY KEY)')
   db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(
     '0001_platform_core.sql'
@@ -95,6 +96,7 @@ beforeEach(() => {
     '0007_tenant_restore_guard.sql',
     '0008_native_auth_foundation.sql',
     '0009_totp_replay_protection.sql',
+    '0010_table_guest_pin_and_fssai.sql',
   ]) db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').run(name)
   tenantId = crypto.randomUUID()
   db.prepare('INSERT INTO tenants(id,name,slug,status) VALUES(?,?,?,?)').run(tenantId, 'Test Restaurant', 'test-restaurant', 'active')
