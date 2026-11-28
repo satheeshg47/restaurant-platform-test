@@ -130,10 +130,13 @@ async function serveItem(env: Env, actor: Actor, itemId: string) {
 }
 async function waiterBill(env: Env, actor: Actor, sessionId: string) {
   if (!UUID.test(sessionId)) fail(404,'table_session_not_found')
-  const session = await env.DB.prepare(`SELECT s.id,s.opened_at,s.closed_at,s.guest_count,t.label AS table_label,p.display_name AS restaurant_name,p.currency_code FROM restaurant_table_sessions s JOIN restaurant_tables t ON t.tenant_id=s.tenant_id AND t.id=s.table_id LEFT JOIN restaurant_profiles p ON p.tenant_id=s.tenant_id WHERE s.tenant_id=? AND s.id=?`).bind(actor.tenantId,sessionId).first()
+  const session = await env.DB.prepare(`SELECT s.id,s.opened_at,s.closed_at,s.guest_count,t.label AS table_label,
+    p.display_name AS restaurant_name,p.legal_name,p.gstin,p.fssai_license_no,p.address_line1,p.address_line2,
+    p.city,p.state_name,p.state_code,p.postal_code,p.tax_mode,p.gst_rate,p.tax_inclusive,p.currency_code
+    FROM restaurant_table_sessions s JOIN restaurant_tables t ON t.tenant_id=s.tenant_id AND t.id=s.table_id LEFT JOIN restaurant_profiles p ON p.tenant_id=s.tenant_id WHERE s.tenant_id=? AND s.id=?`).bind(actor.tenantId,sessionId).first()
   if (!session) throw Object.assign(new Error('table_session_not_found'), { status: 404 })
   const [orders,items,payments,refunds,invoice] = await Promise.all([
-    env.DB.prepare("SELECT id,order_number,status,subtotal_minor,tax_minor,total_minor,created_at FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND status<>'cancelled' ORDER BY created_at,id").bind(actor.tenantId,sessionId).all(),
+    env.DB.prepare("SELECT id,order_number,status,subtotal_minor,tax_minor,total_minor,tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot,created_at FROM restaurant_orders WHERE tenant_id=? AND session_id=? AND status<>'cancelled' ORDER BY created_at,id").bind(actor.tenantId,sessionId).all(),
     env.DB.prepare("SELECT oi.order_id,oi.item_name_snapshot,oi.variant_name_snapshot,oi.addons_snapshot,oi.quantity,oi.unit_price_minor,oi.addons_price_minor,oi.line_total_minor,oi.status FROM restaurant_order_items oi JOIN restaurant_orders o ON o.tenant_id=oi.tenant_id AND o.id=oi.order_id WHERE oi.tenant_id=? AND o.session_id=? AND o.status<>'cancelled' ORDER BY oi.created_at,oi.id").bind(actor.tenantId,sessionId).all(),
     env.DB.prepare("SELECT amount_minor,method,reference,paid_at FROM restaurant_payments WHERE tenant_id=? AND session_id=? ORDER BY paid_at,id").bind(actor.tenantId,sessionId).all(),
     env.DB.prepare("SELECT amount_minor,reason,was_paid,created_at FROM restaurant_refunds WHERE tenant_id=? AND session_id=? ORDER BY created_at,id").bind(actor.tenantId,sessionId).all(),
