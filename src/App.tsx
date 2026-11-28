@@ -117,6 +117,7 @@ function App() {
     setApiSessionToken(null); setSessionToken(null); setSessionIdToken(null); setNativeUser(null); setAdminAccess('checking'); setAuthError('')
   }
   const handleNativeAuthenticated = () => {
+    if (staffLoginRoute) window.history.replaceState({}, document.title, '/staff')
     setApiSessionToken('native')
     setSessionToken('native')
     setSessionIdToken(null)
