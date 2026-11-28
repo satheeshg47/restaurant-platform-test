@@ -71,6 +71,9 @@ jobs:
           if (!ready.ok) throw new Error('Preview database schema is not ready: HTTP ' + ready.status)
           console.log('Confirmed isolated preview target and migrated schema:', base)
           NODE
+      - name: Validate live production QA specs without running them
+        working-directory: qa/mobile-browser
+        run: npx playwright test --config playwright.production.config.ts --list
       - name: Run authenticated role and closed-loop tests
         working-directory: qa/mobile-browser
         run: npm test
