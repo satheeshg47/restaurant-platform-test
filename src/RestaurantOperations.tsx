@@ -168,7 +168,7 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
     setBusy(table.id); setError('')
     try {
       const result = await request(`/tables/${table.id}/sessions`, { method: 'POST', body: JSON.stringify({ guest_count: 1 }) })
-      setNotice(`Table PIN for ${table.label}: ${result.session.guest_pin} (valid for 4 hours). Share it with guests at the table only.`)
+      setNotice(`Table PIN for ${table.label}: ${result.session.guest_pin} (valid for 2 hours). Share it with guests at the table only.`)
       await refresh()
     } catch (e) { setError(errorMessage(e instanceof Error ? e.message : 'request_failed')) }
     finally { setBusy('') }
