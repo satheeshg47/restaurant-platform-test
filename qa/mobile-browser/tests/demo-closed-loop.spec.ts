@@ -84,7 +84,7 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
   await groupedBatch.getByRole('button', { name: 'Print KOT' }).click()
   await expect(cookPage.locator('.restaurant-kot-print.print-width-58')).toContainText('KITCHEN ORDER TICKET')
   await expect(cookPage.locator('.restaurant-kot-print')).toContainText('Extra Ghee')
-  expect(await cookPage.evaluate(() => (window as any).__printCalls)).toBe(1)
+  await expect.poll(() => cookPage.evaluate(() => (window as any).__printCalls)).toBe(1)
   await expect(cookPage.getByRole('button', { name: 'Enable chime' })).toBeVisible()
   await cookPage.getByRole('button', { name: 'Enable chime' }).click()
   await expect(cookPage.getByRole('button', { name: 'Sound enabled' })).toBeVisible()
