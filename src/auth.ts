@@ -1,9 +1,3 @@
-let sessionToken: string | null = null
-
-export function setSessionToken(token: string | null) {
-  sessionToken = token
-}
-
 function isConfiguredApiRequest(input: RequestInfo | URL) {
   if (typeof window === 'undefined') return false
   try {
@@ -22,9 +16,6 @@ function isConfiguredApiRequest(input: RequestInfo | URL) {
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const headers = new Headers(input instanceof Request ? input.headers : undefined)
   new Headers(init.headers).forEach((value, key) => headers.set(key, value))
-  if (sessionToken && sessionToken !== 'native' && isConfiguredApiRequest(input) && !headers.has('Authorization')) {
-    headers.set('Authorization', 'Bearer ' + sessionToken)
-  }
   const credentials = init.credentials || (isConfiguredApiRequest(input) ? 'same-origin' : undefined)
   return fetch(input, { ...init, headers, ...(credentials ? { credentials } : {}) })
 }
