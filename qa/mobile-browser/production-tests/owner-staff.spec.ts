@@ -2,6 +2,16 @@ import { randomBytes } from 'node:crypto'
 import { test, expect, type BrowserContext } from '@playwright/test'
 import { api, signIn, QA_CREDENTIALS, DEMO_SLUG } from '../demo-helpers'
 
+test.afterEach(async ({ page }) => {
+  if (!page.url().startsWith('http')) return
+  const session = await api(page, 'GET', '/api/auth/session')
+  if (session.body?.authenticated) {
+    const logout = await api(page, 'POST', '/api/auth/logout')
+    expect(logout.status).toBe(200)
+    expect((await api(page, 'GET', '/api/auth/session')).body.authenticated).toBe(false)
+  }
+})
+
 test('production Owner Staff panel opens role links, creates a QA waiter, and revokes access', async ({ page, browser, request }) => {
   const healthResponse = await request.get('/api/health')
   expect(healthResponse.ok()).toBeTruthy()
@@ -146,6 +156,7 @@ test('production Owner Staff panel opens role links, creates a QA waiter, and re
       }
       const logout = await api(page, 'POST', '/api/auth/logout')
       expect(logout.status).toBe(200)
+      expect((await api(page, 'GET', '/api/auth/session')).body.authenticated).toBe(false)
     } finally {
       if (staffContext) await staffContext.close()
     }
