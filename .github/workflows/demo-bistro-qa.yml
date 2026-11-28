@@ -74,6 +74,21 @@ jobs:
       - name: Run authenticated role and closed-loop tests
         working-directory: qa/mobile-browser
         run: npm test
+      - name: Fail if any protected or smoke test was skipped
+        if: always()
+        working-directory: qa/mobile-browser
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          const path = 'test-results/results.json'
+          if (!fs.existsSync(path)) throw new Error('Playwright JSON report is missing; cannot verify skipped tests.')
+          const report = JSON.parse(fs.readFileSync(path, 'utf8'))
+          const skipped = Number(report.stats?.skipped || 0)
+          const failed = Number(report.stats?.unexpected || 0)
+          console.log(JSON.stringify({ passed: report.stats?.expected, failed, skipped }, null, 2))
+          if (skipped !== 0) throw new Error('Isolated QA must execute every test; found ' + skipped + ' skipped tests.')
+          if (failed !== 0) throw new Error('Isolated QA has ' + failed + ' failed tests.')
+          NODE
       - name: Capture authenticated screens and regenerate walkthrough PDF
         if: always()
         working-directory: qa/mobile-browser
