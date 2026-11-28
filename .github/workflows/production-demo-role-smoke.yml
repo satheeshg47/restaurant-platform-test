@@ -34,12 +34,25 @@ jobs:
       - name: Install Chromium
         working-directory: qa/mobile-browser
         run: npx playwright install --with-deps chromium
-      - name: Verify Owner Staff links and revoke the dedicated QA waiter
+      - name: Verify live production owner and staff journeys
         working-directory: qa/mobile-browser
-        run: npx playwright test --config playwright.production.config.ts --project mobile-390x844 production-tests/owner-staff.spec.ts
-      - name: Verify live Cook, Waiter and Manager dashboards on mobile and desktop
-        working-directory: qa/mobile-browser
-        run: npx playwright test --config playwright.production.config.ts production-tests/role-signin.spec.ts
+        run: npx playwright test --config playwright.production.config.ts
+      - name: Require every production role check to execute cleanly
+        if: always()
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const reportPath = 'qa/mobile-browser/test-results-production/results.json'
+          if (!fs.existsSync(reportPath)) throw new Error('Production Playwright JSON report is missing.')
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'))
+          const passed = Number(report.stats?.expected || 0)
+          const failed = Number(report.stats?.unexpected || 0)
+          const skipped = Number(report.stats?.skipped || 0)
+          const flaky = Number(report.stats?.flaky || 0)
+          console.log(JSON.stringify({ passed, failed, skipped, flaky }, null, 2))
+          if (passed !== 3) throw new Error('Expected exactly 3 production role checks to pass; got ' + passed + '.')
+          if (failed !== 0 || skipped !== 0 || flaky !== 0) throw new Error('Production role checks must have zero failures, skips or flaky retries.')
+          NODE
       - name: Upload production role QA report
         if: always()
         uses: actions/upload-artifact@v4
