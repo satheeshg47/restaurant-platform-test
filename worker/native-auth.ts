@@ -178,7 +178,6 @@ async function completeLogin(env: Env, userId: string, request: Request): Promis
 
 async function bootstrapAdmin(request: Request, env: Env): Promise<Response> {
   if (!env.AUTH_BOOTSTRAP_SECRET) return json(503, { error: 'bootstrap_not_configured' })
-  if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
   if (!await consumeRateLimit(env, `bootstrap:${ip}`)) return json(429, { error: 'too_many_attempts' })
   const body = await readBody(request)
@@ -242,7 +241,7 @@ async function login(request: Request, env: Env): Promise<Response> {
   if (!body) return json(400, { error: 'invalid_request' })
   const loginId = typeof body.login_id === 'string' ? body.login_id.trim() : ''
   const password = typeof body.password === 'string' ? body.password : ''
-  if (!loginId || loginId.length > 64 || password.length > 256) return json(401, { error: 'invalid_credentials' })
+  if (!loginId || loginId.length > 320 || password.length > 256) return json(401, { error: 'invalid_credentials' })
   const demoQaLogin = /^demo\.(admin|owner|cook|waiter|manager)$/.test(loginId.toLowerCase())
   if (demoQaLogin && env.ENVIRONMENT !== 'preview') return json(401, { error: 'invalid_credentials' })
   if (env.ENVIRONMENT === 'preview' && loginId.toLowerCase() === (env.DEMO_ADMIN_LOGIN_ID || 'demo.admin').toLowerCase()) {
@@ -258,8 +257,8 @@ async function login(request: Request, env: Env): Promise<Response> {
        EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active' AND tm.role IN ('owner','admin')) AS is_owner,
        EXISTS(SELECT 1 FROM tenant_memberships tm WHERE tm.user_id=pu.id AND tm.status='active') AS is_member_active
      FROM platform_user_credentials c JOIN platform_users pu ON pu.id=c.user_id
-     WHERE c.login_id_normalized=? LIMIT 1`,
-  ).bind(loginId.toLowerCase()).first<UserAuthRow>()
+     WHERE c.login_id_normalized=? OR lower(pu.email)=? LIMIT 1`,
+  ).bind(loginId.toLowerCase(), loginId.toLowerCase()).first<UserAuthRow>()
   if (!user && env.DEMO_DB) {
     authEnv = { ...env, DB: env.DEMO_DB }
     user = await authEnv.DB.prepare(
@@ -274,29 +273,8 @@ async function login(request: Request, env: Env): Promise<Response> {
   const dummyHash = 'pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
   const valid = await verifyPassword(password, user && user.credential_status === 'active' ? user.password_hash : dummyHash)
   if (!user || user.credential_status !== 'active' || !valid || (!Number(user.is_admin) && !Number(user.is_owner) && !Number(user.is_member_active))) return json(401, { error: 'invalid_credentials' })
-  // A single, explicitly named preview-only demo owner can sign in without
-  // enrolling an authenticator. Production owners and administrators still
-  // follow the normal MFA enrollment and verification flow.
-  const previewDemoOwner = env.ENVIRONMENT === 'preview' &&
-    Number(user.is_owner) === 1 &&
-    user.login_id === (env.DEMO_OWNER_LOGIN_ID || 'demo.owner')
-  const previewDemoAdmin = env.ENVIRONMENT === 'preview' &&
-    Number(user.is_admin) === 1 &&
-    user.login_id === (env.DEMO_ADMIN_LOGIN_ID || 'demo.admin')
-  const previewDemoIdentity = previewDemoAdmin || previewDemoOwner
-  if ((Number(user.is_admin) || Number(user.is_owner)) && !previewDemoIdentity) {
-    if (!user.totp_enabled) {
-      if (!env.AUTH_ENCRYPTION_KEY) return json(503, { error: 'totp_encryption_not_configured' })
-      const secret = createTotpSecret()
-      const ciphertext = await encryptTotpSecret(secret, env.AUTH_ENCRYPTION_KEY)
-      await authEnv.DB.prepare('UPDATE platform_user_credentials SET totp_secret_ciphertext=?,updated_at=? WHERE user_id=?')
-        .bind(ciphertext, new Date().toISOString(), user.id).run()
-      const challenge = await createChallenge(authEnv, user.id, 'totp_enrollment')
-      return json(200, { totp_enrollment_required: true, challenge_token: challenge, provisioning_uri: totpProvisioningUri(secret, user.login_id), issuer: 'Platform Core' })
-    }
-    const challenge = await createChallenge(authEnv, user.id, 'login_totp')
-    return json(200, { mfa_required: true, challenge_token: challenge })
-  }
+  // Password verification is the only sign-in step. Existing encrypted TOTP
+  // metadata is retained for backwards compatibility but is not required.
   return completeLogin(authEnv, user.id, request)
 }
 
