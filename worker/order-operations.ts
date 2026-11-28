@@ -142,7 +142,7 @@ async function waiterBill(env: Env, actor: Actor, sessionId: string) {
     env.DB.prepare("SELECT amount_minor,reason,was_paid,created_at FROM restaurant_refunds WHERE tenant_id=? AND session_id=? ORDER BY created_at,id").bind(actor.tenantId,sessionId).all(),
     env.DB.prepare("SELECT invoice_number,financial_year,issued_at,seller_snapshot,items_snapshot,subtotal_minor,tax_minor,cgst_minor,sgst_minor,igst_minor,other_tax_minor,total_minor,tax_rate,tax_inclusive FROM restaurant_invoices WHERE tenant_id=? AND session_id=?").bind(actor.tenantId,sessionId).first(),
   ])
-  return {session,orders:orders.results,items:items.results,payments:payments.results,refunds:refunds.results,invoice:invoice??null}
+  return {session,orders:orders.results,items:items.results,payments:payments.results,refunds:refunds.results,invoice:invoice ? {...invoice,seller_snapshot:parseJson(invoice.seller_snapshot),items_snapshot:parseJson(invoice.items_snapshot,[]),tax_inclusive:Boolean(invoice.tax_inclusive)} : null}
 }
 async function recordPayment(request: Request, env: Env, actor: Actor, sessionId: string) {
   if (!UUID.test(sessionId)) fail(404,'table_session_not_found')
