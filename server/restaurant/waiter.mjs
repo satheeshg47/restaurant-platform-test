@@ -244,7 +244,9 @@ export async function handleWaiterRoutes(request, response, { database, tenantId
       const bill = await withTenantTransaction(database, tenantId, async client => {
         const session = await client.query(
           `SELECT s.id,s.opened_at,s.closed_at,s.guest_count,t.label AS table_label,
-             p.display_name AS restaurant_name,p.currency_code
+             p.display_name AS restaurant_name,p.legal_name,p.gstin,p.fssai_license_no,
+             p.address_line1,p.address_line2,p.city,p.state_name,p.state_code,p.postal_code,
+             p.tax_mode,p.gst_rate,p.tax_inclusive,p.currency_code
            FROM restaurant_table_sessions s
            JOIN restaurant_tables t ON t.tenant_id=s.tenant_id AND t.id=s.table_id
            LEFT JOIN restaurant_profiles p ON p.tenant_id=s.tenant_id
@@ -253,7 +255,8 @@ export async function handleWaiterRoutes(request, response, { database, tenantId
         )
         if (!session.rows[0]) fail(404, 'table_session_not_found')
         const orders = await client.query(
-          `SELECT id,order_number,status,subtotal_minor,tax_minor,total_minor,created_at
+          `SELECT id,order_number,status,subtotal_minor,tax_minor,total_minor,
+             tax_mode_snapshot,tax_rate_snapshot,tax_inclusive_snapshot,created_at
            FROM restaurant_orders WHERE tenant_id=$1 AND session_id=$2 AND status <> 'cancelled'
            ORDER BY created_at,id`,
           [tenantId, sessionId],
