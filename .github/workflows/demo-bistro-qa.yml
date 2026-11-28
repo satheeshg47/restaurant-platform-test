@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: demo-bistro-preview-qa-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  group: demo-bistro-preview-qa-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -100,7 +100,7 @@ jobs:
           npx wrangler d1 execute restaurant-platform-qa --local --config wrangler.qa.jsonc --command "DELETE FROM platform_auth_rate_limits"
       - name: Capture authenticated screens and regenerate walkthrough PDF
         if: success()
-        timeout-minutes: 3
+        timeout-minutes: 6
         working-directory: qa/mobile-browser
         run: npm run guide
       - name: Upload QA report, screenshots and walkthrough
