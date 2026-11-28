@@ -117,7 +117,6 @@ function App() {
     setApiSessionToken(null); setSessionToken(null); setSessionIdToken(null); setNativeUser(null); setAdminAccess('checking'); setAuthError('')
   }
   const handleNativeAuthenticated = () => {
-    if (staffLoginRoute) window.history.replaceState({}, document.title, '/staff')
     setApiSessionToken('native')
     setSessionToken('native')
     setSessionIdToken(null)
@@ -125,6 +124,7 @@ function App() {
     void fetch(`${API_BASE}/auth/session`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
       .then(response => response.json())
       .then(payload => {
+        if (staffLoginRoute) window.history.replaceState({}, document.title, '/staff')
         if (payload?.authenticated) setNativeUser(payload.user || null)
         setBootstrapAvailable(payload?.bootstrap_available === true)
         setEncryptionReady(payload?.encryption_ready === true)
