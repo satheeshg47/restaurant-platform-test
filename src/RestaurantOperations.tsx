@@ -116,8 +116,21 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
 
   async function openSession(table: TableRow) {
     setBusy(table.id); setError('')
-    try { await request(`/tables/${table.id}/sessions`, { method: 'POST', body: JSON.stringify({ guest_count: 1 }) }); await refresh() }
-    catch (e) { setError(errorMessage(e instanceof Error ? e.message : 'request_failed')) }
+    try {
+      const result = await request(`/tables/${table.id}/sessions`, { method: 'POST', body: JSON.stringify({ guest_count: 1 }) })
+      setNotice(`Table PIN for ${table.label}: ${result.session.guest_pin} (valid for 4 hours). Share it with guests at the table only.`)
+      await refresh()
+    } catch (e) { setError(errorMessage(e instanceof Error ? e.message : 'request_failed')) }
+    finally { setBusy('') }
+  }
+
+  async function rotateGuestPin(table: TableRow) {
+    if (!table.session_id) return
+    setBusy(table.id); setError('')
+    try {
+      const result = await request(`/tables/${table.id}/sessions/${table.session_id}/pin`, { method: 'POST', body: '{}' })
+      setNotice(`New table PIN for ${table.label}: ${result.session.guest_pin} (valid for 4 hours). The previous PIN is now invalid.`)
+    } catch (e) { setError(errorMessage(e instanceof Error ? e.message : 'request_failed')) }
     finally { setBusy('') }
   }
 
@@ -207,7 +220,7 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
       {!queue.length && <div className="restaurant-ops-empty">No active kitchen orders. New QR orders will appear here.</div>}
     </> : <>
       <div className="restaurant-ops-stats"><div><b>{board.tables.filter(t => t.session_id).length}</b><span>Open tables</span></div><div><b>{board.ready_items.length}</b><span>Ready to serve</span></div><div><b>{board.service_requests.length}</b><span>Guest requests</span></div></div>
-      <div className="restaurant-ops-section"><h3><Users size={16}/> Tables & sessions</h3><div className="restaurant-table-grid">{board.tables.map(table => <article className="restaurant-table-card" key={table.id}><div><b>{table.label}</b><span>{table.table_type === 'takeaway' ? 'Takeaway' : 'Dine-in'}</span></div><span className={`restaurant-ops-status ${table.session_id ? 'open' : 'closed'}`}>{table.session_id ? 'Session open' : 'No session'}</span><small>{table.ready_items || 0} ready · {table.open_requests || 0} requests</small>{table.session_id ? <><div className="restaurant-payment-balance"><span>Due ₹{(Number(table.total_due_minor || 0) / 100).toFixed(2)}</span><span>Paid ₹{(Number(table.paid_minor || 0) / 100).toFixed(2)}</span><b>Balance ₹{((Number(table.total_due_minor || 0) - Number(table.paid_minor || 0) + Number(table.refunded_minor || 0) - Number(table.waived_minor || 0)) / 100).toFixed(2)}</b></div><button className="secondary" onClick={() => void openBill(table)}>View / print bill</button><button onClick={() => { setPaymentFor(table); setPaymentAmount(''); setPaymentReference('') }}>Record payment</button><button className="secondary" disabled={busy === table.id} onClick={() => void closeSession(table)}>Close session</button></> : <button disabled={busy === table.id} onClick={() => void openSession(table)}>Open session</button>}</article>)}</div></div>
+      <div className="restaurant-ops-section"><h3><Users size={16}/> Tables & sessions</h3><div className="restaurant-table-grid">{board.tables.map(table => <article className="restaurant-table-card" key={table.id}><div><b>{table.label}</b><span>{table.table_type === 'takeaway' ? 'Takeaway' : 'Dine-in'}</span></div><span className={`restaurant-ops-status ${table.session_id ? 'open' : 'closed'}`}>{table.session_id ? 'Session open' : 'No session'}</span><small>{table.ready_items || 0} ready · {table.open_requests || 0} requests</small>{table.session_id ? <><div className="restaurant-payment-balance"><span>Due ₹{(Number(table.total_due_minor || 0) / 100).toFixed(2)}</span><span>Paid ₹{(Number(table.paid_minor || 0) / 100).toFixed(2)}</span><b>Balance ₹{((Number(table.total_due_minor || 0) - Number(table.paid_minor || 0) + Number(table.refunded_minor || 0) - Number(table.waived_minor || 0)) / 100).toFixed(2)}</b></div><button className="secondary" onClick={() => void rotateGuestPin(table)} disabled={busy === table.id}>Regenerate guest PIN</button><button className="secondary" onClick={() => void openBill(table)}>View / print bill</button><button onClick={() => { setPaymentFor(table); setPaymentAmount(''); setPaymentReference('') }}>Record payment</button><button className="secondary" disabled={busy === table.id} onClick={() => void closeSession(table)}>Close session</button></> : <button disabled={busy === table.id} onClick={() => void openSession(table)}>Open session</button>}</article>)}</div></div>
       <div className="restaurant-ops-section"><h3><Check size={16}/> Ready to serve</h3>{board.ready_items.map(item => <article className="restaurant-waiter-row" key={item.order_item_id}><div><b>#{item.order_number} · {item.table_label}</b><strong>{item.item_name_snapshot} × {item.quantity}</strong><small>{item.variant_name_snapshot || ''}{item.addons_snapshot?.length ? ' · ' + item.addons_snapshot.map(a => a.name).join(', ') : ''}</small></div><button disabled={busy === item.order_item_id} onClick={() => void serve(item)}>Mark served</button></article>)}{!board.ready_items.length && <div className="restaurant-ops-empty compact">No items are waiting to be served.</div>}</div>
       <div className="restaurant-ops-section"><h3><Bell size={16}/> Guest requests</h3>{board.service_requests.map(item => <article className="restaurant-waiter-row" key={item.id}><div><b>{item.table_label} · {labelStatus(item.request_type)}</b><small>{item.note || 'Guest requested assistance'} · {when(item.created_at)}</small></div><div className="restaurant-waiter-actions"><button disabled={busy === item.id} onClick={() => void updateRequest(item, 'handled')}>Handled</button><button className="secondary" disabled={busy === item.id} onClick={() => void updateRequest(item, 'dismissed')}>Dismiss</button></div></article>)}{!board.service_requests.length && <div className="restaurant-ops-empty compact">No open guest requests.</div>}</div>
     </>}
