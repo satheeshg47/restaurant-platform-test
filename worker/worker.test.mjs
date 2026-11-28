@@ -841,6 +841,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   const guestData = await qrMenu.json()
   assert.equal(guestData.table.id, table.table.id)
   assert.equal(guestData.session.id, session.id)
+  assert.equal(Object.hasOwn(guestData.session, 'guest_pin'), false)
   assert.equal(guestData.restaurant.display_name, 'Green Leaf Foods')
   assert.equal(guestData.categories.length, 1)
   assert.equal(guestData.items.length, 1)
