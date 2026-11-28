@@ -299,8 +299,12 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
       db.prepare("INSERT INTO tenant_memberships(tenant_id,user_id,role,status) VALUES(?,?,'admin','active') ON CONFLICT(tenant_id,user_id) DO UPDATE SET role='admin',status='active'")
         .bind(tenantId, userId),
       db.prepare(`INSERT OR IGNORE INTO restaurant_profiles
-        (tenant_id,display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,tax_inclusive,accepting_orders,city,state_name,state_code,invoice_prefix)
-        VALUES(?,'Demo Bistro','INR','Asia/Kolkata','en','gst',5,5,0,1,'Bengaluru','Karnataka','29','DM')`)
+        (tenant_id,display_name,legal_name,gstin,fssai_license_no,address_line1,postal_code,
+         currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,tax_inclusive,
+         accepting_orders,city,state_name,state_code,invoice_prefix)
+        VALUES(?,'Demo Bistro','Demo Bistro Hospitality Pvt Ltd','29ABCDE1234F1Z5','11223344556677',
+         '10 Demo Street','560001','INR','Asia/Kolkata','en','gst',5,5,0,1,
+         'Bengaluru','Karnataka','29','DM')`)
         .bind(tenantId),
       db.prepare("UPDATE restaurant_profiles SET display_name='Demo Bistro' WHERE tenant_id=?").bind(tenantId),
       db.prepare("INSERT OR IGNORE INTO restaurant_staff(id,tenant_id,user_id,username,display_name,role,active) VALUES(?,?,?,?,?,'owner',1)")
@@ -342,6 +346,9 @@ export async function handleDemoProvision(request: Request, env: Env, admin: Ide
       await db.prepare("UPDATE restaurant_menu_items SET name=json_set(name,'$.hi',COALESCE(json_extract(name,'$.hi'),?),'$.kn',COALESCE(json_extract(name,'$.kn'),?)) WHERE tenant_id=? AND id=?")
         .bind(hindi,kannada,tenantId,itemId).run()
     }
+
+    await db.prepare("UPDATE restaurant_menu_items SET hsn_sac_code='996331' WHERE tenant_id=? AND hsn_sac_code IS NULL")
+      .bind(tenantId).run()
 
     const demoOwnerId = await ensureDemoOwnerAccount(db, tenantId)
     const cookId = await ensureDemoStaffAccount(db, tenantId, 'cook', 'demo.cook', 'Demo Cook', 'DemoCook#2026!')

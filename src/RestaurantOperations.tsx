@@ -1,4 +1,5 @@
 import { apiFetch } from './auth'
+import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Check, ChefHat, RefreshCw, Utensils, Users, Bell, X } from 'lucide-react'
 
@@ -21,6 +22,20 @@ function when(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 }
+function addonLabels(value: unknown): string[] {
+  let parsed = value
+  if (typeof parsed === 'string') {
+    try { parsed = JSON.parse(parsed) } catch { return [] }
+  }
+  if (!Array.isArray(parsed)) return []
+  return parsed.map((entry: any) => {
+    const name = entry?.name
+    if (typeof name === 'string') return name
+    if (name && typeof name === 'object') return String(name.en || Object.values(name)[0] || 'Add-on')
+    return 'Add-on'
+  })
+}
+
 function errorMessage(code: string) {
   const messages: Record<string, string> = {
     unauthorized: 'Please sign in with your restaurant staff account.',
@@ -51,7 +66,7 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card' | 'other'>('cash')
   const [paymentReference, setPaymentReference] = useState('')
   const [billFor, setBillFor] = useState<TableRow | null>(null)
-  const [bill, setBill] = useState<{session: {table_label:string;restaurant_name?:string;opened_at:string;closed_at?:string|null;guest_count:number;currency_code?:string};orders: {id:string;order_number:number;subtotal_minor:string;tax_minor:string;total_minor:string;created_at:string}[];items: {order_id:string;item_name_snapshot:string;variant_name_snapshot:string|null;addons_snapshot:{name:string}[];quantity:number;line_total_minor:string;status:string}[];payments:{amount_minor:string;method:string;reference:string|null;paid_at:string}[];refunds:{amount_minor:string;reason:string;was_paid:boolean;created_at:string}[];invoice?:{invoice_number:string;issued_at:string;seller_snapshot:Record<string,string>;items_snapshot:{item_name:string;hsn_sac_code:string;quantity:number;line_total_minor:string}[];subtotal_minor:string;tax_minor:string;cgst_minor:string;sgst_minor:string;other_tax_minor:string;total_minor:string;tax_rate:number|string;tax_inclusive:boolean}|null}|null>(null)
+  const [bill, setBill] = useState<{session: {table_label:string;restaurant_name?:string;legal_name?:string|null;gstin?:string|null;fssai_license_no?:string|null;address_line1?:string|null;address_line2?:string|null;city?:string|null;state_name?:string|null;postal_code?:string|null;state_code?:string|null;tax_mode?:string|null;gst_rate?:number|string|null;tax_inclusive?:boolean;opened_at:string;closed_at?:string|null;guest_count:number;currency_code?:string};orders: {id:string;order_number:number;subtotal_minor:string;tax_minor:string;total_minor:string;tax_mode_snapshot?:string|null;tax_rate_snapshot?:number|string|null;tax_inclusive_snapshot?:boolean;created_at:string}[];items: {order_id:string;item_name_snapshot:string;variant_name_snapshot:string|null;addons_snapshot:unknown;quantity:number;line_total_minor:string;status:string}[];payments:{amount_minor:string;method:string;reference:string|null;paid_at:string}[];refunds:{amount_minor:string;reason:string;was_paid:boolean;created_at:string}[];invoice?:{invoice_number:string;issued_at:string;seller_snapshot:Record<string,string>;items_snapshot:{item_name:string;variant_name?:string|null;addons?:unknown;hsn_sac_code:string;quantity:number;line_total_minor:string}[];subtotal_minor:string;tax_minor:string;cgst_minor:string;sgst_minor:string;other_tax_minor:string;total_minor:string;tax_rate:number|string;tax_inclusive:boolean}|null}|null>(null)
   const [billLoading, setBillLoading] = useState(false)
   const [notice, setNotice] = useState('')
   const [printTicket, setPrintTicket] = useState<QueueRow[] | null>(null)
@@ -251,7 +266,7 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
       <div className="restaurant-kitchen-list">{groupedQueue.map(rows => {
         const row = rows[0]
         return <article className="restaurant-kitchen-card restaurant-kitchen-batch-card" key={row.batch_id}>
-          <div className="restaurant-kitchen-card-top"><span>{rows.length} table orders · {Array.from(new Set(rows.map(item => item.table_label))).join(' · ')}</span><span>{when(row.batch_created_at)}</span><button className="secondary small" onClick={() => { setPrintTicket(rows); window.requestAnimationFrame(() => window.print()) }}>Print KOT</button></div>
+          <div className="restaurant-kitchen-card-top"><span>{rows.length} table orders · {Array.from(new Set(rows.map(item => item.table_label))).join(' · ')}</span><span>{when(row.batch_created_at)}</span><button className="secondary small" onClick={() => { flushSync(() => setPrintTicket(rows)); window.print() }}>Print KOT</button></div>
           <div className="restaurant-kitchen-main"><div><h3>{row.item_name_snapshot}{row.variant_name_snapshot ? ` · ${row.variant_name_snapshot}` : ''}</h3><p>Combined quantity <b>{row.total_quantity}</b>{row.addons_snapshot?.length ? ' · ' + row.addons_snapshot.map(a => a.name).join(', ') : ''}</p></div><span className={`restaurant-ops-status ${row.batch_status}`}>{labelStatus(row.batch_status)}</span></div>
           <div className="restaurant-kitchen-breakdown">
             {rows.map(allocation => <div className="restaurant-kitchen-allocation" key={allocation.order_item_id}>
@@ -280,6 +295,15 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
       {billLoading && <p>Loading bill…</p>}
       {bill && <>
         <div className="restaurant-bill-meta">Opened {new Date(bill.session.opened_at).toLocaleString('en-IN')}</div>
+        {!bill.invoice && <div className="restaurant-bill-invoice restaurant-bill-seller">
+          <h4>RESTAURANT BILL · NOT A GST TAX INVOICE</h4>
+          <b>{bill.session.legal_name || bill.session.restaurant_name || 'Restaurant'}</b>
+          <div>{[bill.session.address_line1,bill.session.address_line2,bill.session.city,bill.session.state_name,bill.session.postal_code].filter(Boolean).join(', ')}</div>
+          {bill.session.gstin && <div>GSTIN: {bill.session.gstin}</div>}
+          {bill.session.fssai_license_no && <div>FSSAI License No: {bill.session.fssai_license_no}</div>}
+          <div>Table: {bill.session.table_label} · Guests: {bill.session.guest_count}</div>
+          <div>Bill time: {new Date().toLocaleString('en-IN')}</div>
+        </div>}
         {bill.invoice && <div className="restaurant-bill-invoice">
           <h4>GST TAX INVOICE · {bill.invoice.invoice_number}</h4>
           <b>{bill.invoice.seller_snapshot.legal_name}</b>
@@ -288,25 +312,25 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
           <div>Place of supply: {bill.invoice.seller_snapshot.place_of_supply}</div>
           <div>Issued: {new Date(bill.invoice.issued_at).toLocaleString('en-IN')}</div>
           <hr/>
-          {bill.invoice.items_snapshot.map((item,index)=><div className="restaurant-bill-line" key={index}><span>{item.item_name} · HSN/SAC {item.hsn_sac_code} × {item.quantity}</span><b>₹{(Number(item.line_total_minor)/100).toFixed(2)}</b></div>)}
+          {bill.invoice.items_snapshot.map((item,index)=><div className="restaurant-bill-line" key={index}><span>{item.item_name}{item.variant_name ? ' · ' + item.variant_name : ''} × {item.quantity}{addonLabels(item.addons).length ? ' · ' + addonLabels(item.addons).join(', ') : ''} · HSN/SAC {item.hsn_sac_code}</span><b>₹{(Number(item.line_total_minor)/100).toFixed(2)}</b></div>)}
           <div className="restaurant-bill-line"><span>Taxable value</span><b>₹{(Number(bill.invoice.subtotal_minor)/100).toFixed(2)}</b></div>
           {Number(bill.invoice.cgst_minor)>0 && <div className="restaurant-bill-line"><span>CGST ({Number(bill.invoice.tax_rate)/2}%)</span><span>₹{(Number(bill.invoice.cgst_minor)/100).toFixed(2)}</span></div>}
           {Number(bill.invoice.sgst_minor)>0 && <div className="restaurant-bill-line"><span>SGST ({Number(bill.invoice.tax_rate)/2}%)</span><span>₹{(Number(bill.invoice.sgst_minor)/100).toFixed(2)}</span></div>}
           {Number(bill.invoice.other_tax_minor)>0 && <div className="restaurant-bill-line"><span>Other tax</span><span>₹{(Number(bill.invoice.other_tax_minor)/100).toFixed(2)}</span></div>}
           <div className="restaurant-bill-line total"><span>Invoice total</span><b>₹{(Number(bill.invoice.total_minor)/100).toFixed(2)}</b></div>
         </div>}
-        {bill.orders.map(order=><div className="restaurant-bill-order" key={order.id}><b>Order #{order.order_number}</b><small>{new Date(order.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</small><div>{bill.items.filter(item=>item.order_id===order.id).map((item,index)=><div className="restaurant-bill-line" key={order.id+'-'+index}><span>{item.item_name_snapshot}{item.variant_name_snapshot ? ' · '+item.variant_name_snapshot : ''} × {item.quantity}</span><b>₹{(Number(item.line_total_minor)/100).toFixed(2)}</b></div>)}</div><div className="restaurant-bill-line"><span>Subtotal</span><span>₹{(Number(order.subtotal_minor)/100).toFixed(2)}</span></div><div className="restaurant-bill-line"><span>Tax</span><span>₹{(Number(order.tax_minor)/100).toFixed(2)}</span></div><div className="restaurant-bill-line total"><span>Order total</span><b>₹{(Number(order.total_minor)/100).toFixed(2)}</b></div></div>)}
+        {!bill.invoice && bill.orders.map(order=><div className="restaurant-bill-order" key={order.id}><b>Order #{order.order_number}</b><small>{new Date(order.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</small><div>{bill.items.filter(item=>item.order_id===order.id).map((item,index)=><div className="restaurant-bill-line" key={order.id+'-'+index}><span>{item.item_name_snapshot}{item.variant_name_snapshot ? ' · '+item.variant_name_snapshot : ''} × {item.quantity}{addonLabels(item.addons_snapshot).length ? ' · '+addonLabels(item.addons_snapshot).join(', ') : ''}</span><b>₹{(Number(item.line_total_minor)/100).toFixed(2)}</b></div>)}</div><div className="restaurant-bill-line"><span>{(order.tax_inclusive_snapshot ?? bill.session.tax_inclusive) ? 'Taxable value' : 'Subtotal'}</span><span>₹{((Number(order.subtotal_minor)-((order.tax_inclusive_snapshot ?? bill.session.tax_inclusive)?Number(order.tax_minor):0))/100).toFixed(2)}</span></div>{(order.tax_mode_snapshot || bill.session.tax_mode) === 'gst' ? <><div className="restaurant-bill-line"><span>CGST ({Number(order.tax_rate_snapshot ?? bill.session.gst_rate ?? 0)/2}%)</span><span>₹{(Math.floor(Number(order.tax_minor)/2)/100).toFixed(2)}</span></div><div className="restaurant-bill-line"><span>SGST ({Number(order.tax_rate_snapshot || 0)/2}%)</span><span>₹{((Number(order.tax_minor)-Math.floor(Number(order.tax_minor)/2))/100).toFixed(2)}</span></div></> : <div className="restaurant-bill-line"><span>Tax</span><span>₹{(Number(order.tax_minor)/100).toFixed(2)}</span></div>}<div className="restaurant-bill-line total"><span>Order total</span><b>₹{(Number(order.total_minor)/100).toFixed(2)}</b></div></div>)}
         <div className="restaurant-bill-summary"><div className="restaurant-bill-line"><span>Total due</span><b>₹{(bill.orders.reduce((sum,o)=>sum+Number(o.total_minor),0)/100).toFixed(2)}</b></div><div className="restaurant-bill-line"><span>Payments</span><span>₹{(bill.payments.reduce((sum,p)=>sum+Number(p.amount_minor),0)/100).toFixed(2)}</span></div><div className="restaurant-bill-line"><span>Refunds</span><span>₹{(bill.refunds.filter(r=>r.was_paid).reduce((sum,r)=>sum+Number(r.amount_minor),0)/100).toFixed(2)}</span></div><div className="restaurant-bill-line total"><span>Balance</span><b>₹{((bill.orders.reduce((sum,o)=>sum+Number(o.total_minor),0)-bill.payments.reduce((sum,p)=>sum+Number(p.amount_minor),0)+bill.refunds.filter(r=>r.was_paid).reduce((sum,r)=>sum+Number(r.amount_minor),0))/100).toFixed(2)}</b></div></div>
-        <div className="restaurant-bill-actions"><label>Printer width <select aria-label="Thermal printer width" value={printWidth} onChange={event=>setPrintWidth(event.target.value as '58'|'80')}><option value="58">58mm</option><option value="80">80mm</option></select></label>{bill.invoice ? <button className="secondary" onClick={()=>window.print()}>Print bill / GST invoice</button> : <button className="secondary" disabled={!!busy} onClick={()=>void issueInvoice()}>Issue GST invoice & close session</button>}<button onClick={()=>{setBillFor(null);setBill(null)}}>Done</button></div>
+        <div className="restaurant-bill-actions"><label>Printer width <select aria-label="Thermal printer width" value={printWidth} onChange={event=>setPrintWidth(event.target.value as '58'|'80')}><option value="58">58mm</option><option value="80">80mm</option></select></label><button className="secondary" onClick={()=>window.print()}>{bill.invoice ? 'Print GST tax invoice' : 'Print bill'}</button>{!bill.invoice && <button className="secondary" disabled={!!busy} onClick={()=>void issueInvoice()}>Issue GST invoice & close session</button>}<button onClick={()=>{setBillFor(null);setBill(null)}}>Done</button></div>
       </>}
     </div></div>}
     {printTicket && <div className={`restaurant-print-sheet restaurant-kot-print print-width-${printWidth}`}>
       <h2>KITCHEN ORDER TICKET</h2><b>{printTicket[0]?.item_name_snapshot}{printTicket[0]?.variant_name_snapshot ? ' · ' + printTicket[0].variant_name_snapshot : ''}</b>
       <h1>QTY {printTicket.reduce((sum,row)=>sum+Number(row.allocation_quantity),0)}</h1>
-      <p>{printTicket[0]?.addons_snapshot?.map(addon=>addon.name).join(', ')}</p>
       <hr/>
       {printTicket.map(row=><div className="restaurant-kot-allocation" key={row.order_item_id}>
         <b>{row.table_label} · Order #{row.order_number}</b><strong>× {row.allocation_quantity}</strong>
+        {row.addons_snapshot?.length > 0 && <p>Add-ons: {row.addons_snapshot.map(addon=>addon.name).join(', ')}</p>}
         {row.customization && <p>Note: {row.customization}</p>}{row.special_instructions && <p>Order: {row.special_instructions}</p>}
         <small>{when(row.order_created_at)}</small>
       </div>)}

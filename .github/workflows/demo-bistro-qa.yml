@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: demo-bistro-preview-qa
+  group: demo-bistro-preview-qa-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -74,8 +74,24 @@ jobs:
       - name: Run authenticated role and closed-loop tests
         working-directory: qa/mobile-browser
         run: npm test
-      - name: Capture authenticated screens and regenerate walkthrough PDF
+      - name: Fail if any protected or smoke test was skipped
         if: always()
+        working-directory: qa/mobile-browser
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          const path = 'test-results/results.json'
+          if (!fs.existsSync(path)) throw new Error('Playwright JSON report is missing; cannot verify skipped tests.')
+          const report = JSON.parse(fs.readFileSync(path, 'utf8'))
+          const skipped = Number(report.stats?.skipped || 0)
+          const failed = Number(report.stats?.unexpected || 0)
+          console.log(JSON.stringify({ passed: report.stats?.expected, failed, skipped }, null, 2))
+          if (skipped !== 0) throw new Error('Isolated QA must execute every test; found ' + skipped + ' skipped tests.')
+          if (failed !== 0) throw new Error('Isolated QA has ' + failed + ' failed tests.')
+          NODE
+      - name: Capture authenticated screens and regenerate walkthrough PDF
+        if: success()
+        timeout-minutes: 3
         working-directory: qa/mobile-browser
         run: npm run guide
       - name: Upload QA report, screenshots and walkthrough
