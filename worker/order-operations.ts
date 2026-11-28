@@ -5,6 +5,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } })
 const fail = (status: number, code: string): never => { throw Object.assign(new Error(code), { status }) }
 const now = "strftime('%Y-%m-%dT%H:%M:%fZ','now')"
+function parseJson(value: unknown, fallback: unknown = {}) {
+  if (typeof value !== 'string') return fallback
+  try { return JSON.parse(value) } catch { return fallback }
+}
 function parseAddonSnapshot(value: unknown): { id?: string; name: string; price_minor?: number | string }[] {
   try {
     const parsed = typeof value === 'string' ? JSON.parse(value) : value
