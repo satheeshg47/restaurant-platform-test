@@ -809,6 +809,8 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   })
   assert.equal(opened.status, 201)
   const session = (await opened.json()).session
+  assert.match(session.guest_pin, /^\\d{6}$/)
+  assert.ok(Date.parse(session.guest_pin_expires_at) > Date.now())
   const blockedDeactivate = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}`, {
     method: 'PATCH', accessToken: ownerAccess, body: { active: false },
   })
@@ -844,7 +846,30 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(guestData.categories[0].items[0].id, item.id)
 
   const selectedVariant = db.prepare('SELECT id FROM restaurant_menu_variants WHERE tenant_id=? AND item_id=?').get(tenant.id, item.id)
-  const orderPayload = { session_id: session.id, idempotency_key: 'guest-order-test-0001', note: '  No   onions  ', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
+  const guestVerifyPath = `/restaurant/green-leaf-kitchen/guest/${table.qr_token}/session/verify`
+  const missingPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: '' } })
+  assert.equal(missingPin.status, 401)
+  assert.equal((await missingPin.json()).error, 'guest_pin_required')
+  const wrongPin = String((Number(session.guest_pin) + 1) % 1000000).padStart(6, '0')
+  const invalidPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: wrongPin } })
+  assert.equal(invalidPin.status, 401)
+  assert.equal((await invalidPin.json()).error, 'guest_pin_invalid')
+  const expiredPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: session.guest_pin } })
+  assert.equal(expiredPin.status, 200)
+  assert.equal((await expiredPin.json()).verified, true)
+  db.prepare("UPDATE restaurant_table_sessions SET guest_pin_expires_at='2000-01-01T00:00:00.000Z' WHERE tenant_id=? AND id=?").run(tenant.id, session.id)
+  const expiredAttempt = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: session.guest_pin } })
+  assert.equal(expiredAttempt.status, 410)
+  assert.equal((await expiredAttempt.json()).error, 'guest_pin_expired')
+  const rotatedPin = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}/sessions/${session.id}/pin`, { method: 'POST', accessToken: ownerAccess, body: {} })
+  assert.equal(rotatedPin.status, 200)
+  const oldPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: session.guest_pin } })
+  assert.equal(oldPin.status, 401)
+  session.guest_pin = (await rotatedPin.json()).session.guest_pin
+  const verifiedPin = await call(guestVerifyPath, { method: 'POST', body: { session_id: session.id, pin: session.guest_pin } })
+  assert.equal(verifiedPin.status, 200)
+
+  const orderPayload = { session_id: session.id, guest_pin: session.guest_pin, idempotency_key: 'guest-order-test-0001', note: '  No   onions  ', items: [{ item_id: item.id, variant_id: selectedVariant.id, quantity: 2 }] }
   const guestOrderPath = `/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders`
   const placed = await call(guestOrderPath, { method: 'POST', body: orderPayload })
   assert.equal(placed.status, 201)
@@ -863,12 +888,12 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   assert.equal(guestOrderStatus.status, 200)
   assert.equal((await guestOrderStatus.json()).items.length, 1)
   const cancellationRequest = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/orders/${placedBody.order.id}/cancel`, {
-    method: 'POST', body: { session_id: session.id },
+    method: 'POST', body: { session_id: session.id, guest_pin: session.guest_pin },
   })
   assert.equal(cancellationRequest.status, 201)
   assert.equal((await cancellationRequest.json()).request.status, 'open')
   const guestServiceRequest = await call(`/restaurant/green-leaf-kitchen/guest/${table.qr_token}/requests`, {
-    method: 'POST', body: { session_id: session.id, request_type: 'need_water', note: 'Please bring water' },
+    method: 'POST', body: { session_id: session.id, guest_pin: session.guest_pin, request_type: 'need_water', note: 'Please bring water' },
   })
   assert.equal(guestServiceRequest.status, 201)
   assert.equal((await guestServiceRequest.json()).request.status, 'open')
