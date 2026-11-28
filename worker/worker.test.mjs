@@ -811,7 +811,7 @@ test('Super Admin can create a tenant, invite its owner and manage restaurant se
   })
   assert.equal(opened.status, 201)
   const session = (await opened.json()).session
-  assert.match(session.guest_pin, /^\\d{6}$/)
+  assert.match(session.guest_pin, /^\d{6}$/)
   assert.ok(Date.parse(session.guest_pin_expires_at) > Date.now())
   const blockedDeactivate = await call(`/restaurant/green-leaf-kitchen/tables/${table.table.id}`, {
     method: 'PATCH', accessToken: ownerAccess, body: { active: false },
