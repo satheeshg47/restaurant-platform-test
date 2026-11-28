@@ -170,17 +170,19 @@ async function guestCapture(browser, viewport) {
     const response = await fetch('/api/auth/login', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ login_id: 'demo.waiter', password: ['DemoWaiter', '#2026!'].join('') }),
+      body: JSON.stringify({ login_id: 'demo.owner', password: ['DemoOwner', '#2026!'].join('') }),
     })
-    return response.ok
-  }).catch(() => false)
+    return { ok: response.ok, status: response.status, body: await response.json().catch(() => ({})) }
+  }).catch(error => ({ ok: false, status: 0, error: String(error) }))
   let guestPin = ''
-  if (staffLogin) {
+  let pinSetupError = 'owner_login_failed:' + JSON.stringify(staffLogin)
+  if (staffLogin.ok) {
     const tableResult = await staffPage.evaluate(async () => {
       const response = await fetch('/api/restaurant/platform-demo-restaurant/tables', { credentials: 'same-origin' })
       return response.ok ? response.json() : null
     }).catch(() => null)
     const table = tableResult?.tables?.find(entry => entry.table_number === 1)
+    if (!table) pinSetupError = 'table_lookup_failed:' + JSON.stringify(tableResult)
     if (table) {
       const sessionResult = await staffPage.evaluate(async table => {
         const path = table.session_id
@@ -194,10 +196,11 @@ async function guestCapture(browser, viewport) {
         return { ok: response.ok, body: await response.json().catch(() => ({})) }
       }, table).catch(() => null)
       if (sessionResult?.ok) guestPin = sessionResult.body.session?.guest_pin || ''
+      else pinSetupError = 'pin_create_or_rotate_failed:' + JSON.stringify(sessionResult)
     }
   }
   await staffContext.close()
-  if (!guestPin) throw new Error('Could not create or rotate a preview table PIN for the guest walkthrough.')
+  if (!guestPin) throw new Error('Could not create or rotate a preview table PIN for the guest walkthrough: ' + pinSetupError)
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile })
   const page = await context.newPage()
   await page.goto(baseURL + '/r/platform-demo-restaurant/' + token, { waitUntil: 'domcontentloaded' }).catch(() => {})
