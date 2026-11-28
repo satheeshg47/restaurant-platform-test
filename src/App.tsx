@@ -62,6 +62,7 @@ function App() {
   const ownerRoute = window.location.pathname === '/owner' || window.location.pathname === '/owner/'
   const ownerInviteRoute = window.location.pathname === '/owner/invitations/accept'
   const staffRoute = window.location.pathname === '/staff' || window.location.pathname === '/staff/'
+  const staffLoginRoute = staffRoute && new URLSearchParams(window.location.search).get('login') === '1'
 
   useEffect(() => {
     if (window.location.pathname === '/owner/invitations/accept') {
@@ -102,14 +103,14 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!authReady || !sessionToken || ownerRoute || ownerInviteRoute || (staffRoute && nativeUser?.tenant_role === 'staff')) return
+    if (!authReady || !sessionToken || ownerRoute || ownerInviteRoute || staffLoginRoute || (staffRoute && nativeUser?.tenant_role === 'staff')) return
     let active = true
     setAdminAccess('checking')
     apiFetch(`${API_BASE}/admin/session`, { headers: { Accept: 'application/json' }, cache: 'no-store' })
       .then(response => { if (active) setAdminAccess(response.ok ? 'allowed' : response.status === 403 ? 'forbidden' : 'unavailable') })
       .catch(() => { if (active) setAdminAccess('unavailable') })
     return () => { active = false }
-  }, [authReady, sessionToken, ownerRoute, ownerInviteRoute, staffRoute, nativeUser])
+  }, [authReady, sessionToken, ownerRoute, ownerInviteRoute, staffRoute, staffLoginRoute, nativeUser])
 
   const signOut = () => {
     if (sessionToken === 'native') void fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } }).catch(() => {})
@@ -132,6 +133,7 @@ function App() {
   const guestRoute = window.location.pathname.match(/^\/r\/([^/]+)\/([^/]+)\/?$/)
   if (guestRoute) return <GuestMenu slug={decodeURIComponent(guestRoute[1])} token={decodeURIComponent(guestRoute[2])} />
   if (!authReady) return <div className="signin-screen"><div className="signin-card">Completing secure sign-in…</div></div>
+  if (staffLoginRoute) return <SignIn role="staff" error={authError} onAuthenticated={handleNativeAuthenticated}/>
   if (sessionToken === 'native' && nativeUser?.tenant_role === 'staff') {
     const membership = nativeUser.memberships?.find(item => item.membership_role === 'staff' && item.staff_role && item.tenant_slug)
     if (!membership) return <div className="signin-screen"><div className="signin-card">Your staff account has no active restaurant assignment. Contact the restaurant owner.</div></div>
