@@ -197,7 +197,7 @@ async function handleSettings(request: Request, env: Env, actor: TenantActor): P
   if (request.method === 'GET') {
     const row = await env.DB.prepare(
       `SELECT display_name,currency_code,timezone,default_language,tax_mode,tax_rate,gst_rate,
-        tax_inclusive,accepting_orders,legal_name,gstin,address_line1,address_line2,city,state_name,state_code,postal_code,invoice_prefix
+        tax_inclusive,accepting_orders,legal_name,gstin,fssai_license_no,address_line1,address_line2,city,state_name,state_code,postal_code,invoice_prefix
        FROM restaurant_profiles WHERE tenant_id=?`,
     ).bind(actor.tenantId).first<Record<string, unknown>>()
     if (!row) fail(404, 'restaurant_profile_not_configured')
@@ -211,7 +211,7 @@ async function handleSettings(request: Request, env: Env, actor: TenantActor): P
   if (!current) fail(404, 'restaurant_profile_not_configured')
   const merged: Record<string, unknown> = { ...current, ...body }
   if (typeof merged.display_name !== 'string' || !merged.display_name.trim() || merged.display_name.trim().length > 160) fail(400, 'invalid_settings')
-  if (merged.currency_code !== 'INR' || merged.timezone !== 'Asia/Kolkata' || !['en','hi','kn'].includes(String(merged.default_language))) fail(400, 'invalid_settings')
+  if (merged.currency_code !== 'INR' || merged.timezone !== 'Asia/Kolkata' || !['en','hi','kn','ta','te','ml'].includes(String(merged.default_language))) fail(400, 'invalid_settings')
   if (!['none','single','gst'].includes(String(merged.tax_mode))) fail(400, 'invalid_settings')
   for (const key of ['tax_rate','gst_rate']) {
     const value = Number(merged[key])
@@ -231,7 +231,7 @@ async function handleSettings(request: Request, env: Env, actor: TenantActor): P
   if (merged.state_code === '') merged.state_code = null
   if (merged.state_code !== null && merged.state_code !== undefined && (typeof merged.state_code !== 'string' || !/^\d{2}$/.test(merged.state_code))) fail(400, 'invalid_state_code')
   if (typeof merged.invoice_prefix !== 'string' || !/^[A-Z0-9]{1,3}$/.test(merged.invoice_prefix)) fail(400, 'invalid_invoice_prefix')
-  const columns = ['display_name','currency_code','timezone','default_language','tax_mode','tax_rate','gst_rate','tax_inclusive','accepting_orders','legal_name','gstin','address_line1','address_line2','city','state_name','state_code','postal_code','invoice_prefix']
+  const columns = ['display_name','currency_code','timezone','default_language','tax_mode','tax_rate','gst_rate','tax_inclusive','accepting_orders','legal_name','gstin','fssai_license_no','address_line1','address_line2','city','state_name','state_code','postal_code','invoice_prefix']
   const values = columns.map(key => key === 'display_name' ? String(merged[key]).trim() : (key === 'tax_inclusive' || key === 'accepting_orders') ? Number(Boolean(merged[key])) : merged[key] ?? null)
   const assignments = columns.map((key,index) => `${key}=?`).join(',')
   const result = await env.DB.prepare(
