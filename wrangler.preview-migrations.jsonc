@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "restaurant-platform-preview-migrations",
+  "compatibility_date": "2026-11-17",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "restaurant-platform-preview-app",
+      "database_id": "e1f36ce9-268c-4419-92e1-ba9297d4ebf8",
+      "migrations_dir": "database/d1/migrations"
+    },
+    {
+      "binding": "DEMO_DB",
+      "database_name": "restaurant-platform-preview-demo",
+      "database_id": "5e4f9a4d-effe-4047-895a-79c778a1f3cf",
+      "migrations_dir": "database/d1/migrations"
+    }
+  ]
+}
