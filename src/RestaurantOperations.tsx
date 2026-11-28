@@ -179,7 +179,7 @@ export default function RestaurantOperations({ initialSlug = '', initialTab = 'k
     setBusy(table.id); setError('')
     try {
       const result = await request(`/tables/${table.id}/sessions/${table.session_id}/pin`, { method: 'POST', body: '{}' })
-      setNotice(`New table PIN for ${table.label}: ${result.session.guest_pin} (valid for 4 hours). The previous PIN is now invalid.`)
+      setNotice(`New table PIN for ${table.label}: ${result.session.guest_pin} (valid for 2 hours). The previous PIN is now invalid.`)
     } catch (e) { setError(errorMessage(e instanceof Error ? e.message : 'request_failed')) }
     finally { setBusy('') }
   }
