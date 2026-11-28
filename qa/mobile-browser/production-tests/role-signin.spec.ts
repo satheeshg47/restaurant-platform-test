@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test'
 import { api, signIn, QA_CREDENTIALS, DEMO_SLUG } from '../demo-helpers'
 
+test.afterEach(async ({ page }) => {
+  if (!page.url().startsWith('http')) return
+  const session = await api(page, 'GET', '/api/auth/session')
+  if (session.body?.authenticated) {
+    const logout = await api(page, 'POST', '/api/auth/logout')
+    expect(logout.status).toBe(200)
+    expect((await api(page, 'GET', '/api/auth/session')).body.authenticated).toBe(false)
+  }
+})
+
 test('live production Demo Bistro cook, waiter and manager sign in to their assigned dashboards', async ({ page, request }) => {
   const healthResponse = await request.get('/api/health')
   expect(healthResponse.ok()).toBeTruthy()
