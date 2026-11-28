@@ -1,0 +1,71 @@
+RESTAURANT PLATFORM — LIVING HANDOFF
+Last updated: 2026-11-28 18:55 IST (Asia/Kolkata)
+Repository: satheeshg47/restaurant-platform-test
+Default branch: main
+Active branch / PR: main; PR #120 is MERGED (no active PR)
+Latest main commit: 64d11078376b7a51f987d1eefef15e616e2b0c6c
+PR #120 head commit: ce38b19a2c92d031250f06c183cf199571571954
+PR #120 merge commit: 64d11078376b7a51f987d1eefef15e616e2b0c6c
+PR URL: https://github.com/satheeshg47/restaurant-platform-test/pull/120
+
+VERIFICATION
+- PR build/API/migration run #46094743513: SUCCESS
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46094743513
+  API tests, local D1 migrations, PostgreSQL migration validation, frontend build and Worker bundle completed successfully.
+- PR protected mobile/desktop QA run #46094743515: SUCCESS
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46094743515
+  36 passed, 0 failed, 0 skipped. Mobile 390x844: 18 passed. Desktop 1440x900: 18 passed.
+  QA used disposable isolated local D1 and preview environment; no production/demo D1 reset.
+- PR QA artifact #15243321726 (screenshots, Playwright report, PDF walkthrough):
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46094743515/artifacts/15243321726
+  PDF guide generated; 54 screens captured, 0 login-required/unavailable.
+- Post-merge build run #46149036957: SUCCESS
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46149036957
+- Post-merge full browser QA run #46149163139:
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46149163139
+  24 passed, 12 skipped. The 12 skips are production-environment-gated Demo Bistro/staff-only and cook/waiter visual checks; this is distinct from the PR's isolated full QA run, which had 0 skips.
+  Post-merge screenshot/PDF/HTML artifact #15264838485:
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46149163139/artifacts/15264838485
+- Live deployment smoke run #46149151967: SUCCESS
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46149151967
+  Verified production /api/health HTTP 200 (health=ok), /api/ready HTTP 200 (ready; schema=complete; latest migration=0010_table_guest_pin_and_fssai.sql), and /api/auth/session native-auth response (encryption_ready=true). Session unauthenticated and bootstrap_available=false at verification time.
+
+WORKER / DEPLOYMENT
+- Production Worker: https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev
+- Latest known preview Worker: https://fix-thermal-bill-print-isolated-qa-restaurant-platform-test.iamsatheeshgkotegar.workers.dev
+- Cloudflare latest production deployment record: a0f7e68d-48aa-4274-a17e-5a0ed7536377
+- Active Worker version: 642e81c5-c2a9-406b-84b5-ab2a447d4a5b (version #116, 100% traffic), created 2026-11-28 13:20:24 UTC; Worker ENVIRONMENT binding is production.
+- Main commit timestamp is 2026-11-28 13:19:24 UTC; live-smoke run #95 for that exact SHA passed at 13:20:44 UTC. The Cloudflare version record itself does not include a Git SHA annotation.
+- Production Worker bindings include DB and DEMO_DB D1, ASSETS and configured auth/email secrets. Secret values are not recorded here.
+
+PRODUCTION D1 MIGRATIONS (READ-ONLY VERIFIED)
+- DB / restaurant-platform (UUID ed0a6041-9235-495d-8106-a6c642a41c2c): migrations 0001 through 0010_table_guest_pin_and_fssai.sql present. Migration 0010 applied 2026-11-28 00:46:04.
+- DEMO_DB / restaurant-platform-preview (UUID 98846bad-cd3e-4770-8bee-2076774885e6): migrations through 0010_table_guest_pin_and_fssai.sql present. Migration 0010 applied 2026-11-28 00:46:07; prior 0010_account_recovery_and_owner_transfer.sql also present from its own history.
+- Migration verification queries were SELECT-only; rows_written=0. No production or Demo Bistro data reset performed.
+- No paid Cloudflare plan upgrade performed. No quota-bypassing writes were used.
+
+SAFETY / AUTH
+- PR #120 QA reset runs only against a disposable local D1 under ENVIRONMENT=preview.
+- Production demo.* guard must remain blocked outside preview; do not weaken it.
+- Do not reset existing Demo Bistro data.
+- Keep all secret values out of Git and this file.
+
+REMAINING TRANSFER CHECKLIST
+[ ] Confirm destination GitHub account and transfer repository ownership/access; preserve Actions settings, workflows, issues, and branch refs.
+[ ] Transfer/confirm Cloudflare account ownership and access.
+[ ] Transfer D1 databases restaurant-platform and restaurant-platform-preview; preserve data and verify DB bindings after transfer.
+[ ] Transfer Worker restaurant-platform-test and production route/domain configuration.
+[ ] Recreate DB and DEMO_DB bindings against the transferred database UUIDs.
+[ ] Recreate secrets securely in the destination account: AUTH_ENCRYPTION_KEY, PLATFORM_ADMIN_SUBJECT, EMAIL_BRIDGE_SECRET, EMAIL_BRIDGE_URL (and any currently configured secrets); never copy secret values into Git/HANDOFF.
+[ ] Verify any native-auth initial admin provisioning path; current live smoke reports authenticated=false, encryption_ready=true, bootstrap_available=false.
+[ ] After transfer, run /api/health, /api/ready, /api/auth/session and safe public/live smoke checks; verify production and Demo Bistro data remain intact.
+[ ] Confirm the final Worker deployment is on the transferred account and serves the expected main commit.
+
+REMAINING BLOCKERS
+- PR #120 verification, merge, production health/readiness/auth smoke and migration checks are complete.
+- Account transfer is pending.
+- Initial production admin bootstrap is not currently available according to /api/auth/session; resolve/confirm provisioning during transfer before onboarding real restaurants.
+- No external HTTP test could be independently repeated from this agent runtime; rely on the successful GitHub live-smoke run #46149151967 as the verified production endpoint evidence.
+
+NEXT EXACT ACTION
+Start the account-transfer checklist with destination GitHub account ownership/access and Cloudflare account access; do not alter D1 data or production auth guards during transfer.
