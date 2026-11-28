@@ -1,4 +1,5 @@
 import type { Env } from './types.ts'
+import { verifyGuestSessionPin } from './guest-session-security.ts'
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const TOKEN=/^[A-Za-z0-9_-]{43}$/
 const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}})
@@ -19,6 +20,12 @@ async function guestTable(env:Env,tenantId:string,token:string){
 }
 export async function handleGuestLifecycle(request:Request,env:Env,tenantId:string,token:string,parts:string[]):Promise<Response>{
  try{
+  if(parts[4]==='session'&&parts.length===6&&parts[5]==='verify'&&request.method==='POST'){
+   const body=await readBody(request),sessionId=String(body.session_id||'')
+   const table=await guestTable(env,tenantId,token)
+   await verifyGuestSessionPin(env,tenantId,table.id,sessionId,body.pin)
+   return json(200,{verified:true})
+  }
   if(parts[4]==='orders'&&parts.length===6&&request.method==='GET'){
    const table=await guestTable(env,tenantId,token)
    if(!UUID.test(parts[5]))fail(404,'order_not_found')
@@ -33,8 +40,7 @@ export async function handleGuestLifecycle(request:Request,env:Env,tenantId:stri
    const body=await readBody(request),sessionId=String(body.session_id||''),orderId=parts[5]
    if(!UUID.test(orderId)||!UUID.test(sessionId))fail(400,'invalid_cancel_request')
    const table=await guestTable(env,tenantId,token)
-   const session=await env.DB.prepare("SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND id=? AND status='open'").bind(tenantId,table.id,sessionId).first()
-   if(!session)fail(409,'table_session_not_open')
+   await verifyGuestSessionPin(env,tenantId,table.id,sessionId,body.guest_pin)
    const order=await env.DB.prepare('SELECT id FROM restaurant_orders WHERE tenant_id=? AND table_id=? AND session_id=? AND id=?').bind(tenantId,table.id,sessionId,orderId).first()
    if(!order)fail(404,'order_not_found')
    const itemId=body.order_item_id??null
@@ -57,8 +63,7 @@ export async function handleGuestLifecycle(request:Request,env:Env,tenantId:stri
    if(!UUID.test(sessionId)||!['call_waiter','need_water','request_bill','other'].includes(String(requestType)))fail(400,'invalid_service_request')
    const note=typeof body.note==='string'?body.note.trim().slice(0,250):''
    const table=await guestTable(env,tenantId,token)
-   const session=await env.DB.prepare("SELECT id FROM restaurant_table_sessions WHERE tenant_id=? AND table_id=? AND id=? AND status='open'").bind(tenantId,table.id,sessionId).first()
-   if(!session)fail(409,'table_session_not_open')
+   await verifyGuestSessionPin(env,tenantId,table.id,sessionId,body.guest_pin)
    const recent=await env.DB.prepare("SELECT count(*) AS count FROM restaurant_service_requests WHERE tenant_id=? AND session_id=? AND created_at>=datetime('now','-1 minute')").bind(tenantId,sessionId).first<{count:number}>()
    if(Number(recent?.count||0)>=5)fail(429,'service_request_rate_limited')
    const inserted=await env.DB.prepare('INSERT INTO restaurant_service_requests(tenant_id,session_id,table_id,request_type,note) VALUES(?,?,?,?,?) RETURNING id,status,created_at').bind(tenantId,sessionId,table.id,requestType,note).first()
