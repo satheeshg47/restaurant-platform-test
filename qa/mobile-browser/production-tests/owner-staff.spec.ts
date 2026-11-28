@@ -87,9 +87,13 @@ test('production Owner Staff panel opens role links, creates a QA waiter, and re
       await panel.locator('.owner-staff-toolbar').getByRole('button', { name: 'Refresh' }).click()
     }
 
+    const verifiedList = await api(page, 'GET', staffListPath)
+    expect(verifiedList.status).toBe(200)
+    record = verifiedList.body.staff.find((entry: any) => entry.login_id === loginId)
     expect(record, 'The QA staff account must appear in the Owner Staff list').toBeTruthy()
-    staffId = record.staff_id
+    expect(record.active).toBe(true)
     expect(record.role).toBe('waiter')
+    staffId = record.staff_id
 
     staffContext = await browser.newContext({ baseURL: process.env.BASE_URL, viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
     const staffPage = await staffContext.newPage()
