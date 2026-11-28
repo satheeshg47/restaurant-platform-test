@@ -16,9 +16,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, ''
 export default function SignIn({
   role,
   error: initialError = '',
-  returnPath,
   bootstrapAvailable = false,
-  encryptionReady = false,
   onAuthenticated,
 }: Props) {
   const [busy, setBusy] = useState(false)
