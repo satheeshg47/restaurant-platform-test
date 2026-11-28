@@ -46,6 +46,10 @@ export async function createContextPage(browser: Browser, viewport: { width: num
 
 export async function placeGuestOrder(page: Page, token: string, guestPin: string) {
   await page.goto('/r/' + DEMO_SLUG + '/' + token)
+  const wrongPin = guestPin === '000000' ? '000001' : '000000'
+  await page.getByLabel('6-digit table PIN').fill(wrongPin)
+  await page.getByRole('button', { name: 'Verify PIN' }).click()
+  await expect(page.getByRole('alert')).toContainText('table PIN is incorrect')
   await page.getByLabel('6-digit table PIN').fill(guestPin)
   await page.getByRole('button', { name: 'Verify PIN' }).click()
   await expect(page.getByText('Table verified')).toBeVisible()
