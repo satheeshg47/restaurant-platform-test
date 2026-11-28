@@ -3,9 +3,10 @@ Last updated: 2026-11-28 18:55 IST (Asia/Kolkata)
 Repository: satheeshg47/restaurant-platform-test
 Default branch: main
 Active branch / PR: main; PR #120 is MERGED (no active PR)
-Latest main commit: 64d11078376b7a51f987d1eefef15e616e2b0c6c
+Latest application/release commit on main: 64d11078376b7a51f987d1eefef15e616e2b0c6c
 PR #120 head commit: ce38b19a2c92d031250f06c183cf199571571954
 PR #120 merge commit: 64d11078376b7a51f987d1eefef15e616e2b0c6c
+HANDOFF file creation commit: 2097e5578e6569867c0c8210a5b5fafb6c5ade95 (a subsequent documentation-only commit; consult the main branch ref for the current HEAD after later HANDOFF revisions)
 PR URL: https://github.com/satheeshg47/restaurant-platform-test/pull/120
 
 VERIFICATION
@@ -32,10 +33,10 @@ VERIFICATION
 
 WORKER / DEPLOYMENT
 - Production Worker: https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev
-- Latest known preview Worker: https://fix-thermal-bill-print-isolated-qa-restaurant-platform-test.iamsatheeshgkotegar.workers.dev
+- Latest known preview Worker: https://fix-thermal-bill-print-isolated-qa-restaurant-platform-test.workers.dev
 - Cloudflare latest production deployment record: a0f7e68d-48aa-4274-a17e-5a0ed7536377
 - Active Worker version: 642e81c5-c2a9-406b-84b5-ab2a447d4a5b (version #116, 100% traffic), created 2026-11-28 13:20:24 UTC; Worker ENVIRONMENT binding is production.
-- Main commit timestamp is 2026-11-28 13:19:24 UTC; live-smoke run #95 for that exact SHA passed at 13:20:44 UTC. The Cloudflare version record itself does not include a Git SHA annotation.
+- Main release commit timestamp is 2026-11-28 13:19:24 UTC; live-smoke run #95 for that exact SHA passed at 13:20:44 UTC. The Cloudflare version record itself does not include a Git SHA annotation.
 - Production Worker bindings include DB and DEMO_DB D1, ASSETS and configured auth/email secrets. Secret values are not recorded here.
 
 PRODUCTION D1 MIGRATIONS (READ-ONLY VERIFIED)
@@ -65,7 +66,6 @@ REMAINING BLOCKERS
 - PR #120 verification, merge, production health/readiness/auth smoke and migration checks are complete.
 - Account transfer is pending.
 - Initial production admin bootstrap is not currently available according to /api/auth/session; resolve/confirm provisioning during transfer before onboarding real restaurants.
-- No external HTTP test could be independently repeated from this agent runtime; rely on the successful GitHub live-smoke run #46149151967 as the verified production endpoint evidence.
 
 NEXT EXACT ACTION
 Start the account-transfer checklist with destination GitHub account ownership/access and Cloudflare account access; do not alter D1 data or production auth guards during transfer.
