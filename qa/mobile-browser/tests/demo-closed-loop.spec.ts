@@ -102,6 +102,8 @@ test('Guest QR order flows through kitchen, waiter, payment, reports and reviews
   await expect(billModal).toContainText('Masala Dosa')
   await expect(billModal).toContainText('Large')
   await expect(billModal).toContainText('Extra Ghee')
+  await expect(billModal).toContainText('GSTIN: 29ABCDE1234F1Z5')
+  await expect(billModal).toContainText('FSSAI License No: 11223344556677')
   await billModal.getByRole('combobox', { name: 'Thermal printer width' }).selectOption('80')
   await expect(billModal.getByRole('button', { name: 'Print bill' })).toBeVisible()
   await waiterPage.evaluate(() => { (window as any).__printCalls = 0; window.print = () => { (window as any).__printCalls++ } })
