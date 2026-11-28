@@ -57,6 +57,7 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
   await ownerPage.locator('.owner-home-open').first().click()
   await expect(ownerPage.locator('.owner-workspace-sidebar')).toHaveCount(1, { timeout: 20000 })
 
+  if (viewport.width < 500) await ownerPage.locator('.owner-mobile-bottom-nav button').filter({ hasText: 'More' }).click()
   const staffNav = ownerPage.locator('.owner-workspace-sidebar nav button').filter({ hasText: 'Staff access' }).first()
   await staffNav.click()
   const staffPanel = ownerPage.locator('.owner-staff')
