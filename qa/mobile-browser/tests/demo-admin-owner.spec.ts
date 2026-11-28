@@ -57,6 +57,28 @@ test('Demo Bistro one-click Admin entry and authenticated Owner management', asy
   await ownerPage.locator('.owner-home-open').first().click()
   await expect(ownerPage.locator('.owner-workspace-sidebar')).toHaveCount(1, { timeout: 20000 })
 
+  const staffNav = ownerPage.locator('.owner-workspace-sidebar nav button').filter({ hasText: 'Staff access' }).first()
+  await staffNav.click()
+  const staffPanel = ownerPage.locator('.owner-staff')
+  await expect(staffPanel).toBeVisible()
+  const staffSignIn = staffPanel.locator('.owner-staff-signin-link')
+  await expect(staffSignIn.getByRole('link', { name: /Open staff sign-in/ })).toHaveAttribute('href', '/staff?login=1')
+  await ownerPage.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await staffSignIn.getByRole('button', { name: 'Copy staff sign-in link' }).click()
+  await expect(staffPanel.locator('.owner-staff-notice')).toContainText('Staff sign-in link copied.')
+  await ownerPage.evaluate(() => {
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: async (data: any) => { (window as any).__sharedStaffLink = data },
+    })
+  })
+  await staffSignIn.getByRole('button', { name: 'Share staff sign-in link' }).click()
+  const sharedStaffLink = await ownerPage.evaluate(() => (window as any).__sharedStaffLink)
+  expect(sharedStaffLink.url).toBe(new URL('/staff?login=1', ownerPage.url()).toString())
+  const [staffLoginPopup] = await Promise.all([ownerPage.waitForEvent('popup'), staffSignIn.getByRole('link').click()])
+  await expect(staffLoginPopup.getByRole('heading', { name: 'Staff sign in' })).toBeVisible()
+  await staffLoginPopup.close()
+
   const restaurants = await api(ownerPage, 'GET', '/api/owner/restaurants')
   expect(restaurants.status).toBe(200)
   const demo = restaurants.body.restaurants.find((restaurant: any) => restaurant.tenant_slug === DEMO_SLUG)
