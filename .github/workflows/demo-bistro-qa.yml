@@ -89,6 +89,12 @@ jobs:
           if (skipped !== 0) throw new Error('Isolated QA must execute every test; found ' + skipped + ' skipped tests.')
           if (failed !== 0) throw new Error('Isolated QA has ' + failed + ' failed tests.')
           NODE
+      # Demo role sign-ins in the walkthrough are deliberately rate-limited.
+      # Clear only the disposable local QA database's counters after tests; never touch a remote preview or production DB.
+      - name: Clear disposable local QA authentication throttles before walkthrough
+        if: success() && startsWith(env.BASE_URL, 'http://127.0.0.1:')
+        run: |
+          npx wrangler d1 execute restaurant-platform-qa --local --config wrangler.qa.jsonc --command "DELETE FROM platform_auth_rate_limits"
       - name: Capture authenticated screens and regenerate walkthrough PDF
         if: success()
         timeout-minutes: 3
