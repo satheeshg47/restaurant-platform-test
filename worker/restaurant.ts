@@ -211,7 +211,7 @@ async function handleSettings(request: Request, env: Env, actor: TenantActor): P
   if (!current) fail(404, 'restaurant_profile_not_configured')
   const merged: Record<string, unknown> = { ...current, ...body }
   if (typeof merged.display_name !== 'string' || !merged.display_name.trim() || merged.display_name.trim().length > 160) fail(400, 'invalid_settings')
-  if (merged.currency_code !== 'INR' || merged.timezone !== 'Asia/Kolkata' || !['en','hi','kn','ta','te','ml'].includes(String(merged.default_language))) fail(400, 'invalid_settings')
+  if (merged.currency_code !== 'INR' || merged.timezone !== 'Asia/Kolkata' || !['en','hi','kn'].includes(String(merged.default_language))) fail(400, 'invalid_settings')
   if (!['none','single','gst'].includes(String(merged.tax_mode))) fail(400, 'invalid_settings')
   for (const key of ['tax_rate','gst_rate']) {
     const value = Number(merged[key])
