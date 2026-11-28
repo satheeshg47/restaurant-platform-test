@@ -1012,3 +1012,5 @@
 .guest-pin-entry button{min-height:44px}
 .guest-pin-card small{color:var(--muted,#667085);font-size:11px}
 .guest-quick-actions button:disabled{opacity:.42;cursor:not-allowed}
+
+.restaurant-thermal-width{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted,#667085)}.restaurant-thermal-width select{min-height:34px;border:1px solid var(--line,#d0d5dd);border-radius:8px;padding:5px 7px;background:var(--surface,#fff);color:inherit}
