@@ -1,71 +1,77 @@
 RESTAURANT PLATFORM — LIVING HANDOFF
-Last updated: 2026-11-28 18:55 IST (Asia/Kolkata)
+Last updated: 2026-11-28 20:22 IST (Asia/Kolkata)
 Repository: satheeshg47/restaurant-platform-test
 Default branch: main
-Active branch / PR: main; PR #120 is MERGED (no active PR)
-Latest application/release commit on main: 64d11078376b7a51f987d1eefef15e616e2b0c6c
-PR #120 head commit: ce38b19a2c92d031250f06c183cf199571571954
-PR #120 merge commit: 64d11078376b7a51f987d1eefef15e616e2b0c6c
-HANDOFF file creation commit: 2097e5578e6569867c0c8210a5b5fafb6c5ade95 (a subsequent documentation-only commit; consult the main branch ref for the current HEAD after later HANDOFF revisions)
-PR URL: https://github.com/satheeshg47/restaurant-platform-test/pull/120
+Current main application commit: 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
+Current work branch: fix/qa-guide-rate-limit-reset
+Current work commit: 7ab84893d4ed858518e2eced3cdc4e3171b0248f
+Open PR: not created yet; branch change is awaiting CI through a pull request.
+PR #121: MERGED
+PR #121 URL: https://github.com/satheeshg47/restaurant-platform-test/pull/121
+PR #121 head: 66b4e9e6b572b28822e5b9b163717da3de6a150e
+PR #121 merge commit: 8384b23f3b7e7de0ff30b3590daac42cc50bf4f3
+PR #121 summary: production Demo Bistro owner/cook/waiter/manager identities authenticate through isolated DEMO_DB; demo.admin remains preview-only; Owner Staff panel exposes role-specific /staff?login=1 links and demo credentials.
 
-VERIFICATION
-- PR build/API/migration run #46094743513: SUCCESS
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46094743513
-  API tests, local D1 migrations, PostgreSQL migration validation, frontend build and Worker bundle completed successfully.
-- PR protected mobile/desktop QA run #46094743515: SUCCESS
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46094743515
-  36 passed, 0 failed, 0 skipped. Mobile 390x844: 18 passed. Desktop 1440x900: 18 passed.
-  QA used disposable isolated local D1 and preview environment; no production/demo D1 reset.
-- PR QA artifact #15243321726 (screenshots, Playwright report, PDF walkthrough):
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46094743515/artifacts/15243321726
-  PDF guide generated; 54 screens captured, 0 login-required/unavailable.
-- Post-merge build run #46149036957: SUCCESS
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46149036957
-- Post-merge full browser QA run #46149163139:
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46149163139
-  24 passed, 12 skipped. The 12 skips are production-environment-gated Demo Bistro/staff-only and cook/waiter visual checks; this is distinct from the PR's isolated full QA run, which had 0 skips.
-  Post-merge screenshot/PDF/HTML artifact #15264838485:
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46149163139/artifacts/15264838485
-- Live deployment smoke run #46149151967: SUCCESS
-  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46149151967
-  Verified production /api/health HTTP 200 (health=ok), /api/ready HTTP 200 (ready; schema=complete; latest migration=0010_table_guest_pin_and_fssai.sql), and /api/auth/session native-auth response (encryption_ready=true). Session unauthenticated and bootstrap_available=false at verification time.
+LATEST VERIFICATION — 2026-11-28
+- PR #121 Build and test run #46152083245: SUCCESS.
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46152083245
+- PR #121 authenticated Playwright run #46152083256: overall workflow FAILURE only because the final walkthrough PDF capture step hit an auth throttle; the test step itself passed 36/36 with 0 failures and 0 skips.
+  https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46152083256
+- Mobile 390x844: 18 passed. Desktop 1440x900: 18 passed.
+- Tests covered isolated preview/local-D1 Owner flow, Owner -> Cook staff login, Cook and Waiter role-only dashboards, two concurrent guest orders on two tables, invalid PIN then valid PIN, kitchen grouping with table breakdown, water/call-waiter/bill requests, KOT print invocation at 58mm, bill print invocation at 80mm, GST/FSSAI invoice fields, payment, session close, reviews and reports.
+- Walkthrough capture failed in guestCapture: demo.owner login returned HTTP 429 too_many_attempts after the test suite had already consumed the local preview auth rate-limit bucket. This is a QA harness ordering/cleanup issue, not evidence of a production auth failure.
+- Artifact from failed overall run (contains test report/screenshots): https://github.com/satheeshg47/restaurant-platform-test/actions/runs/46152083256/artifacts/15266361282
+- Targeted fix committed on work branch: 7ab84893d4ed858518e2eced3cdc4e3171b0248f. It adds a workflow step that deletes platform_auth_rate_limits ONLY in the disposable local D1 instance (127.0.0.1 QA target) after tests and before walkthrough capture. It does not run against remote preview or production. CI rerun is still required.
+- Earlier PR #120 isolated QA: 36 passed, 0 failed, 0 skipped; build and post-merge smoke passed. PR #120 details are retained in repository history.
 
-WORKER / DEPLOYMENT
-- Production Worker: https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev
-- Latest known preview Worker: https://fix-thermal-bill-print-isolated-qa-restaurant-platform-test.workers.dev
-- Cloudflare latest production deployment record: a0f7e68d-48aa-4274-a17e-5a0ed7536377
-- Active Worker version: 642e81c5-c2a9-406b-84b5-ab2a447d4a5b (version #116, 100% traffic), created 2026-11-28 13:20:24 UTC; Worker ENVIRONMENT binding is production.
-- Main release commit timestamp is 2026-11-28 13:19:24 UTC; live-smoke run #95 for that exact SHA passed at 13:20:44 UTC. The Cloudflare version record itself does not include a Git SHA annotation.
-- Production Worker bindings include DB and DEMO_DB D1, ASSETS and configured auth/email secrets. Secret values are not recorded here.
+PRODUCTION WORKER / CLOUDFLARE — READ-ONLY VERIFIED
+- URL: https://restaurant-platform-test.iamsatheeshgkotegar.workers.dev
+- Latest production deployment: 0a7fcc6d-5ee0-44cb-b24f-c50a4f6cc605
+- Active version: 96a6d833-2920-486a-8295-db5234b68d2b (Worker version #119; 100% traffic).
+- Version created 2026-11-28 13:59:18 UTC, shortly after PR #121 merge at 13:58:28 UTC.
+- Worker ENVIRONMENT binding: production.
+- Version #119 bindings verified: DB -> restaurant-platform (UUID ed0a6041-9235-495d-8106-a6c642a41c2c); DEMO_DB -> restaurant-platform-preview (UUID 98846bad-cd3e-4770-8bee-2076774885e6). They are distinct bindings to distinct databases. ASSETS and expected auth/email secrets are present; secret values are not recorded.
+- No paid Cloudflare upgrade made.
 
-PRODUCTION D1 MIGRATIONS (READ-ONLY VERIFIED)
-- DB / restaurant-platform (UUID ed0a6041-9235-495d-8106-a6c642a41c2c): migrations 0001 through 0010_table_guest_pin_and_fssai.sql present. Migration 0010 applied 2026-11-28 00:46:04.
-- DEMO_DB / restaurant-platform-preview (UUID 98846bad-cd3e-4770-8bee-2076774885e6): migrations through 0010_table_guest_pin_and_fssai.sql present. Migration 0010 applied 2026-11-28 00:46:07; prior 0010_account_recovery_and_owner_transfer.sql also present from its own history.
-- Migration verification queries were SELECT-only; rows_written=0. No production or Demo Bistro data reset performed.
-- No paid Cloudflare plan upgrade performed. No quota-bypassing writes were used.
+D1 DATA PRESERVATION — SELECT-ONLY VERIFICATION
+- DEMO_DB contains active Demo Bistro tenant (slug platform-demo-restaurant).
+- DEMO_DB contains active credentials and memberships for demo.owner (owner), demo.cook (cook), demo.waiter (waiter), and demo.manager (manager). Read-only SQL confirmed the correct staff_role and active flags.
+- Production DB contains a separate sample tenant; Demo Bistro tenant was not present in the production DB tenant query.
+- Schema inspection and role/tenant queries used SELECT / PRAGMA only; rows_written=0, changed_db=false. No D1 mutation, reset, migration, synthetic production order, or cleanup was performed in this session.
+- Do not reset or wipe either production DB or existing Demo Bistro DEMO_DB.
 
-SAFETY / AUTH
-- PR #120 QA reset runs only against a disposable local D1 under ENVIRONMENT=preview.
-- Production demo.* guard must remain blocked outside preview; do not weaken it.
-- Do not reset existing Demo Bistro data.
-- Keep all secret values out of Git and this file.
+AUTH CODE REVIEW
+- worker/native-auth.ts rejects demo.admin outside ENVIRONMENT=preview.
+- Other demo.* owner/staff identities are accepted in production only when DEMO_DB is configured.
+- Login falls back from DB to DEMO_DB for demo credentials and creates their session in the same selected database; session authentication checks both databases.
+- This is source/binding review plus seed-data verification, NOT an actual browser credential sign-in test against the live Worker.
+- Owner Staff panel contains Cook, Waiter and Manager links to /staff?login=1.
+- Keep demo.admin preview-only. Do not weaken production administrator authentication or tenant/role guards.
 
-REMAINING TRANSFER CHECKLIST
-[ ] Confirm destination GitHub account and transfer repository ownership/access; preserve Actions settings, workflows, issues, and branch refs.
-[ ] Transfer/confirm Cloudflare account ownership and access.
-[ ] Transfer D1 databases restaurant-platform and restaurant-platform-preview; preserve data and verify DB bindings after transfer.
-[ ] Transfer Worker restaurant-platform-test and production route/domain configuration.
-[ ] Recreate DB and DEMO_DB bindings against the transferred database UUIDs.
-[ ] Recreate secrets securely in the destination account: AUTH_ENCRYPTION_KEY, PLATFORM_ADMIN_SUBJECT, EMAIL_BRIDGE_SECRET, EMAIL_BRIDGE_URL (and any currently configured secrets); never copy secret values into Git/HANDOFF.
-[ ] Verify any native-auth initial admin provisioning path; current live smoke reports authenticated=false, encryption_ready=true, bootstrap_available=false.
-[ ] After transfer, run /api/health, /api/ready, /api/auth/session and safe public/live smoke checks; verify production and Demo Bistro data remain intact.
-[ ] Confirm the final Worker deployment is on the transferred account and serves the expected main commit.
+IMPORTANT VERIFICATION LIMITS / REMAINING TESTS
+- Actual live browser sign-in against the production URL for demo.owner, demo.cook, demo.waiter and demo.manager is NOT yet verified in this run. The available execution environment could not reach the public Worker URL and no remote browser session was available. Do not claim live login success based on local preview tests or D1 seed rows.
+- PR #121 added a Cook switch test; existing isolated smoke tests cover Cook and Waiter. Manager dashboard sign-in is not explicitly covered by the current automated test suite and must be added.
+- Owner staff access add/revoke flow is covered in isolated QA; production owner panel and copy/share behavior still need live browser verification.
+- Closed-loop QA currently runs two simultaneous guest orders across two tables per viewport. This is not a 30-user/30-order burst test and is not a D1 quota/rate-limit stress test.
+- Add further isolated cycles covering Half/Full portions, mixed Veg/Egg/Non-Veg, add-ons, Kannada distinction between boiled rice and parboiled rice, stale PIN rejection, multiple customer service requests, payment/closure, reviews/reports, atomic order numbering under bursts, and 429/500/1101/D1 write-limit telemetry. Keep load tests inside isolated local D1; avoid quota-bypassing production writes.
+- Browser print tests intercept window.print and validate 58mm KOT / 80mm bill CSS and GST/FSSAI content. Physical 58mm and 80mm printer checks remain pending.
+- The Cloudflare Worker API metadata and D1 queries are read-only. Live health/readiness/session smoke for version #119 still needs a direct external request or CI smoke run.
+- Account transfer to satheeshg047-hub remains pending. Preserve repository, workflows, Actions settings, Worker, D1 databases, bindings and secrets during transfer; never place secret values in Git/HANDOFF.
+- Production admin bootstrap was previously reported unavailable (bootstrap_available=false). Resolve the supported initial admin provisioning path before real restaurant onboarding; do not weaken guards.
 
-REMAINING BLOCKERS
-- PR #120 verification, merge, production health/readiness/auth smoke and migration checks are complete.
-- Account transfer is pending.
-- Initial production admin bootstrap is not currently available according to /api/auth/session; resolve/confirm provisioning during transfer before onboarding real restaurants.
+NEXT ACTIONS
+1. Create PR from fix/qa-guide-rate-limit-reset and verify Build + authenticated Playwright + PDF walkthrough. Confirm 36 tests pass and walkthrough completes.
+2. Extend isolated Playwright coverage for Manager login and additional order cycles / burst concurrency, with synthetic data confined to disposable local D1.
+3. Arrange a non-destructive production browser QA run for the four demo roles and verify each active session and dashboard. Keep demo.admin rejection as a negative security test.
+4. Verify Owner Staff links/copy/share, add and revoke a temporary staff account only in the isolated Demo Bistro QA environment; do not modify production demo data during live verification.
+5. Run safe production health/readiness/session checks and review Worker error/429/500/1101 telemetry without mutating production orders.
+6. Complete physical 58mm/80mm printer checks.
+7. Continue GitHub and Cloudflare account transfer to satheeshg047-hub only after preserving all resources and confirming access.
 
-NEXT EXACT ACTION
-Start the account-transfer checklist with destination GitHub account ownership/access and Cloudflare account access; do not alter D1 data or production auth guards during transfer.
+AUTONOMOUS EXECUTION SAFETY
+- Continue fix -> test -> review -> repeat; no routine check-ins.
+- Never upgrade Cloudflare to a paid plan without explicit approval.
+- Never weaken demo.admin preview-only restriction or tenant authorization.
+- Keep DB and DEMO_DB strictly separate.
+- Never casually reset or wipe production DB or existing Demo Bistro DEMO_DB.
+- Never record secret values in Git, issues, logs, or this handoff.
